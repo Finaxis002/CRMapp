@@ -360,7 +360,10 @@ const DashboardScreen = ({ navigation }) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.root, { backgroundColor: colors.cardBg }]}>
+      <SafeAreaView
+        edges={['bottom']}
+        style={[styles.root, { backgroundColor: colors.cardBg }]}
+      >
         <ScrollView contentContainerStyle={styles.container}>
           <View style={styles.header}>
             <View>
@@ -515,7 +518,10 @@ const DashboardScreen = ({ navigation }) => {
 
   if (error) {
     return (
-      <SafeAreaView style={[styles.root, { backgroundColor: colors.cardBg }]}>
+      <SafeAreaView
+        edges={['bottom']}
+        style={[styles.root, { backgroundColor: colors.cardBg }]}
+      >
         <View style={styles.container}>
           <Text style={[styles.title, { color: colors.text1 }]}>Dashboard</Text>
           <Text style={[styles.errorText, { color: colors.red }]}>{error}</Text>
@@ -776,6 +782,7 @@ const DashboardScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView
+      edges={['bottom']}
       style={[styles.root, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}
     >
       <ScrollView contentContainerStyle={styles.container}>
