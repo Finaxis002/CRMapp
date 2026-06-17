@@ -1,12 +1,9 @@
-import React from 'react';
-import { Dimensions } from 'react-native';
-import { createDrawerNavigator } from '@react-navigation/drawer';
+import React, { useState } from 'react';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import CustomDrawerContent from '../components/layout/CustomDrawerContent';
 import Topbar from '../components/layout/Topbar';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const DRAWER_WIDTH = SCREEN_WIDTH * 0.8;
+import CustomSidebar from '../components/layout/CustomSidebar';
+import { SidebarProvider } from '../contexts/SidebarContext';
 
 // Screens
 import DashboardScreen from '../screens/main/DashboardScreen';
@@ -24,54 +21,53 @@ import ReportsScreen from '../screens/main/ReportsScreen';
 import NotificationsScreen from '../screens/main/NotificationsScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
 
-const Drawer = createDrawerNavigator();
+const Stack = createNativeStackNavigator();
 
 const MainNavigator = () => {
+  // Track current route name so CustomSidebar (rendered OUTSIDE the navigator)
+  // can highlight the active item
+  const [currentRoute, setCurrentRoute] = useState('Dashboard');
+
   return (
-    <Drawer.Navigator
-      drawerContent={props => <CustomDrawerContent {...props} />}
-      screenOptions={{
-        header: props => <Topbar {...props} />,
-        drawerStyle: {
-          width: DRAWER_WIDTH,
-        },
-        drawerType: 'slide',
-        overlayColor: 'rgba(0, 0, 0, 0.5)',
-        swipeEnabled: true,
-        swipeEdgeWidth: 30,
-      }}
-    >
-      <Drawer.Screen name="Dashboard" component={DashboardScreen} />
-      <Drawer.Screen name="Leads" component={LeadsScreen} />
-      <Drawer.Screen name="Pipeline" component={PipelineScreen} />
-      <Drawer.Screen name="Calendar" component={CalendarScreen} />
-      <Drawer.Screen
-        name="Payments"
-        component={PaymentsScreen}
-        options={{ drawerLabel: 'Payments' }}
-      />
-      <Drawer.Screen name="Attendance" component={AttendanceScreen} />
-      <Drawer.Screen name="Import" component={ImportScreen} />
-      <Drawer.Screen name="CrossSell" component={CrossSellDashboardScreen} />
+    <SidebarProvider>
+      {/* Custom sidebar rendered ONCE above everything */}
+      <CustomSidebar currentRoute={currentRoute} />
 
-      {/* Admin section (filtered in CustomDrawerContent) */}
-      <Drawer.Screen name="Team" component={TeamScreen} />
-      <Drawer.Screen name="AdminPanel" component={AdminPanelScreen} />
-      <Drawer.Screen name="Integrations" component={IntegrationScreen} />
-      <Drawer.Screen name="Reports" component={ReportsScreen} />
+      <Stack.Navigator
+        screenOptions={{
+          header: props => <Topbar {...props} />,
+        }}
+        screenListeners={{
+          state: e => {
+            const state = e?.data?.state;
+            if (!state || !state.routes || state.index == null) return;
+            const route = state.routes[state.index];
+            if (route?.name && route.name !== currentRoute) {
+              setCurrentRoute(route.name);
+            }
+          },
+        }}
+      >
+        <Stack.Screen name="Dashboard" component={DashboardScreen} />
+        <Stack.Screen name="Leads" component={LeadsScreen} />
+        <Stack.Screen name="Pipeline" component={PipelineScreen} />
+        <Stack.Screen name="Calendar" component={CalendarScreen} />
+        <Stack.Screen name="Payments" component={PaymentsScreen} />
+        <Stack.Screen name="Attendance" component={AttendanceScreen} />
+        <Stack.Screen name="Import" component={ImportScreen} />
+        <Stack.Screen name="CrossSell" component={CrossSellDashboardScreen} />
 
-      {/* Hidden from drawer (accessed via header icons) */}
-      <Drawer.Screen
-        name="Notifications"
-        component={NotificationsScreen}
-        options={{ drawerItemStyle: { display: 'none' } }}
-      />
-      <Drawer.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{ drawerItemStyle: { display: 'none' } }}
-      />
-    </Drawer.Navigator>
+        {/* Admin section */}
+        <Stack.Screen name="Team" component={TeamScreen} />
+        <Stack.Screen name="AdminPanel" component={AdminPanelScreen} />
+        <Stack.Screen name="Integrations" component={IntegrationScreen} />
+        <Stack.Screen name="Reports" component={ReportsScreen} />
+
+        {/* Accessed from header icons (not from sidebar) */}
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
+      </Stack.Navigator>
+    </SidebarProvider>
   );
 };
 

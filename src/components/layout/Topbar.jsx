@@ -13,6 +13,7 @@ import {
   setGlobalSearch,
   clearGlobalSearch,
 } from '../../store/slices/searchSlice';
+import { useSidebar } from '../../contexts/SidebarContext';
 
 const BRAND = '#5a7bf6';
 
@@ -43,6 +44,7 @@ const initials = (name = '') =>
 const Topbar = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
+  const { toggleSidebar } = useSidebar();
   const { user } = useSelector(state => state.auth);
   const { unreadCount } = useSelector(state => state.notifications);
   const searchQuery = useSelector(state => state.search.query);
@@ -57,7 +59,7 @@ const Topbar = ({ navigation, route }) => {
         <View style={styles.leftSection}>
           <TouchableOpacity
             style={styles.iconButton}
-            onPress={() => navigation.toggleDrawer()}
+            onPress={() => toggleSidebar()}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Icon name="menu" size={24} color="#334155" />
