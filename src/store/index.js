@@ -15,6 +15,15 @@ export const store = configureStore({
     notifications: notificationReducer,
     search: searchReducer,
   },
+  middleware: getDefaultMiddleware =>
+    getDefaultMiddleware({
+      serializableCheck: {
+        warnAfter: 500,
+      },
+      immutableCheck: {
+        warnAfter: 500,
+      },
+    }),
 });
 
 export default store;
