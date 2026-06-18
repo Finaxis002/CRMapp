@@ -256,11 +256,12 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
             mode="date"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
             minimumDate={new Date()}
-            onChange={(event, selectedDate) => {
-              setPickerTarget(null);
+            onValueChange={(event, selectedDate) => {
               if (event?.type === 'dismissed') return;
+              setPickerTarget(null);
               if (selectedDate) setReactivationDate(toInputDate(selectedDate));
             }}
+            onDismiss={() => setPickerTarget(null)}
           />
         ) : null}
         {pickerTarget === 'time' ? (
@@ -272,11 +273,12 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
             }
             mode="time"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, selectedDate) => {
-              setPickerTarget(null);
+            onValueChange={(event, selectedDate) => {
               if (event?.type === 'dismissed') return;
+              setPickerTarget(null);
               if (selectedDate) setReactivationTime(toInputTime(selectedDate));
             }}
+            onDismiss={() => setPickerTarget(null)}
           />
         ) : null}
       </View>
@@ -2181,13 +2183,16 @@ const DateTimeField = ({
           mode={mode}
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           minimumDate={mode === 'date' ? new Date() : undefined}
-          onChange={(event, selectedDate) => {
-            setPickerTargets(p => ({ ...p, [openKey]: null }));
+          onValueChange={(event, selectedDate) => {
             if (event?.type === 'dismissed') return;
+            setPickerTargets(p => ({ ...p, [openKey]: null }));
             if (selectedDate) {
               if (mode === 'time') onChange(toInputTime(selectedDate));
               else onChange(toInputDate(selectedDate));
             }
+          }}
+          onDismiss={() => {
+            setPickerTargets(p => ({ ...p, [openKey]: null }));
           }}
         />
       ) : null}

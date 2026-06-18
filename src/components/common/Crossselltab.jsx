@@ -694,10 +694,10 @@ const CrossSellTab = ({ lead, onSaved }) => {
           mode={pickerTarget.field === 'date' ? 'date' : 'time'}
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           minimumDate={pickerTarget.field === 'date' ? new Date() : undefined}
-          onChange={(event, selectedDate) => {
-            if (Platform.OS === 'android') setPickerTarget(null);
+          onValueChange={(event, selectedDate) => {
             if (event?.type === 'dismissed') return;
             if (selectedDate) {
+              if (Platform.OS === 'android') setPickerTarget(null);
               updateScheduleField(
                 pickerTarget.svc,
                 pickerTarget.field,
@@ -706,6 +706,9 @@ const CrossSellTab = ({ lead, onSaved }) => {
                   : toTimeString(selectedDate),
               );
             }
+          }}
+          onDismiss={() => {
+            if (Platform.OS === 'android') setPickerTarget(null);
           }}
         />
       ) : null}

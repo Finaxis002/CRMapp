@@ -803,7 +803,8 @@ const InteractionsTab = ({
                       }
                       mode="date"
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onChange={(event, selectedDate) => {
+                      onValueChange={(event, selectedDate) => {
+                        if (event?.type === 'dismissed') return;
                         setShowDatePicker(Platform.OS === 'ios');
                         if (selectedDate) {
                           const dateString = selectedDate
@@ -815,6 +816,9 @@ const InteractionsTab = ({
                           }));
                         }
                       }}
+                      onDismiss={() =>
+                        setShowDatePicker(Platform.OS === 'android')
+                      }
                     />
                   )}
                 </View>

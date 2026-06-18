@@ -245,15 +245,18 @@ const PaymentHistoryItem = ({ payment, onUpdated }) => {
               }
               mode="date"
               display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, selectedDate) => {
-                if (Platform.OS === 'android') setShowDatePicker(false);
+              onValueChange={(event, selectedDate) => {
                 if (event?.type === 'dismissed') return;
                 if (selectedDate) {
+                  if (Platform.OS === 'android') setShowDatePicker(false);
                   setEditForm(f => ({
                     ...f,
                     paymentDate: toInputDate(selectedDate),
                   }));
                 }
+              }}
+              onDismiss={() => {
+                if (Platform.OS === 'android') setShowDatePicker(false);
               }}
             />
           ) : null}
