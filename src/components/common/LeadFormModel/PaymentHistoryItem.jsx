@@ -1,13 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Alert,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import Feather from 'react-native-vector-icons/Feather';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import axios from 'axios';
 
 const PAYMENT_MODES = [
   'UPI',
@@ -21,10 +27,26 @@ const PAYMENT_MODES = [
 
 const PAYMENT_STATUS = ['Paid', 'Partial', 'Pending', 'Overdue', 'Cancelled'];
 
+const statusStyle = status => {
+  if (status === 'Paid') return { bg: '#d1fae5', text: '#065f46' };
+  if (status === 'Pending') return { bg: '#fef3c7', text: '#92400e' };
+  if (status === 'Overdue') return { bg: '#fee2e2', text: '#991b1b' };
+  if (status === 'Partial') return { bg: '#e0f2fe', text: '#075985' };
+  return { bg: '#f1f5f9', text: '#334155' };
+};
+
+const toInputDate = date => {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 const PaymentHistoryItem = ({ payment, onUpdated }) => {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [editForm, setEditForm] = useState({
     amount: String(payment.amount || ''),
     paymentMode: payment.paymentMode || 'UPI',
@@ -49,70 +71,62 @@ const PaymentHistoryItem = ({ payment, onUpdated }) => {
 
   const handleSave = async () => {
     if (!editForm.amount || Number(editForm.amount) <= 0) {
-      alert('Valid amount required.');
+      Alert.alert('Validation', 'Valid amount required.');
       return;
     }
 
     setSaving(true);
     try {
-      // TODO: Replace with actual API call
-      // await api.put(`/payments/${payment._id}`, editForm);
+      const token = await AsyncStorage.getItem('accessToken');
+      const { data } = await axios.put(
+        `/api/v1/payments/${payment._id}`,
+        {
+          amount: Number(editForm.amount),
+          paymentMode: editForm.paymentMode,
+          status: editForm.status,
+          paymentDate: editForm.paymentDate || undefined,
+          reference: editForm.reference.trim() || undefined,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
-      setTimeout(() => {
-        setEditing(false);
-        if (onUpdated) {
-          onUpdated({
-            ...payment,
-            ...editForm,
-            amount: Number(editForm.amount),
-          });
-        }
-        setSaving(false);
-      }, 800);
+      Alert.alert('Success', 'Payment updated successfully.');
+      setEditing(false);
+      if (onUpdated) onUpdated(data.data);
     } catch (err) {
-      alert('Failed to update payment');
+      Alert.alert(
+        'Error',
+        err?.response?.data?.message || 'Unable to update payment.',
+      );
+    } finally {
       setSaving(false);
     }
   };
 
-  const getStatusStyle = status => {
-    switch (status) {
-      case 'Paid':
-        return { backgroundColor: '#d1fae5', color: '#065f46' };
-      case 'Partial':
-        return { backgroundColor: '#bae6fd', color: '#0369a1' };
-      case 'Pending':
-        return { backgroundColor: '#fef3c7', color: '#92400e' };
-      case 'Overdue':
-        return { backgroundColor: '#fee2e2', color: '#991b1b' };
-      default:
-        return { backgroundColor: '#f1f5f9', color: '#475569' };
-    }
-  };
-
-  // ==================== VIEW MODE ====================
   if (!editing) {
+    const st = statusStyle(payment.status);
     return (
-      <View style={styles.card}>
-        <View style={styles.row}>
-          {/* Left Content */}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Amount</Text>
-            <Text style={styles.amount}>
-              ₹{Number(payment.amount || 0).toLocaleString('en-IN')}
+      <View style={styles.viewCard}>
+        <View style={styles.viewTopRow}>
+          <View style={styles.flex1}>
+            <Text style={styles.upperLabel}>Amount</Text>
+            <Text style={styles.amountText}>
+              ₹{(Number(payment.amount) || 0).toLocaleString('en-IN')}
             </Text>
 
-            <View style={styles.tagsRow}>
-              <View style={styles.tag}>
-                <Text style={styles.tagLabel}>Mode</Text>
-                <Text style={styles.tagValue}>
+            <View style={styles.metaWrap}>
+              <View style={styles.metaPill}>
+                <Text style={styles.metaLabel}>Mode</Text>
+                <Text style={styles.metaValue}>
                   {payment.paymentMode || '—'}
                 </Text>
               </View>
 
-              <View style={styles.tag}>
-                <Text style={styles.tagLabel}>Date</Text>
-                <Text style={styles.tagValue}>
+              <View style={styles.metaPill}>
+                <Text style={styles.metaLabel}>Date</Text>
+                <Text style={styles.metaValue}>
                   {payment.paymentDate
                     ? new Date(payment.paymentDate).toLocaleDateString(
                         'en-IN',
@@ -128,32 +142,26 @@ const PaymentHistoryItem = ({ payment, onUpdated }) => {
             </View>
 
             {payment.reference ? (
-              <Text style={styles.reference}>
+              <Text style={styles.referenceText}>
                 Ref:{' '}
-                <Text style={{ fontWeight: '600' }}>{payment.reference}</Text>
+                <Text style={styles.referenceStrong}>{payment.reference}</Text>
               </Text>
             ) : null}
           </View>
 
-          {/* Right Side */}
-          <View style={styles.rightSection}>
-            <View style={[styles.statusBadge, getStatusStyle(payment.status)]}>
-              <Text
-                style={[
-                  styles.statusText,
-                  { color: getStatusStyle(payment.status).color },
-                ]}
-              >
+          <View style={styles.rightBlock}>
+            <View style={[styles.statusBadge, { backgroundColor: st.bg }]}>
+              <Text style={[styles.statusText, { color: st.text }]}>
                 {payment.status || '—'}
               </Text>
             </View>
 
             <TouchableOpacity
-              style={styles.editButton}
               onPress={() => setEditing(true)}
+              style={styles.editBtn}
             >
-              <Feather name="edit-2" size={14} color="#6366f1" />
-              <Text style={styles.editText}>Edit</Text>
+              <Icon name="pencil-outline" size={14} color="#4338ca" />
+              <Text style={styles.editBtnText}>Edit</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -161,40 +169,35 @@ const PaymentHistoryItem = ({ payment, onUpdated }) => {
     );
   }
 
-  // ==================== EDIT MODE ====================
   return (
     <View style={styles.editCard}>
       <View style={styles.editHeader}>
         <Text style={styles.editTitle}>Edit payment</Text>
         <TouchableOpacity onPress={() => setEditing(false)}>
-          <Text style={{ color: '#64748b', fontSize: 13 }}>Cancel</Text>
+          <Text style={styles.cancelLink}>Cancel</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Amount + Status */}
-      <View style={styles.inputRow}>
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Amount (₹)</Text>
+      <View style={styles.gridRow}>
+        <View style={styles.flex1}>
+          <Text style={styles.formLabel}>Amount (₹)</Text>
           <TextInput
-            value={editForm.amount}
-            onChangeText={text =>
-              setEditForm(prev => ({ ...prev, amount: text }))
-            }
             keyboardType="numeric"
+            value={editForm.amount}
+            onChangeText={value => setEditForm(f => ({ ...f, amount: value }))}
             style={styles.input}
-            placeholder="0"
           />
         </View>
-
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Status</Text>
-          <View style={styles.pickerWrapper}>
+        <View style={styles.flex1}>
+          <Text style={styles.formLabel}>Status</Text>
+          <View style={styles.pickerWrap}>
             <Picker
               selectedValue={editForm.status}
-              onValueChange={itemValue =>
-                setEditForm(prev => ({ ...prev, status: itemValue }))
+              onValueChange={value =>
+                setEditForm(f => ({ ...f, status: value }))
               }
               style={styles.picker}
+              mode="dropdown"
             >
               {PAYMENT_STATUS.map(status => (
                 <Picker.Item key={status} label={status} value={status} />
@@ -204,17 +207,17 @@ const PaymentHistoryItem = ({ payment, onUpdated }) => {
         </View>
       </View>
 
-      {/* Mode + Date */}
-      <View style={styles.inputRow}>
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Mode</Text>
-          <View style={styles.pickerWrapper}>
+      <View style={styles.gridRow}>
+        <View style={styles.flex1}>
+          <Text style={styles.formLabel}>Mode</Text>
+          <View style={styles.pickerWrap}>
             <Picker
               selectedValue={editForm.paymentMode}
-              onValueChange={itemValue =>
-                setEditForm(prev => ({ ...prev, paymentMode: itemValue }))
+              onValueChange={value =>
+                setEditForm(f => ({ ...f, paymentMode: value }))
               }
               style={styles.picker}
+              mode="dropdown"
             >
               {PAYMENT_MODES.map(mode => (
                 <Picker.Item key={mode} label={mode} value={mode} />
@@ -222,48 +225,69 @@ const PaymentHistoryItem = ({ payment, onUpdated }) => {
             </Picker>
           </View>
         </View>
-
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Date</Text>
-          <TextInput
-            value={editForm.paymentDate}
-            onChangeText={text =>
-              setEditForm(prev => ({ ...prev, paymentDate: text }))
-            }
-            placeholder="YYYY-MM-DD"
-            style={styles.input}
-          />
+        <View style={styles.flex1}>
+          <Text style={styles.formLabel}>Date</Text>
+          <TouchableOpacity
+            onPress={() => setShowDatePicker(true)}
+            style={styles.dateBtn}
+          >
+            <Text style={styles.dateBtnText}>
+              {editForm.paymentDate || 'Select date'}
+            </Text>
+            <Icon name="calendar-month-outline" size={16} color="#64748b" />
+          </TouchableOpacity>
+          {showDatePicker ? (
+            <DateTimePicker
+              value={
+                editForm.paymentDate
+                  ? new Date(`${editForm.paymentDate}T00:00:00`)
+                  : new Date()
+              }
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(event, selectedDate) => {
+                if (Platform.OS === 'android') setShowDatePicker(false);
+                if (event?.type === 'dismissed') return;
+                if (selectedDate) {
+                  setEditForm(f => ({
+                    ...f,
+                    paymentDate: toInputDate(selectedDate),
+                  }));
+                }
+              }}
+            />
+          ) : null}
         </View>
       </View>
 
-      {/* Reference */}
-      <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>Reference</Text>
+      <View>
+        <Text style={styles.formLabel}>Reference</Text>
         <TextInput
           value={editForm.reference}
-          onChangeText={text =>
-            setEditForm(prev => ({ ...prev, reference: text }))
-          }
-          placeholder="Transaction ID / UTR"
+          onChangeText={value => setEditForm(f => ({ ...f, reference: value }))}
           style={styles.input}
+          placeholder="Transaction ID / UTR"
+          placeholderTextColor="#9ca3af"
         />
       </View>
 
-      {/* Buttons */}
-      <View style={styles.buttonRow}>
+      <View style={styles.actionsRow}>
         <TouchableOpacity
-          style={styles.cancelBtn}
           onPress={() => setEditing(false)}
+          style={styles.cancelBtn}
         >
-          <Text style={styles.cancelText}>Cancel</Text>
+          <Text style={styles.cancelBtnText}>Cancel</Text>
         </TouchableOpacity>
-
         <TouchableOpacity
-          style={[styles.saveBtn, saving && { opacity: 0.6 }]}
           onPress={handleSave}
           disabled={saving}
+          style={[styles.saveBtn, saving && styles.disabled]}
         >
-          <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save'}</Text>
+          {saving ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.saveBtnText}>Save</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -271,163 +295,143 @@ const PaymentHistoryItem = ({ payment, onUpdated }) => {
 };
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#fff',
+  flex1: { flex: 1 },
+  viewCard: {
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    padding: 14,
-    marginBottom: 10,
+    backgroundColor: '#fff',
+    padding: 12,
   },
-  row: {
+  viewTopRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    gap: 12,
   },
-  label: {
+  upperLabel: {
     fontSize: 11,
-    color: '#64748b',
-    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: '#94a3b8',
   },
-  amount: {
-    fontSize: 16,
+  amountText: {
+    marginTop: 4,
+    fontSize: 14,
     fontWeight: '700',
     color: '#0f172a',
   },
-  tagsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 10,
-  },
-  tag: {
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  tagLabel: {
-    fontSize: 10,
-    color: '#64748b',
-  },
-  tagValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-    marginTop: 1,
-  },
-  reference: {
-    fontSize: 11,
-    color: '#64748b',
-    marginTop: 8,
-  },
-  rightSection: {
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 20,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  editButton: {
+  metaWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  metaPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
+    borderRadius: 999,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  metaLabel: { textTransform: 'uppercase', fontSize: 10, color: '#94a3b8' },
+  metaValue: { fontSize: 11, fontWeight: '600', color: '#1e293b' },
+  referenceText: { marginTop: 8, fontSize: 11, color: '#64748b' },
+  referenceStrong: { fontWeight: '600', color: '#334155' },
+  rightBlock: { alignItems: 'flex-end', gap: 8 },
+  statusBadge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  statusText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
+  editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: '#c7d2fe',
     backgroundColor: '#eef2ff',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
   },
-  editText: {
-    color: '#6366f1',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
-  // Edit Mode
+  editBtnText: { fontSize: 12, fontWeight: '700', color: '#4338ca' },
   editCard: {
-    backgroundColor: '#f0f4ff',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#c7d2fe',
-    padding: 14,
-    marginBottom: 10,
+    backgroundColor: '#eef2ff55',
+    padding: 12,
+    gap: 12,
   },
   editHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    gap: 8,
   },
   editTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#6366f1',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: '#4f46e5',
   },
-  inputRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
-  },
-  inputContainer: {
-    flex: 1,
-  },
-  inputLabel: {
+  cancelLink: { fontSize: 12, color: '#64748b' },
+  gridRow: { flexDirection: 'row', gap: 8 },
+  formLabel: {
     fontSize: 10,
-    fontWeight: '600',
-    color: '#64748b',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    color: '#6b7280',
     marginBottom: 4,
   },
   input: {
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     fontSize: 14,
+    color: '#111827',
   },
-  pickerWrapper: {
+  pickerWrap: {
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
     backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
+    justifyContent: 'center',
   },
-  picker: {
-    height: 48,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 10,
-    marginTop: 10,
-  },
-  cancelBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
+  picker: { height: 40, width: '100%', color: '#111827' },
+  dateBtn: {
+    height: 40,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  cancelText: {
-    color: '#64748b',
-    fontWeight: '600',
+  dateBtnText: { fontSize: 13, color: '#111827' },
+  actionsRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  cancelBtn: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
+  cancelBtnText: { fontSize: 12, color: '#4b5563' },
   saveBtn: {
-    backgroundColor: '#6366f1',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
+    backgroundColor: '#4f46e5',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    minWidth: 64,
+    alignItems: 'center',
   },
-  saveText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
+  saveBtnText: { fontSize: 12, color: '#fff', fontWeight: '700' },
+  disabled: { opacity: 0.6 },
 });
 
 export default PaymentHistoryItem;

@@ -1,42 +1,45 @@
 import React, {
-  forwardRef,
-  useCallback,
   useEffect,
-  useImperativeHandle,
   useMemo,
-  useRef,
   useState,
+  useRef,
+  useCallback,
 } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
+  View,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  ScrollView,
+  Modal,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+  Platform,
+  Linking,
+  Dimensions,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import Feather from 'react-native-vector-icons/Feather';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { pick } from '@react-native-documents/picker';
 import Video from 'react-native-video';
-import {
-  errorCodes,
-  isErrorWithCode,
-  pick,
-  types,
-} from '@react-native-documents/picker';
+import axios from 'axios';
 
-import CustomPhoneInput from '../ui/PhoneInput';
+import CustomPhoneInput from '../ui/PhoneInput.jsx';
 import MultiSelect from '../ui/MultiSelect';
-import PaymentHistoryItem from './LeadFormModel/PaymentHistoryItem';
-import api from '../../services/api';
+import CrossSellTab from './Crossselltab';
+import PaymentHistoryItem from '../common/LeadFormModel/PaymentHistoryItem.jsx';
+import api from '../../services/api.js';
 
+// ── Shims: web's react-hot-toast → native Alert ──
+const toast = {
+  success: msg => Alert.alert('Success', String(msg)),
+  error: msg => Alert.alert('Error', String(msg)),
+};
+
+// ── Constants ──
 const DEFAULT_STATUS_OPTIONS = [
   'New',
   'Interested',
@@ -45,7 +48,6 @@ const DEFAULT_STATUS_OPTIONS = [
   'Closed',
   'Repeat',
 ];
-
 const DEFAULT_SOURCE_OPTIONS = [
   'Google Ads',
   'Website',
@@ -56,10 +58,8 @@ const DEFAULT_SOURCE_OPTIONS = [
   'Google Sheet',
   'Other',
 ];
-
 const PRIORITY_OPTIONS = ['Normal', 'High', 'Urgent'];
 const ACTIVITY_TYPES = ['Note', 'Call', 'Email', 'Meeting', 'Task'];
-
 const PAYMENT_MODES = [
   'UPI',
   'Bank Transfer',
@@ -69,10 +69,8 @@ const PAYMENT_MODES = [
   'Stripe',
   'PayU',
 ];
-
 const PAYMENT_STATUS = ['Paid', 'Partial', 'Pending', 'Overdue', 'Cancelled'];
 const REMINDER_TYPES = ['Call', 'Email', 'Meeting', 'Follow-up', 'Payment'];
-
 const ALL_CROSS_SELL_SERVICES = [
   'MSME',
   'GST Registration',
@@ -94,41 +92,32 @@ const TABS = [
   'Reminder',
 ];
 
-const getUserId = user =>
-  typeof user === 'string' ? user : user?._id || user?.id || '';
-
-const formatDateInput = value => {
-  if (!value) return '';
-  try {
-    return new Date(value).toISOString().split('T')[0];
-  } catch {
-    return String(value).split('T')[0];
-  }
+const ACTIVITY_TYPE_META = {
+  Note: { color: '#a855f7', icon: 'note-text-outline' },
+  Call: { color: '#22c55e', icon: 'phone-outline' },
+  Email: { color: '#3b82f6', icon: 'email-outline' },
+  Meeting: { color: '#f97316', icon: 'account-group-outline' },
+  Task: { color: '#64748b', icon: 'checkbox-marked-outline' },
 };
 
-const getFileName = file => file?.name || file?.originalName || 'recording';
-const isVideoUrl = url => /\.(mp4|webm|mov|avi|mkv)(\?|$)/i.test(url || '');
-
-const showError = message => Alert.alert('Error', message);
-const showSuccess = message => Alert.alert('Success', message);
-
-const dateFromInput = dateString => {
-  if (!dateString) return new Date();
-  const [year, month, day] = dateString.split('-').map(Number);
-  if (!year || !month || !day) return new Date();
-  return new Date(year, month - 1, day);
+const toInputDate = d => {
+  const date = new Date(d);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+const toInputTime = d => {
+  const date = new Date(d);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(
+    date.getMinutes(),
+  ).padStart(2, '0')}`;
 };
 
-const timeFromInput = timeString => {
-  const [hours = '10', minutes = '00'] = String(timeString || '10:00').split(
-    ':',
-  );
-  const date = new Date();
-  date.setHours(Number(hours) || 10, Number(minutes) || 0, 0, 0);
-  return date;
-};
-
-const SuccessServiceSelector = forwardRef(({ lead, onSaved }, ref) => {
+// ════════════════════════════════════════════════════════════════
+// SuccessServiceSelector
+// ════════════════════════════════════════════════════════════════
+const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
   const [availableServices, setAvailableServices] = useState(
     ALL_CROSS_SELL_SERVICES,
   );
@@ -138,28 +127,21 @@ const SuccessServiceSelector = forwardRef(({ lead, onSaved }, ref) => {
   const [reactivationDate, setReactivationDate] = useState('');
   const [reactivationTime, setReactivationTime] = useState('09:00');
   const [saving, setSaving] = useState(false);
-  const [showPicker, setShowPicker] = useState(null); // 'reactivationDate' | 'reactivationTime'
-
-  useEffect(() => {
-    setSelectedServices(lead?.crossSellRecord?.reactivationServices || []);
-  }, [lead?.crossSellRecord?.reactivationServices]);
+  const [pickerTarget, setPickerTarget] = useState(null); // 'date' | 'time'
 
   useEffect(() => {
     if (!lead?._id) return;
-
     api
       .get(`/cross-sell/recommendations/${lead._id}`)
       .then(res => {
         const record = res.data?.data;
-        if (record?.reactivationServices?.length) {
+        if (record?.reactivationServices?.length)
           setSelectedServices(record.reactivationServices);
-        }
         if (record?.reactivationDate) {
           const utc = new Date(record.reactivationDate);
           const ist = new Date(utc.getTime() + 5.5 * 60 * 60 * 1000);
-          const iso = ist.toISOString();
-          setReactivationDate(iso.split('T')[0]);
-          setReactivationTime(iso.split('T')[1].slice(0, 5));
+          setReactivationDate(ist.toISOString().split('T')[0]);
+          setReactivationTime(ist.toISOString().split('T')[1].slice(0, 5));
         }
       })
       .catch(() => {});
@@ -178,159 +160,217 @@ const SuccessServiceSelector = forwardRef(({ lead, onSaved }, ref) => {
 
   const toggleService = svc => {
     setSelectedServices(prev =>
-      prev.includes(svc) ? prev.filter(item => item !== svc) : [...prev, svc],
+      prev.includes(svc) ? prev.filter(s => s !== svc) : [...prev, svc],
     );
   };
 
-  const handleSave = useCallback(async () => {
+  const handleSave = async () => {
     if (!lead?._id) {
-      showError('Please save the lead first.');
-      return false;
+      toast.error('Please save the lead first');
+      return;
     }
     if (selectedServices.length === 0) {
-      showError('Please select at least one service.');
-      return false;
+      toast.error('Please select at least one service');
+      return;
     }
     if (!reactivationDate) {
-      showError('Please select a reactivation date.');
-      return false;
+      toast.error('Please select a reactivation date');
+      return;
     }
-
     setSaving(true);
     try {
       await api.post(`/cross-sell/schedule-reactivation/${lead._id}`, {
         services: selectedServices,
         reactivationDate: new Date(
-          `${reactivationDate}T${reactivationTime || '09:00'}:00+05:30`,
+          `${reactivationDate}T${reactivationTime}:00+05:30`,
         ).toISOString(),
       });
-      showSuccess('Services and reactivation date saved successfully.');
+      toast.success('Services and reactivation date saved successfully!');
       if (onSaved) onSaved();
-      return true;
     } catch (err) {
-      showError(err?.response?.data?.message || 'Save failed.');
-      return false;
+      toast.error(err?.response?.data?.message || 'Save failed');
     } finally {
       setSaving(false);
-    }
-  }, [
-    lead?._id,
-    onSaved,
-    reactivationDate,
-    reactivationTime,
-    selectedServices,
-  ]);
-
-  useImperativeHandle(ref, () => ({ handleSave, saving }), [
-    handleSave,
-    saving,
-  ]);
-
-  const handlePickerChange = (event, selectedDate) => {
-    const target = showPicker;
-    setShowPicker(null);
-    if (Platform.OS === 'android' && event?.type === 'dismissed') return;
-    if (!selectedDate || !target) return;
-
-    if (target === 'reactivationDate') {
-      const y = selectedDate.getFullYear();
-      const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const d = String(selectedDate.getDate()).padStart(2, '0');
-      setReactivationDate(`${y}-${m}-${d}`);
-    } else {
-      const h = String(selectedDate.getHours()).padStart(2, '0');
-      const m = String(selectedDate.getMinutes()).padStart(2, '0');
-      setReactivationTime(`${h}:${m}`);
     }
   };
 
   return (
-    <View style={styles.tabContent}>
-      <Text style={styles.subHeading}>Select Cross-Sell Services</Text>
-      <Text style={styles.helpText}>
-        Select services and a reactivation time. On that date, the lead will
-        move back to “New”.
-      </Text>
-
-      <View style={styles.serviceList}>
-        {availableServices.map(service => {
-          const checked = selectedServices.includes(service);
-          return (
-            <TouchableOpacity
-              key={service}
-              style={[styles.serviceRow, checked && styles.serviceRowSelected]}
-              onPress={() => toggleService(service)}
-              activeOpacity={0.8}
-            >
-              <View
-                style={[styles.checkbox, checked && styles.checkboxSelected]}
+    <View style={ss.container}>
+      <View>
+        <Text style={ss.sectionTitle}>Select Services</Text>
+        <View style={ss.servicesList}>
+          {availableServices.map(svc => {
+            const checked = selectedServices.includes(svc);
+            return (
+              <TouchableOpacity
+                key={svc}
+                onPress={() => toggleService(svc)}
+                style={[ss.serviceRow, checked && ss.serviceRowChecked]}
+                activeOpacity={0.8}
               >
-                {checked ? (
-                  <Feather name="check" size={13} color="#fff" />
-                ) : null}
-              </View>
-              <Text style={styles.serviceText}>{service}</Text>
-            </TouchableOpacity>
-          );
-        })}
+                <View style={[ss.checkbox, checked && ss.checkboxChecked]}>
+                  {checked ? (
+                    <Icon name="check" size={11} color="#fff" />
+                  ) : null}
+                </View>
+                <Text style={ss.serviceLabel}>{svc}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
-      <Text style={styles.label}>Reactivation Date & Time</Text>
-      <View style={styles.row}>
-        <TouchableOpacity
-          style={[styles.dateSelectorButton, styles.flexOne]}
-          onPress={() => setShowPicker('reactivationDate')}
-        >
-          <Text
-            style={[
-              styles.dateSelectorText,
-              reactivationDate ? styles.dateSet : styles.datePlaceholder,
-            ]}
+      <View>
+        <Text style={ss.sectionTitle}>Reactivation Date & Time</Text>
+        <Text style={ss.sectionHint}>
+          On this date and time, the lead will automatically move to "New".
+        </Text>
+        <View style={ss.dateTimeRow}>
+          <TouchableOpacity
+            onPress={() => setPickerTarget('date')}
+            style={ss.dateTimeBtn}
           >
-            {reactivationDate || 'Select Date'}
-          </Text>
-          <Feather name="calendar" size={16} color="#64748b" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.dateSelectorButton, styles.flexOne]}
-          onPress={() => setShowPicker('reactivationTime')}
-        >
-          <Text
-            style={[
-              styles.dateSelectorText,
-              reactivationTime ? styles.dateSet : styles.datePlaceholder,
-            ]}
+            <Icon name="calendar" size={16} color="#64748b" />
+            <Text style={ss.dateTimeText}>
+              {reactivationDate || 'Select date'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setPickerTarget('time')}
+            style={[ss.dateTimeBtn, { width: 128 }]}
           >
-            {reactivationTime || '09:00'}
-          </Text>
-          <Feather name="clock" size={16} color="#64748b" />
-        </TouchableOpacity>
+            <Icon name="clock-outline" size={16} color="#64748b" />
+            <Text style={ss.dateTimeText}>
+              {reactivationTime || 'Select time'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {pickerTarget === 'date' ? (
+          <DateTimePicker
+            value={
+              reactivationDate
+                ? new Date(`${reactivationDate}T00:00:00`)
+                : new Date()
+            }
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            minimumDate={new Date()}
+            onChange={(event, selectedDate) => {
+              setPickerTarget(null);
+              if (event?.type === 'dismissed') return;
+              if (selectedDate) setReactivationDate(toInputDate(selectedDate));
+            }}
+          />
+        ) : null}
+        {pickerTarget === 'time' ? (
+          <DateTimePicker
+            value={
+              reactivationTime
+                ? new Date(`2000-01-01T${reactivationTime}:00`)
+                : new Date()
+            }
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(event, selectedDate) => {
+              setPickerTarget(null);
+              if (event?.type === 'dismissed') return;
+              if (selectedDate) setReactivationTime(toInputTime(selectedDate));
+            }}
+          />
+        ) : null}
       </View>
 
-      {saving ? (
-        <ActivityIndicator style={{ marginTop: 16 }} color="#5a7bf6" />
-      ) : null}
-
-      {showPicker ? (
-        <DateTimePicker
-          value={
-            showPicker === 'reactivationDate'
-              ? dateFromInput(reactivationDate)
-              : timeFromInput(reactivationTime)
-          }
-          mode={showPicker === 'reactivationDate' ? 'date' : 'time'}
-          is24Hour
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          minimumDate={
-            showPicker === 'reactivationDate' ? new Date() : undefined
-          }
-          onChange={handlePickerChange}
-        />
-      ) : null}
+      <TouchableOpacity
+        disabled={saving || selectedServices.length === 0 || !reactivationDate}
+        onPress={handleSave}
+        style={[
+          ss.saveBtn,
+          (saving || selectedServices.length === 0 || !reactivationDate) &&
+            ss.disabled,
+        ]}
+      >
+        {saving ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <Text style={ss.saveBtnText}>
+            {selectedServices.length > 0
+              ? `Save (${selectedServices.length} service${
+                  selectedServices.length > 1 ? 's' : ''
+                })`
+              : 'Please select services first'}
+          </Text>
+        )}
+      </TouchableOpacity>
     </View>
   );
+};
+
+const ss = StyleSheet.create({
+  container: { gap: 16 },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 10,
+  },
+  sectionHint: { fontSize: 11, color: '#6b7280', marginBottom: 8 },
+  servicesList: { gap: 8 },
+  serviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  serviceRowChecked: {
+    borderColor: '#2563eb',
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(37,99,235,0.06)',
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: { borderColor: '#2563eb', backgroundColor: '#2563eb' },
+  serviceLabel: { fontSize: 13, fontWeight: '500', color: '#0f172a' },
+  dateTimeRow: { flexDirection: 'row', gap: 8 },
+  dateTimeBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dateTimeText: { fontSize: 13, color: '#111827' },
+  saveBtn: {
+    borderRadius: 12,
+    backgroundColor: '#5a7bf6',
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  saveBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  disabled: { opacity: 0.5 },
 });
 
+// ════════════════════════════════════════════════════════════════
+// LeadFormModal
+// ════════════════════════════════════════════════════════════════
 const LeadFormModal = ({
   visible,
   lead = null,
@@ -349,52 +389,119 @@ const LeadFormModal = ({
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab || 'Profile');
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({});
-  const [paymentHistory, setPaymentHistory] = useState([]);
-  const [savedRecordings, setSavedRecordings] = useState([]);
+  const [activeActivityType, setActiveActivityType] = useState('Note');
   const [recordingFile, setRecordingFile] = useState(null);
   const [uploadingRec, setUploadingRec] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [savedRecordings, setSavedRecordings] = useState([]);
   const [playingUrl, setPlayingUrl] = useState(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [dateTarget, setDateTarget] = useState(null);
-  const crossSellRef = useRef(null);
-  const isFirstOpen = useRef(true);
+  const [paymentHistory, setPaymentHistory] = useState(
+    Array.isArray(lead?.payments) ? lead.payments : [],
+  );
+  const [pickerTargets, setPickerTargets] = useState({}); // { key: 'date'|'time'|'datetime' }
+  const [activities, setActivities] = useState({
+    Note: { _id: '', text: '', notify: '' },
+    Call: {
+      _id: '',
+      text: '',
+      duration: '',
+      direction: 'Outgoing',
+      outcome: 'Spoke',
+      notify: '',
+    },
+    Email: { _id: '', text: '', notify: '' },
+    Meeting: { _id: '', text: '', notify: '' },
+    Task: { _id: '', text: '', dueDate: '', assignedTo: '', notify: '' },
+  });
 
+  const customColumns = Array.isArray(settings?.customColumns)
+    ? settings.customColumns
+    : [];
+  const defaultStatusOptions = statusOptions.length
+    ? statusOptions
+    : DEFAULT_STATUS_OPTIONS;
+  const defaultSourceOptions = sourceOptions.length
+    ? sourceOptions
+    : DEFAULT_SOURCE_OPTIONS;
   const canManageAssignment = canAssignLead || canChangeLeadOwner;
-  const customColumns = useMemo(
-    () =>
-      Array.isArray(settings?.customColumns) ? settings.customColumns : [],
-    [settings?.customColumns],
-  );
-  const defaultStatusOptions = useMemo(
-    () => (statusOptions.length ? statusOptions : DEFAULT_STATUS_OPTIONS),
-    [statusOptions],
-  );
-  const defaultSourceOptions = useMemo(
-    () => (sourceOptions.length ? sourceOptions : DEFAULT_SOURCE_OPTIONS),
-    [sourceOptions],
-  );
 
-  const initialFormState = useMemo(
-    () => ({
-      name: '',
-      phone: '',
-      alternatePhone: '',
-      email: '',
-      city: '',
-      source: defaultSourceOptions[0] || '',
-      status: defaultStatusOptions[0] || 'New',
-      dealValue: '',
-      product: '',
-      closeDate: '',
-      priority: 'Normal',
-      note: '',
-      assignedTo: currentUserId || users[0]?._id || '',
-      coAssignees: [],
-      activeActivityType: 'Note',
-      activities: {
+  // ── Build form fields ──
+  const [form, setForm] = useState({
+    name: '',
+    phone: '',
+    alternatePhone: '',
+    email: '',
+    city: '',
+    source: defaultSourceOptions[0] || '',
+    status: 'New',
+    dealValue: '',
+    product: '',
+    closeDate: '',
+    priority: 'Normal',
+    note: '',
+    assignedTo: currentUserId || users[0]?._id || '',
+    coAssignees: [],
+    recordingLabel: '',
+    recordingUrl: '',
+    paymentAmount: '',
+    paymentDate: '',
+    paymentMode: 'UPI',
+    paymentStatus: 'Paid',
+    paymentReference: '',
+    customFields: {},
+    reminderType: 'Call',
+    reminderAssignedTo: '',
+    reminderDate: '',
+    reminderTime: '10:00',
+    reminderNote: '',
+    reminderNotify: '',
+  });
+
+  const getLeadAssignee = leadItem => {
+    if (!leadItem || !leadItem.assignedTo) return '';
+    if (typeof leadItem.assignedTo === 'string') return leadItem.assignedTo;
+    return leadItem.assignedTo._id || leadItem.assignedTo.id || '';
+  };
+
+  // ── Sync lead -> form ──
+  useEffect(() => {
+    if (!visible) {
+      setRecordingFile(null);
+      return;
+    }
+    if (!lead) {
+      setActiveTab(initialTab || 'Profile');
+      setForm({
+        name: '',
+        phone: '',
+        alternatePhone: '',
+        email: '',
+        city: '',
+        source: defaultSourceOptions[0] || '',
+        status: 'New',
+        dealValue: '',
+        product: '',
+        closeDate: '',
+        priority: 'Normal',
+        note: '',
+        assignedTo: currentUserId || users[0]?._id || '',
+        coAssignees: [],
+        recordingLabel: '',
+        recordingUrl: '',
+        paymentAmount: '',
+        paymentDate: '',
+        paymentMode: 'UPI',
+        paymentStatus: 'Paid',
+        paymentReference: '',
+        customFields: {},
+        reminderType: 'Call',
+        reminderAssignedTo: '',
+        reminderDate: '',
+        reminderTime: '10:00',
+        reminderNote: '',
+        reminderNotify: '',
+      });
+      setActivities({
         Note: { _id: '', text: '', notify: '' },
         Call: {
           _id: '',
@@ -406,77 +513,47 @@ const LeadFormModal = ({
         },
         Email: { _id: '', text: '', notify: '' },
         Meeting: { _id: '', text: '', notify: '' },
-        Task: {
-          _id: '',
-          text: '',
-          dueDate: '',
-          assignedTo: users[0]?._id || '',
-          notify: '',
-        },
-      },
-      recordingLabel: '',
-      recordingUrl: '',
-      paymentAmount: '',
-      paymentDate: '',
-      paymentMode: 'UPI',
-      paymentStatus: 'Paid',
-      paymentReference: '',
-      customFields: customColumns.reduce((acc, col) => {
-        acc[col.key] = '';
-        return acc;
-      }, {}),
-      reminderType: 'Call',
-      reminderAssignedTo: '',
-      reminderDate: '',
-      reminderTime: '10:00',
-      reminderNote: '',
-      reminderNotify: '',
-    }),
-    [
-      currentUserId,
-      users?.[0]?._id,
-      customColumns,
-      defaultSourceOptions,
-      defaultStatusOptions,
-    ],
-  );
+        Task: { _id: '', text: '', dueDate: '', assignedTo: '', notify: '' },
+      });
+      setSavedRecordings([]);
+      return;
+    }
 
-  const getLeadAssignee = leadItem => {
-    if (!leadItem || !leadItem.assignedTo) return '';
-    if (typeof leadItem.assignedTo === 'string') return leadItem.assignedTo;
-    return leadItem.assignedTo._id || leadItem.assignedTo.id || '';
-  };
-
-  const buildFormStateFromLead = leadItem => {
-    const pendingReminders = Array.isArray(leadItem.reminders)
-      ? leadItem.reminders.filter(reminder => !reminder.isDone)
+    // Build form from lead
+    const latestActivity =
+      Array.isArray(lead.activities) && lead.activities.length
+        ? lead.activities[0]
+        : null;
+    const pendingReminders = Array.isArray(lead.reminders)
+      ? lead.reminders.filter(r => !r.isDone)
       : [];
-
     const latestReminder = pendingReminders.length
       ? [...pendingReminders].sort((a, b) => {
           const aDate = new Date(a.reminderDate || a.createdAt || 0);
           const bDate = new Date(b.reminderDate || b.createdAt || 0);
           if (bDate.getTime() !== aDate.getTime()) return bDate - aDate;
-          return (b.reminderTime || '00:00').localeCompare(
-            a.reminderTime || '00:00',
-          );
+          const aTime = a.reminderTime || '00:00';
+          const bTime = b.reminderTime || '00:00';
+          return bTime.localeCompare(aTime);
         })[0]
       : null;
 
+    const getUserId = user =>
+      typeof user === 'string' ? user : user?._id || user?.id || '';
     const typeMap = {};
-    if (Array.isArray(leadItem.activities)) {
-      [...leadItem.activities]
+    if (Array.isArray(lead.activities)) {
+      [...lead.activities]
         .sort(
           (a, b) =>
-            new Date(b.updatedAt || b.createdAt || 0) -
-            new Date(a.updatedAt || a.createdAt || 0),
+            new Date(b.updatedAt || b.createdAt) -
+            new Date(a.updatedAt || a.createdAt),
         )
         .forEach(act => {
           if (act?.type && !typeMap[act.type]) typeMap[act.type] = act;
         });
     }
 
-    const activities = {
+    setActivities({
       Note: {
         _id: typeMap.Note?._id || '',
         text: typeMap.Note?.text || '',
@@ -503,120 +580,86 @@ const LeadFormModal = ({
       Task: {
         _id: typeMap.Task?._id || '',
         text: typeMap.Task?.text || '',
-        dueDate: formatDateInput(typeMap.Task?.taskDueDate),
+        dueDate: typeMap.Task?.taskDueDate
+          ? new Date(typeMap.Task.taskDueDate).toISOString().split('T')[0]
+          : '',
         assignedTo:
           getUserId(typeMap.Task?.taskAssignedTo) || users[0]?._id || '',
         notify: getUserId(typeMap.Task?.notifiedUsers?.[0]) || '',
       },
-    };
+    });
 
-    return {
-      ...initialFormState,
-      name: leadItem.name || '',
-      phone: leadItem.phone || '',
-      alternatePhone: leadItem.alternatePhone || '',
-      email: leadItem.email || '',
-      city: leadItem.city || '',
-      source: leadItem.source || defaultSourceOptions[0] || '',
-      status: leadItem.status ?? defaultStatusOptions[0] ?? 'New',
-      dealValue:
-        leadItem.dealValue !== undefined && leadItem.dealValue !== null
-          ? String(leadItem.dealValue)
-          : leadItem.value !== undefined && leadItem.value !== null
-          ? String(leadItem.value)
-          : '',
-      product: leadItem.product || '',
-      closeDate: formatDateInput(leadItem.closeDate),
-      priority: leadItem.priority || 'Normal',
-      note: leadItem.initialNote || '',
-      assignedTo: getLeadAssignee(leadItem) || initialFormState.assignedTo,
-      coAssignees: Array.isArray(leadItem.coAssignees)
-        ? leadItem.coAssignees.map(getUserId).filter(Boolean)
+    setForm({
+      name: lead.name || '',
+      phone: lead.phone || '',
+      alternatePhone: lead.alternatePhone || '',
+      email: lead.email || '',
+      city: lead.city || '',
+      source: lead.source || defaultSourceOptions[0] || '',
+      status: lead.status ?? defaultStatusOptions[0] ?? 'New',
+      dealValue: lead.dealValue ?? lead.value ?? '',
+      product: lead.product || '',
+      closeDate: lead.closeDate
+        ? new Date(lead.closeDate).toISOString().split('T')[0]
+        : '',
+      priority: lead.priority || 'Normal',
+      note: lead.initialNote || '',
+      assignedTo: getLeadAssignee(lead) || currentUserId || users[0]?._id || '',
+      coAssignees: Array.isArray(lead.coAssignees)
+        ? lead.coAssignees
+            .map(item =>
+              typeof item === 'string' ? item : item?._id || item?.id || '',
+            )
+            .filter(Boolean)
         : [],
-      activeActivityType: 'Note',
-      activities,
-      customFields: customColumns.reduce((acc, col) => {
-        acc[col.key] = String(leadItem.customFields?.[col.key] ?? '');
-        return acc;
-      }, {}),
+      recordingLabel: lead.recording?.label || '',
+      recordingUrl: lead.recording?.url || '',
       paymentAmount: '',
       paymentDate: '',
       paymentMode: 'UPI',
       paymentStatus: 'Paid',
       paymentReference: '',
-      recordingLabel: leadItem.recording?.label || '',
-      recordingUrl: leadItem.recording?.url || '',
+      customFields: customColumns.reduce((acc, col) => {
+        acc[col.key] = String(lead.customFields?.[col.key] ?? '');
+        return acc;
+      }, {}),
       reminderType: latestReminder?.type || 'Call',
       reminderAssignedTo: getUserId(latestReminder?.assignedTo) || '',
-      reminderDate: formatDateInput(latestReminder?.reminderDate),
+      reminderDate: latestReminder?.reminderDate
+        ? new Date(latestReminder.reminderDate).toISOString().split('T')[0]
+        : '',
       reminderTime: latestReminder?.reminderTime || '10:00',
       reminderNote: latestReminder?.note || '',
       reminderNotify:
         latestReminder?.notifyUsers?.length > 0
           ? getUserId(latestReminder.notifyUsers[0])
           : '',
-    };
-  };
+    });
+    setSavedRecordings(lead.recordings?.length ? lead.recordings : []);
+    setActiveTab(initialTab || 'Profile');
+  }, [visible, lead]);
 
-  useEffect(() => {
-    if (!visible) {
-      setRecordingFile(null);
-      setPlayingUrl(null);
-      setUploadProgress(0);
-      isFirstOpen.current = true;
-      return;
-    }
-
-    if (!lead) {
-      setForm(initialFormState);
-      setPaymentHistory([]);
-      setSavedRecordings([]);
-      setActiveTab('Profile');
-    } else {
-      setForm(buildFormStateFromLead(lead));
-      setPaymentHistory(Array.isArray(lead.payments) ? lead.payments : []);
-      setSavedRecordings(Array.isArray(lead.recordings) ? lead.recordings : []);
-      if (isFirstOpen.current) {
-        setActiveTab(initialTab || 'Profile');
-        isFirstOpen.current = false;
-      } else if (initialTab) {
-        setActiveTab(initialTab);
-      }
-    }
-  }, [visible, lead, initialFormState]);
-
+  // ── Payment sync ──
   useEffect(() => {
     setPaymentHistory(Array.isArray(lead?.payments) ? lead.payments : []);
   }, [lead?.payments]);
 
-  const allTabs = useMemo(
-    () => [
-      ...TABS,
-      ...(form.status === 'Success' || lead?.isCrossSell ? ['Cross-Sell'] : []),
-    ],
-    [form.status, lead?.isCrossSell],
-  );
+  const handlePaymentUpdated = updatedPayment => {
+    setPaymentHistory(prev =>
+      prev.map(item =>
+        item._id === updatedPayment._id ? updatedPayment : item,
+      ),
+    );
+  };
 
   const handleChange = (key, value) => {
     setForm(prev => {
       const nextForm = { ...prev, [key]: value };
       if (key === 'assignedTo') {
-        nextForm.coAssignees = (prev.coAssignees || []).filter(
-          id => id !== value,
-        );
+        nextForm.coAssignees = prev.coAssignees.filter(id => id !== value);
       }
       return nextForm;
     });
-  };
-
-  const handleActivityChange = (type, key, value) => {
-    setForm(prev => ({
-      ...prev,
-      activities: {
-        ...prev.activities,
-        [type]: { ...prev.activities?.[type], [key]: value },
-      },
-    }));
   };
 
   const handleCustomFieldChange = (key, value) => {
@@ -626,187 +669,136 @@ const LeadFormModal = ({
     }));
   };
 
-  const handlePickDocument = async () => {
-    try {
-      const results = await pick({
-        type: [types.audio, types.video],
-        allowMultiSelection: false,
-      });
-      const result = Array.isArray(results) ? results[0] : results;
-      if (!result) return;
-
-      setRecordingFile(result);
-      handleChange('recordingUrl', '');
-      if (!form.recordingLabel) {
-        handleChange(
-          'recordingLabel',
-          getFileName(result).replace(/\.[^/.]+$/, ''),
-        );
-      }
-    } catch (err) {
-      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED)
-        return;
-      showError('Unable to select audio/video file.');
-    }
+  const updateActivity = (type, key, val) => {
+    setActivities(prev => ({ ...prev, [type]: { ...prev[type], [key]: val } }));
   };
 
-  const triggerDatePicker = targetKey => {
-    setDateTarget(targetKey);
-    setShowDatePicker(true);
-  };
-
-  const handleDateConfirm = (event, selectedDate) => {
-    setShowDatePicker(false);
-    if (Platform.OS === 'android' && event?.type === 'dismissed') return;
-    if (!selectedDate || !dateTarget) return;
-
-    const year = selectedDate.getFullYear();
-    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-    const day = String(selectedDate.getDate()).padStart(2, '0');
-    const isoString = `${year}-${month}-${day}`;
-
-    if (dateTarget === 'taskDueDate') {
-      handleActivityChange('Task', 'dueDate', isoString);
-    } else {
-      handleChange(dateTarget, isoString);
-    }
-  };
-
-  const handleTimeConfirm = (event, selectedTime) => {
-    setShowTimePicker(false);
-    if (Platform.OS === 'android' && event?.type === 'dismissed') return;
-    if (!selectedTime) return;
-
-    const hours = String(selectedTime.getHours()).padStart(2, '0');
-    const minutes = String(selectedTime.getMinutes()).padStart(2, '0');
-    handleChange('reminderTime', `${hours}:${minutes}`);
-  };
-
+  // ── Build payload ──
   const buildPayload = () => {
-    const altDigits = form.alternatePhone
-      ? String(form.alternatePhone).replace(/\D/g, '')
-      : '';
-
     const payload = {
-      name: form.name?.trim(),
-      phone: form.phone?.trim(),
-      alternatePhone:
-        altDigits.length >= 10 ? form.alternatePhone.trim() : undefined,
-      email: form.email?.trim() || undefined,
-      city: form.city?.trim() || undefined,
+      name: form.name.trim(),
+      phone: form.phone.trim(),
+      alternatePhone: (() => {
+        const digits = form.alternatePhone
+          ? String(form.alternatePhone).replace(/\D/g, '')
+          : '';
+        return digits.length >= 10 ? form.alternatePhone.trim() : undefined;
+      })(),
+      email: form.email.trim() || undefined,
+      city: form.city.trim() || undefined,
       source: form.source || 'Other',
       status: form.status || defaultStatusOptions[0] || 'New',
       dealValue: form.dealValue ? Number(form.dealValue) : undefined,
-      product: form.product?.trim() || undefined,
+      product: form.product.trim() || undefined,
       closeDate: form.closeDate || undefined,
       priority: form.priority,
-      note: form.note?.trim(),
+      note: form.note.trim(),
       coAssignees: lead
-        ? form.coAssignees || []
-        : form.coAssignees?.length
+        ? form.coAssignees
+        : form.coAssignees.length
         ? form.coAssignees
         : undefined,
     };
 
-    if (!lead) {
-      payload.assignedTo = form.assignedTo || undefined;
-    } else {
+    if (!lead) payload.assignedTo = form.assignedTo || undefined;
+    else {
       const originalAssignee = getLeadAssignee(lead);
       if (form.assignedTo !== originalAssignee)
         payload.assignedTo = form.assignedTo;
     }
 
     const activitiesPayload = [];
-    const activities = form.activities || {};
-
-    if (activities.Note?.text?.trim() || activities.Note?._id) {
+    if (activities.Note.text.trim() || activities.Note._id) {
       activitiesPayload.push({
         _id: activities.Note._id || undefined,
         type: 'Note',
-        text: activities.Note.text?.trim() || '',
+        text: activities.Note.text.trim(),
         notifiedUsers: activities.Note.notify ? [activities.Note.notify] : [],
       });
     }
-
     if (
-      activities.Call?.text?.trim() ||
-      activities.Call?.duration?.trim() ||
-      activities.Call?._id
+      activities.Call.text.trim() ||
+      activities.Call.duration.trim() ||
+      activities.Call._id
     ) {
       activitiesPayload.push({
         _id: activities.Call._id || undefined,
         type: 'Call',
-        text: activities.Call.text?.trim() || '',
-        callDuration: activities.Call.duration?.trim() || '',
-        callDirection: activities.Call.direction || 'Outgoing',
-        callOutcome: activities.Call.outcome || 'Spoke',
+        text: activities.Call.text.trim(),
+        callDuration: activities.Call.duration.trim() || '',
+        callDirection: activities.Call.direction,
+        callOutcome: activities.Call.outcome,
         notifiedUsers: activities.Call.notify ? [activities.Call.notify] : [],
       });
     }
-
-    if (activities.Email?.text?.trim() || activities.Email?._id) {
+    if (activities.Email.text.trim() || activities.Email._id) {
       activitiesPayload.push({
         _id: activities.Email._id || undefined,
         type: 'Email',
-        text: activities.Email.text?.trim() || '',
+        text: activities.Email.text.trim(),
         notifiedUsers: activities.Email.notify ? [activities.Email.notify] : [],
       });
     }
-
-    if (activities.Meeting?.text?.trim() || activities.Meeting?._id) {
+    if (activities.Meeting.text.trim() || activities.Meeting._id) {
       activitiesPayload.push({
         _id: activities.Meeting._id || undefined,
         type: 'Meeting',
-        text: activities.Meeting.text?.trim() || '',
+        text: activities.Meeting.text.trim(),
         notifiedUsers: activities.Meeting.notify
           ? [activities.Meeting.notify]
           : [],
       });
     }
-
     if (
-      activities.Task?.text?.trim() ||
-      activities.Task?.dueDate ||
-      activities.Task?._id
+      activities.Task.text.trim() ||
+      activities.Task.dueDate ||
+      activities.Task._id
     ) {
       activitiesPayload.push({
         _id: activities.Task._id || undefined,
         type: 'Task',
-        text: activities.Task.text?.trim() || '',
+        text: activities.Task.text.trim(),
         taskDueDate: activities.Task.dueDate || '',
         taskAssignedTo: activities.Task.assignedTo || undefined,
         notifiedUsers: activities.Task.notify ? [activities.Task.notify] : [],
       });
     }
-
-    if (activitiesPayload.length) payload.activities = activitiesPayload;
+    if (activitiesPayload.length > 0) payload.activities = activitiesPayload;
 
     payload.recording = {
-      label: form.recordingLabel?.trim() || '',
-      url: form.recordingUrl?.trim() || '',
+      label: form.recordingLabel.trim() || '',
+      url: form.recordingUrl.trim() || '',
     };
 
-    if (form.paymentAmount?.trim()) {
+    if (form.paymentAmount.trim()) {
       payload.payment = {
         amount: Number(form.paymentAmount),
         paymentMode: form.paymentMode,
         status: form.paymentStatus,
-        reference: form.paymentReference?.trim() || undefined,
+        reference: form.paymentReference.trim() || undefined,
         paymentDate: form.paymentDate || undefined,
       };
     }
 
     if (customColumns.length) payload.customFields = { ...form.customFields };
 
-    const existingReminder =
-      lead?.reminders?.find(reminder => !reminder.isDone) || null;
-    const existingReminderDate = formatDateInput(
-      existingReminder?.reminderDate,
-    );
-    const existingReminderAssignedTo = getUserId(existingReminder?.assignedTo);
+    const existingReminder = lead?.reminders?.find(r => !r.isDone) || null;
+    const existingReminderDate = existingReminder?.reminderDate
+      ? new Date(existingReminder.reminderDate).toISOString().split('T')[0]
+      : '';
+    const existingReminderAssignedTo =
+      typeof existingReminder?.assignedTo === 'string'
+        ? existingReminder.assignedTo
+        : existingReminder?.assignedTo?._id ||
+          existingReminder?.assignedTo?.id ||
+          '';
     const existingReminderNotify =
       existingReminder?.notifyUsers?.length > 0
-        ? getUserId(existingReminder.notifyUsers[0])
+        ? typeof existingReminder.notifyUsers[0] === 'string'
+          ? existingReminder.notifyUsers[0]
+          : existingReminder.notifyUsers[0]?._id ||
+            existingReminder.notifyUsers[0]?.id ||
+            ''
         : '';
 
     const reminderChanged = !lead
@@ -819,7 +811,7 @@ const LeadFormModal = ({
           String(existingReminderDate || '') ||
         String(form.reminderTime || '10:00') !==
           String(existingReminder?.reminderTime || '10:00') ||
-        String(form.reminderNote?.trim() || '') !==
+        String(form.reminderNote.trim() || '') !==
           String(existingReminder?.note || '') ||
         String(form.reminderNotify || '') !==
           String(existingReminderNotify || '');
@@ -831,77 +823,83 @@ const LeadFormModal = ({
         assignedTo: form.reminderAssignedTo || undefined,
         reminderDate: form.reminderDate,
         reminderTime: form.reminderTime || '10:00',
-        note: form.reminderNote?.trim() || undefined,
-        notifyUsers: form.reminderNotify ? [form.reminderNotify] : [],
+        note: form.reminderNote.trim() || undefined,
+        notifyUsers:
+          form.reminderNotify && form.reminderNotify !== ''
+            ? [form.reminderNotify]
+            : [],
       };
     }
-
     return payload;
   };
 
-  const uploadRecordingForLead = async leadId => {
-    const label = form.recordingLabel || getFileName(recordingFile);
-
-    if (recordingFile) {
-      const formData = new FormData();
-      formData.append('recording', {
-        uri: recordingFile.uri,
-        type: recordingFile.type || 'application/octet-stream',
-        name: getFileName(recordingFile),
+  // ── Recording file pick via @react-native-documents/picker ──
+  const handlePickRecordingFile = async () => {
+    try {
+      const result = await pick({
+        type: ['audio', 'video'],
+        mode: 'open',
+        copyTo: 'cachesDirectory',
       });
-      formData.append('label', label);
-
-      const res = await api.post(
-        `/leads/${leadId}/recordings/upload`,
-        formData,
-        {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          onUploadProgress: progressEvent => {
-            const total = progressEvent.total || 0;
-            if (!total) return;
-            setUploadProgress(Math.round((progressEvent.loaded * 100) / total));
-          },
-        },
-      );
-      return res.data?.data?.recording;
-    }
-
-    if (form.recordingUrl?.trim()) {
-      const res = await api.post(`/leads/${leadId}/recordings/url`, {
-        url: form.recordingUrl.trim(),
-        label: form.recordingLabel || 'External Recording Link',
+      if (!result || (Array.isArray(result) && result.length === 0)) return;
+      const file = Array.isArray(result) ? result[0] : result;
+      if (!file.type.startsWith('audio/') && !file.type.startsWith('video/')) {
+        toast.error('Only audio or video files are allowed.');
+        return;
+      }
+      setRecordingFile({
+        name: file.name || 'recording',
+        size: file.size || 0,
+        uri: file.uri,
+        type: file.type,
       });
-      return res.data?.data?.recording;
+      setForm(prev => ({
+        ...prev,
+        recordingUrl: '',
+        recordingLabel:
+          prev.recordingLabel || (file.name || '').replace(/\.[^/.]+$/, ''),
+      }));
+    } catch (err) {
+      if (err?.message !== 'User canceled')
+        toast.error(err?.message || 'File pick failed');
     }
-
-    return null;
   };
 
   const handleRecordingUpload = async () => {
-    if (!recordingFile && !form.recordingUrl?.trim()) {
-      showError('Please provide a file or recording URL.');
+    if (!recordingFile && !form.recordingUrl.trim()) {
+      toast.error('Please provide a file or a recording URL.');
       return;
     }
-
     if (!lead?._id) {
-      Alert.alert(
-        'Info',
-        'Recording will be uploaded after the lead is saved.',
-      );
+      toast.success('Recording will be uploaded after the lead is saved.');
       return;
     }
-
     setUploadingRec(true);
     setUploadProgress(0);
     try {
-      const recording = await uploadRecordingForLead(lead._id);
-      if (recording) setSavedRecordings(prev => [...prev, recording]);
-      setRecordingFile(null);
-      handleChange('recordingUrl', '');
-      handleChange('recordingLabel', '');
-      showSuccess('Recording saved successfully.');
+      if (recordingFile) {
+        const fd = new FormData();
+        fd.append('recording', {
+          uri: recordingFile.uri,
+          name: recordingFile.name,
+          type: recordingFile.type,
+        });
+        fd.append('label', form.recordingLabel || recordingFile.name);
+        const token = await AsyncStorage.getItem('accessToken');
+        const { data } = await axios.post(
+          `/api/v1/leads/${lead._id}/recordings/upload`,
+          fd,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        setSavedRecordings(prev => [...prev, data.data.recording]);
+        setRecordingFile(null);
+        handleChange('recordingLabel', '');
+        toast.success('Recording saved successfully!');
+      } else {
+        toast.success('Save the lead — URL recording will be saved.');
+      }
     } catch (err) {
-      showError(err?.response?.data?.message || 'Upload failed.');
+      toast.error(err?.message || 'Upload failed.');
     } finally {
       setUploadingRec(false);
       setUploadProgress(0);
@@ -910,46 +908,52 @@ const LeadFormModal = ({
 
   const handleDeleteRecording = async rec => {
     if (!lead?._id || !rec.filename) {
-      setSavedRecordings(prev => prev.filter(item => item !== rec));
+      setSavedRecordings(prev => prev.filter(r => r !== rec));
       return;
     }
-
     try {
-      await api.delete(`/leads/${lead._id}/recordings/${rec.filename}`);
-      setSavedRecordings(prev =>
-        prev.filter(item => item.filename !== rec.filename),
+      const token = await AsyncStorage.getItem('accessToken');
+      await axios.delete(
+        `/api/v1/leads/${lead._id}/recordings/${rec.filename}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
-      if (playingUrl === rec.url) setPlayingUrl(null);
-      showSuccess('Recording deleted successfully.');
+      setSavedRecordings(prev => prev.filter(r => r.filename !== rec.filename));
+      if (lead.recordings)
+        lead.recordings = lead.recordings.filter(
+          r => r.filename !== rec.filename,
+        );
+      if (lead.recording?.url && rec.url && lead.recording.url === rec.url) {
+        lead.recording = { label: '', url: '' };
+      }
+      toast.success('Recording deleted successfully.');
     } catch (err) {
-      showError(err?.response?.data?.message || 'Failed to delete recording.');
+      toast.error(
+        err?.response?.data?.message || 'Failed to delete recording.',
+      );
     }
   };
 
+  // ── Submit handler ──
   const handleSubmit = async () => {
-    if (activeTab === 'Cross-Sell') {
-      await crossSellRef.current?.handleSave?.();
-      return;
-    }
-
     if (lead && !canEditAnyLead) {
-      showError('You do not have permission to edit this lead.');
+      toast.error('You do not have permission to edit this lead.');
       return;
     }
-
     if (!lead && !canCreateLead) {
-      showError('You do not have permission to create leads.');
+      toast.error('You do not have permission to create leads.');
       return;
     }
 
     const phoneRegex = /^\+?[1-9][0-9]{9,14}$/;
-    const rawDigitsOnly = String(form.phone || '').replace(/\D/g, '');
+    const rawDigitsOnly = form.phone.replace(/\D/g, '');
     if (
       !form.phone ||
       !phoneRegex.test(form.phone) ||
       rawDigitsOnly.length < 10
     ) {
-      showError('Please enter a valid phone number with country code.');
+      toast.error('Please enter a valid phone number with country code.');
       setActiveTab('Profile');
       return;
     }
@@ -960,1393 +964,1638 @@ const LeadFormModal = ({
     const altDigits = altRaw.replace(/\D/g, '');
     const isOnlyCountryCode = altDigits.length <= 2;
     if (altDigits.length > 0 && !isOnlyCountryCode && altDigits.length < 10) {
-      showError(
+      toast.error(
         'Please enter a valid alternate phone number with country code.',
       );
       setActiveTab('Profile');
       return;
     }
 
-    if (!form.name?.trim()) {
-      showError('Lead name is required.');
+    if (!form.name.trim()) {
+      toast.error('Lead name is required.');
       setActiveTab('Profile');
       return;
     }
-
     if (!form.assignedTo) {
-      showError('Please assign the lead to a user.');
+      toast.error('Please assign the lead to a user.');
       setActiveTab('Assign');
       return;
     }
-
-    if (form.paymentAmount?.trim() && !form.paymentDate) {
-      showError('Payment date is required.');
+    if (form.paymentAmount.trim() && !form.paymentDate) {
+      toast.error('Payment date is required.');
       setActiveTab('Payment');
       return;
     }
 
-    const taskActivity = form.activities?.Task;
-    if (taskActivity?.text?.trim() && !taskActivity.dueDate) {
-      showError('Task due date is required.');
+    if (activities.Task.text?.trim() && !activities.Task.dueDate) {
+      toast.error('Task due date is required.');
       setActiveTab('Activity');
-      handleChange('activeActivityType', 'Task');
+      setActiveActivityType('Task');
       return;
     }
-
     if (form.reminderDate && !form.reminderAssignedTo) {
-      showError('Reminder must be assigned to a user.');
+      toast.error('Reminder must be assigned to a user.');
       setActiveTab('Reminder');
       return;
     }
 
+    if (activeTab === 'Cross-Sell') {
+      // Cross-Sell save handled inside SuccessServiceSelector via ref/parent — not applicable here
+      return;
+    }
+
+    const payload = buildPayload();
     setSubmitting(true);
     try {
-      const payload = buildPayload();
       const savedLead = await onSubmit(payload, lead?._id);
-
       if (!lead?._id && recordingFile && savedLead?._id) {
         try {
-          await uploadRecordingForLead(savedLead._id);
+          const fd = new FormData();
+          fd.append('recording', {
+            uri: recordingFile.uri,
+            name: recordingFile.name,
+            type: recordingFile.type,
+          });
+          fd.append('label', form.recordingLabel || recordingFile.name);
+          const token = await AsyncStorage.getItem('accessToken');
+          await axios.post(
+            `/api/v1/leads/${savedLead._id}/recordings/upload`,
+            fd,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
         } catch {
-          Alert.alert('Warning', 'Lead created but recording upload failed.');
+          toast.error('Lead created but recording upload failed.');
         }
       }
-
       if (!lead?._id) onClose();
-    } catch (err) {
-      showError(err?.response?.data?.message || 'Unable to save lead.');
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Unable to save lead.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const renderPicker = (
-    selectedValue,
-    onValueChange,
-    items,
-    enabled = true,
-    placeholder = null,
-  ) => (
-    <View style={[styles.pickerWrapper, !enabled && styles.disabledControl]}>
-      <Picker
-        selectedValue={selectedValue}
-        onValueChange={onValueChange}
-        enabled={enabled}
-      >
-        {placeholder ? <Picker.Item label={placeholder} value="" /> : null}
-        {items.map(item => {
-          const value = typeof item === 'string' ? item : item.value;
-          const label = typeof item === 'string' ? item : item.label;
-          return <Picker.Item key={value} label={label} value={value} />;
-        })}
-      </Picker>
-    </View>
-  );
-
-  const renderProfileTab = () => (
-    <View style={styles.tabContent}>
-      <Text style={styles.label}>Full Name *</Text>
-      <TextInput
-        style={styles.input}
-        value={form.name}
-        onChangeText={value => handleChange('name', value)}
-        placeholder="Contact name"
-      />
-
-      <Text style={styles.label}>Primary Phone *</Text>
-      <CustomPhoneInput
-        value={form.phone}
-        onChange={value => handleChange('phone', value)}
-        defaultCountry="IN"
-      />
-
-      <View style={styles.row}>
-        <View style={styles.flexOne}>
-          <Text style={styles.label}>Status</Text>
-          {renderPicker(
-            form.status,
-            value => handleChange('status', value),
-            defaultStatusOptions,
-          )}
-        </View>
-        <View style={styles.flexOne}>
-          <Text style={styles.label}>Priority</Text>
-          {renderPicker(
-            form.priority,
-            value => handleChange('priority', value),
-            PRIORITY_OPTIONS,
-          )}
-        </View>
-      </View>
-
-      <View style={styles.row}>
-        <View style={styles.flexOne}>
-          <Text style={styles.label}>Deal Value (₹)</Text>
-          <TextInput
-            style={styles.input}
-            value={form.dealValue}
-            onChangeText={value => handleChange('dealValue', value)}
-            keyboardType="numeric"
-            placeholder="Deal value"
-          />
-        </View>
-        <View style={styles.flexOne}>
-          <Text style={styles.label}>City</Text>
-          <TextInput
-            style={styles.input}
-            value={form.city}
-            onChangeText={value => handleChange('city', value)}
-            placeholder="City"
-          />
-        </View>
-      </View>
-
-      <Text style={styles.label}>Alternate Phone (Optional)</Text>
-      <CustomPhoneInput
-        value={form.alternatePhone || ''}
-        onChange={value => handleChange('alternatePhone', value)}
-        defaultCountry="IN"
-      />
-
-      <Text style={styles.label}>Source</Text>
-      {renderPicker(
-        form.source,
-        value => handleChange('source', value),
-        defaultSourceOptions,
-      )}
-
-      <Text style={styles.label}>Product</Text>
-      <TextInput
-        style={styles.input}
-        value={form.product}
-        onChangeText={value => handleChange('product', value)}
-        placeholder="Product"
-      />
-
-      <Text style={styles.label}>Email Address</Text>
-      <TextInput
-        style={styles.input}
-        value={form.email}
-        onChangeText={value => handleChange('email', value)}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        placeholder="Email address"
-      />
-
-      <Text style={styles.label}>Close Date</Text>
-      <TouchableOpacity
-        style={styles.dateSelectorButton}
-        onPress={() => triggerDatePicker('closeDate')}
-      >
-        <Text
-          style={[
-            styles.dateSelectorText,
-            form.closeDate ? styles.dateSet : styles.datePlaceholder,
-          ]}
-        >
-          {form.closeDate || 'Select Close Target Date'}
-        </Text>
-        <Feather name="calendar" size={16} color="#64748b" />
-      </TouchableOpacity>
-
-      {customColumns
-        .filter(column => column.formVisible !== false)
-        .map(column => (
-          <View key={column.key}>
-            <Text style={styles.label}>{column.label}</Text>
-            <TextInput
-              style={styles.input}
-              value={form.customFields?.[column.key] || ''}
-              onChangeText={value => handleCustomFieldChange(column.key, value)}
-              placeholder={`Enter ${column.label}`}
-            />
-          </View>
-        ))}
-
-      <Text style={styles.label}>Initial Note</Text>
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        value={form.note}
-        onChangeText={value => handleChange('note', value)}
-        multiline
-        placeholder="Initial note or lead details"
-      />
-    </View>
-  );
-
-  const renderAssignTab = () => (
-    <View style={styles.tabContent}>
-      <Text style={styles.label}>Primary Lead Owner *</Text>
-      {renderPicker(
-        form.assignedTo,
-        value => handleChange('assignedTo', value),
-        users.map(user => ({
-          value: user._id,
-          label: user.name || user.email || 'Unknown user',
-        })),
-        canManageAssignment,
-        'Select owner',
-      )}
-      {!canManageAssignment ? (
-        <Text style={styles.warningText}>
-          You do not have permission to change assignment for this lead.
-        </Text>
-      ) : null}
-
-      <View style={styles.panel}>
-        <Text style={styles.label}>Co-Assignees</Text>
-        <MultiSelect
-          options={users
-            .filter(user => user._id !== form.assignedTo)
-            .map(user => ({
-              value: user._id,
-              label: user.name || user.email || 'Unknown user',
-            }))}
-          value={(form.coAssignees || []).map(id => ({
-            value: id,
-            label:
-              users.find(user => user._id === id)?.name ||
-              users.find(user => user._id === id)?.email ||
-              '',
-          }))}
-          onChange={selected =>
-            handleChange(
-              'coAssignees',
-              selected ? selected.map(item => item.value) : [],
-            )
-          }
-          placeholder="Select one or more co-assignees"
-          disabled={!canManageAssignment}
-          isMulti
-          isSearchable
-          closeMenuOnSelect={false}
-          hideSelectedOptions={false}
-          isClearable
-        />
-        {!canManageAssignment ? (
-          <Text style={styles.warningText}>
-            Co-assignee assignment is restricted for your role.
-          </Text>
-        ) : null}
-      </View>
-    </View>
-  );
-
-  const renderActivityTab = () => {
-    const type = form.activeActivityType || 'Note';
-    const act = form.activities?.[type] || {};
-
-    const iconMap = {
-      Note: { icon: 'file-text', color: '#a855f7' },
-      Call: { icon: 'phone', color: '#22c55e' },
-      Email: { icon: 'mail', color: '#3b82f6' },
-      Meeting: { icon: 'users', color: '#f97316' },
-      Task: { icon: 'check-square', color: '#64748b' },
-    };
-
-    return (
-      <View style={styles.tabContent}>
-        <Text style={styles.label}>Activity Type</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.activityPills}
-        >
-          {ACTIVITY_TYPES.map(activityType => {
-            const data = form.activities?.[activityType] || {};
-            const hasData =
-              data.text?.trim() || data.duration?.trim() || data.dueDate;
-            const active = type === activityType;
-            return (
-              <TouchableOpacity
-                key={activityType}
-                onPress={() => handleChange('activeActivityType', activityType)}
-                style={[
-                  styles.activityPill,
-                  active && {
-                    backgroundColor: iconMap[activityType].color,
-                    borderColor: iconMap[activityType].color,
-                  },
-                ]}
-              >
-                <Feather
-                  name={iconMap[activityType].icon}
-                  size={14}
-                  color={active ? '#fff' : iconMap[activityType].color}
-                />
-                <Text
-                  style={[
-                    styles.activityPillText,
-                    active && styles.activityPillTextActive,
-                  ]}
-                >
-                  {activityType}
-                </Text>
-                {hasData ? <View style={styles.dataDot} /> : null}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        <View style={styles.panel}>
-          <Text style={styles.subHeading}>{type} Activity</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={act.text || ''}
-            onChangeText={value => handleActivityChange(type, 'text', value)}
-            multiline
-            placeholder={
-              type === 'Call'
-                ? 'Call summary — what was discussed?'
-                : 'Add details...'
-            }
-          />
-
-          {type === 'Call' ? (
-            <>
-              <Text style={styles.label}>Duration</Text>
-              <TextInput
-                style={styles.input}
-                value={act.duration || ''}
-                onChangeText={value =>
-                  handleActivityChange(type, 'duration', value)
-                }
-                placeholder="3m 42s"
-              />
-              <View style={styles.row}>
-                <View style={styles.flexOne}>
-                  <Text style={styles.label}>Direction</Text>
-                  {renderPicker(
-                    act.direction || 'Outgoing',
-                    value => handleActivityChange(type, 'direction', value),
-                    ['Outgoing', 'Incoming', 'Missed'],
-                  )}
-                </View>
-                <View style={styles.flexOne}>
-                  <Text style={styles.label}>Outcome</Text>
-                  {renderPicker(
-                    act.outcome || 'Spoke',
-                    value => handleActivityChange(type, 'outcome', value),
-                    ['Spoke', 'No Answer', 'Left Voicemail'],
-                  )}
-                </View>
-              </View>
-            </>
-          ) : null}
-
-          {type === 'Task' ? (
-            <View style={styles.row}>
-              <View style={styles.flexOne}>
-                <Text style={styles.label}>Due Date *</Text>
-                <TouchableOpacity
-                  style={styles.dateSelectorButton}
-                  onPress={() => triggerDatePicker('taskDueDate')}
-                >
-                  <Text
-                    style={[
-                      styles.dateSelectorText,
-                      act.dueDate ? styles.dateSet : styles.datePlaceholder,
-                    ]}
-                  >
-                    {act.dueDate || 'Select Date'}
-                  </Text>
-                  <Feather name="calendar" size={16} color="#64748b" />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.flexOne}>
-                <Text style={styles.label}>Assign To</Text>
-                {renderPicker(
-                  act.assignedTo,
-                  value => handleActivityChange(type, 'assignedTo', value),
-                  users.map(user => ({
-                    value: user._id,
-                    label: user.name || 'Unknown',
-                  })),
-                )}
-              </View>
-            </View>
-          ) : null}
-
-          <Text style={styles.label}>Notify</Text>
-          {renderPicker(
-            act.notify || '',
-            value => handleActivityChange(type, 'notify', value),
-            users.map(user => ({
-              value: user._id,
-              label: user.name || 'Unknown',
-            })),
-            true,
-            'No one',
-          )}
-
-          {act.text?.trim() || act.duration?.trim() || act.dueDate ? (
-            <TouchableOpacity
-              style={styles.clearButton}
-              onPress={() => {
-                const base =
-                  type === 'Call'
-                    ? {
-                        _id: act._id || '',
-                        text: '',
-                        duration: '',
-                        direction: 'Outgoing',
-                        outcome: 'Spoke',
-                        notify: '',
-                      }
-                    : type === 'Task'
-                    ? {
-                        _id: act._id || '',
-                        text: '',
-                        dueDate: '',
-                        assignedTo: users[0]?._id || '',
-                        notify: '',
-                      }
-                    : { _id: act._id || '', text: '', notify: '' };
-                setForm(prev => ({
-                  ...prev,
-                  activities: { ...prev.activities, [type]: base },
-                }));
-              }}
-            >
-              <Text style={styles.clearButtonText}>✕ Clear {type} data</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        {lead &&
-        Array.isArray(lead.activities) &&
-        lead.activities.length > 0 ? (
-          <View style={styles.historyContainer}>
-            <View style={styles.sectionTitleRow}>
-              <Text style={styles.historyHeading}>Recent Interactions</Text>
-              <Text style={styles.countBadge}>
-                {lead.activities.length} total
-              </Text>
-            </View>
-            {lead.activities.map((item, index) => {
-              const userName =
-                typeof item.user === 'string'
-                  ? item.user
-                  : item.user?.name ||
-                    item.createdBy?.name ||
-                    item.userName ||
-                    '—';
-              return (
-                <View key={item._id || index} style={styles.historyCard}>
-                  <View style={styles.historyHeader}>
-                    <Text style={styles.historyType}>
-                      📌 {item.type || 'Interaction'}
-                    </Text>
-                    {item.callOutcome ? (
-                      <Text style={styles.outcomeBadge}>
-                        {item.callOutcome}
-                      </Text>
-                    ) : null}
-                    {index === 0 ? (
-                      <Text style={styles.recentBadge}>Recent</Text>
-                    ) : null}
-                  </View>
-                  {item.text ? (
-                    <Text style={styles.historyBody}>{item.text}</Text>
-                  ) : null}
-                  <Text style={styles.historyFooter}>
-                    {userName}
-                    {item.createdAt
-                      ? ` · ${new Date(item.createdAt).toLocaleString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true,
-                        })}`
-                      : ''}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        ) : null}
-      </View>
-    );
-  };
-
-  const renderRecordingTab = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.panel}>
-        <Text style={styles.subHeading}>Add New Recording</Text>
-
-        <Text style={styles.label}>Label</Text>
-        <TextInput
-          style={styles.input}
-          value={form.recordingLabel}
-          onChangeText={value => handleChange('recordingLabel', value)}
-          placeholder="First call · 30 Apr"
-        />
-
-        <Text style={styles.label}>Recording URL</Text>
-        <TextInput
-          style={styles.input}
-          value={form.recordingUrl}
-          onChangeText={value => {
-            handleChange('recordingUrl', value);
-            if (recordingFile) setRecordingFile(null);
-          }}
-          keyboardType="url"
-          autoCapitalize="none"
-          placeholder="https://drive.google.com/..."
-        />
-
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>or upload a file</Text>
-          <View style={styles.divider} />
-        </View>
-
-        <TouchableOpacity
-          style={styles.uploadAreaContainer}
-          onPress={handlePickDocument}
-          activeOpacity={0.85}
-        >
-          {recordingFile ? (
-            <View style={styles.selectedFileRow}>
-              <Feather name="mic" size={24} color="#5a7bf6" />
-              <View style={styles.flexOne}>
-                <Text style={styles.recordingCardTitle} numberOfLines={1}>
-                  {getFileName(recordingFile)}
-                </Text>
-                {recordingFile.size ? (
-                  <Text style={styles.uploadAreaSubtext}>
-                    {(recordingFile.size / (1024 * 1024)).toFixed(2)} MB
-                  </Text>
-                ) : null}
-              </View>
-              <TouchableOpacity
-                onPress={() => setRecordingFile(null)}
-                style={styles.iconBtnDanger}
-              >
-                <Feather name="x" size={16} color="#ef4444" />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <>
-              <Feather name="upload-cloud" size={28} color="#5a7bf6" />
-              <Text style={styles.uploadAreaText}>
-                Tap to select audio or video file
-              </Text>
-              <Text style={styles.uploadAreaSubtext}>
-                MP3, MP4, WAV, OGG, M4A, WebM · max depends on server
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        {uploadingRec ? (
-          <View style={styles.progressContainer}>
-            <View style={styles.progressMeta}>
-              <Text style={styles.helpText}>Uploading...</Text>
-              <Text style={styles.helpText}>{uploadProgress}%</Text>
-            </View>
-            <View style={styles.progressTrack}>
-              <View
-                style={[styles.progressFill, { width: `${uploadProgress}%` }]}
-              />
-            </View>
-          </View>
-        ) : null}
-
-        {recordingFile || form.recordingUrl?.trim() ? (
-          lead?._id ? (
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleRecordingUpload}
-              disabled={uploadingRec}
-            >
-              {uploadingRec ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.actionButtonText}>Save Recording</Text>
-              )}
-            </TouchableOpacity>
-          ) : (
-            <Text style={[styles.warningText, styles.centerText]}>
-              ⚠️ Recording will be saved after the lead is created
-            </Text>
-          )
-        ) : null}
-      </View>
-
-      {savedRecordings.length > 0 ? (
-        <View style={{ marginTop: 18 }}>
-          <Text style={styles.historyHeading}>
-            Saved Recordings ({savedRecordings.length})
-          </Text>
-          {savedRecordings.map((rec, index) => {
-            const url = rec.url || rec.uri || '';
-            const playing = playingUrl === url;
-            const video = isVideoUrl(url);
-            return (
-              <View
-                key={rec._id || rec.url || index}
-                style={styles.recordingCard}
-              >
-                <View style={styles.recordingCardRowTop}>
-                  <View style={styles.mediaIconCircle}>
-                    <Feather
-                      name={video ? 'video' : 'music'}
-                      size={17}
-                      color="#5a7bf6"
-                    />
-                  </View>
-                  <View style={styles.flexOne}>
-                    <Text style={styles.recordingCardTitle} numberOfLines={1}>
-                      {rec.label ||
-                        rec.originalName ||
-                        `Recording ${index + 1}`}
-                    </Text>
-                    {rec.uploadedAt ? (
-                      <Text style={styles.recordingCardUrl} numberOfLines={1}>
-                        {new Date(rec.uploadedAt).toLocaleDateString('en-IN', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                        {rec.size
-                          ? ` · ${(rec.size / (1024 * 1024)).toFixed(2)} MB`
-                          : ''}
-                      </Text>
-                    ) : (
-                      <Text style={styles.recordingCardUrl} numberOfLines={1}>
-                        {url || 'Binary storage block resource'}
-                      </Text>
-                    )}
-                  </View>
-                  {url ? (
-                    <TouchableOpacity
-                      onPress={() => setPlayingUrl(playing ? null : url)}
-                      style={styles.iconBtnPrimary}
-                    >
-                      <Feather
-                        name={playing ? 'square' : 'play'}
-                        size={15}
-                        color="#5a7bf6"
-                      />
-                    </TouchableOpacity>
-                  ) : null}
-                  {url ? (
-                    <TouchableOpacity
-                      onPress={() => Linking.openURL(url)}
-                      style={styles.iconBtnNeutral}
-                    >
-                      <Feather name="external-link" size={15} color="#64748b" />
-                    </TouchableOpacity>
-                  ) : null}
-                  <TouchableOpacity
-                    onPress={() => handleDeleteRecording(rec)}
-                    style={styles.iconBtnDanger}
-                  >
-                    <Feather name="trash-2" size={15} color="#ef4444" />
-                  </TouchableOpacity>
-                </View>
-
-                {playing && url ? (
-                  <View style={styles.playerBox}>
-                    <Video
-                      source={{ uri: url }}
-                      style={video ? styles.videoPlayer : styles.audioPlayer}
-                      controls
-                      paused={false}
-                      resizeMode="contain"
-                      onError={() =>
-                        showError('Unable to play this recording.')
-                      }
-                    />
-                  </View>
-                ) : null}
-              </View>
-            );
-          })}
-        </View>
-      ) : !recordingFile && !form.recordingUrl ? (
-        <View style={styles.emptyState}>
-          <Feather name="mic" size={36} color="#cbd5e1" />
-          <Text style={styles.emptyText}>No recordings saved yet</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-
-  const handlePaymentUpdated = updatedPayment => {
-    setPaymentHistory(prev =>
-      prev.map(item =>
-        item._id === updatedPayment._id ? updatedPayment : item,
-      ),
-    );
-  };
-
-  const renderPaymentTab = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.row}>
-        <View style={styles.flexOne}>
-          <Text style={styles.label}>Amount (₹)</Text>
-          <TextInput
-            style={styles.input}
-            value={form.paymentAmount}
-            onChangeText={value => handleChange('paymentAmount', value)}
-            keyboardType="numeric"
-            placeholder="0"
-          />
-        </View>
-        <View style={styles.flexOne}>
-          <Text style={styles.label}>Date</Text>
-          <TouchableOpacity
-            style={styles.dateSelectorButton}
-            onPress={() => triggerDatePicker('paymentDate')}
-          >
-            <Text
-              style={[
-                styles.dateSelectorText,
-                form.paymentDate ? styles.dateSet : styles.datePlaceholder,
-              ]}
-            >
-              {form.paymentDate || 'Select Date'}
-            </Text>
-            <Feather name="calendar" size={16} color="#64748b" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.row}>
-        <View style={styles.flexOne}>
-          <Text style={styles.label}>Mode</Text>
-          {renderPicker(
-            form.paymentMode,
-            value => handleChange('paymentMode', value),
-            PAYMENT_MODES,
-          )}
-        </View>
-        <View style={styles.flexOne}>
-          <Text style={styles.label}>Status</Text>
-          {renderPicker(
-            form.paymentStatus,
-            value => handleChange('paymentStatus', value),
-            PAYMENT_STATUS,
-          )}
-        </View>
-      </View>
-
-      <Text style={styles.label}>Reference / Transaction ID</Text>
-      <TextInput
-        style={styles.input}
-        value={form.paymentReference}
-        onChangeText={value => handleChange('paymentReference', value)}
-        placeholder="Transaction ID / UTR"
-      />
-
-      {paymentHistory.length > 0 ? (
-        <View style={styles.historyContainer}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.historyHeading}>Payment History</Text>
-            <Text style={styles.countBadge}>
-              {paymentHistory.length} entries
-            </Text>
-          </View>
-          {[...paymentHistory]
-            .sort(
-              (a, b) =>
-                new Date(b.paymentDate || b.createdAt || 0) -
-                new Date(a.paymentDate || a.createdAt || 0),
-            )
-            .map((payment, index) => (
-              <PaymentHistoryItem
-                key={
-                  payment._id ||
-                  payment.createdAt ||
-                  payment.paymentDate ||
-                  index
-                }
-                payment={payment}
-                onUpdated={handlePaymentUpdated}
-              />
-            ))}
-        </View>
-      ) : null}
-    </View>
-  );
-
-  const renderReminderTab = () => (
-    <View style={styles.tabContent}>
-      <Text style={styles.label}>Type</Text>
-      {renderPicker(
-        form.reminderType,
-        value => handleChange('reminderType', value),
-        REMINDER_TYPES,
-      )}
-
-      <Text style={styles.label}>Assign To</Text>
-      {renderPicker(
-        form.reminderAssignedTo,
-        value => handleChange('reminderAssignedTo', value),
-        users.map(user => ({ value: user._id, label: user.name || 'Unknown' })),
-        true,
-        'Select Assignee',
-      )}
-
-      <View style={styles.row}>
-        <View style={styles.flexOne}>
-          <Text style={styles.label}>Date</Text>
-          <TouchableOpacity
-            style={styles.dateSelectorButton}
-            onPress={() => triggerDatePicker('reminderDate')}
-          >
-            <Text
-              style={[
-                styles.dateSelectorText,
-                form.reminderDate ? styles.dateSet : styles.datePlaceholder,
-              ]}
-            >
-              {form.reminderDate || 'Select Date'}
-            </Text>
-            <Feather name="calendar" size={16} color="#64748b" />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.flexOne}>
-          <Text style={styles.label}>Time</Text>
-          <TouchableOpacity
-            style={styles.dateSelectorButton}
-            onPress={() => setShowTimePicker(true)}
-          >
-            <Text
-              style={[
-                styles.dateSelectorText,
-                form.reminderTime ? styles.dateSet : styles.datePlaceholder,
-              ]}
-            >
-              {form.reminderTime || '10:00'}
-            </Text>
-            <Feather name="clock" size={16} color="#64748b" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <Text style={styles.label}>Note</Text>
-      <TextInput
-        style={styles.input}
-        value={form.reminderNote}
-        onChangeText={value => handleChange('reminderNote', value)}
-        placeholder="Reminder note"
-      />
-
-      <Text style={styles.label}>Also notify</Text>
-      {renderPicker(
-        form.reminderNotify,
-        value => handleChange('reminderNotify', value),
-        users.map(user => ({ value: user._id, label: user.name || 'Unknown' })),
-        true,
-        'None',
-      )}
-    </View>
-  );
-
   if (!visible) return null;
 
+  const allTabs = [
+    ...TABS,
+    ...(form.status === 'Success' || lead?.isCrossSell ? ['Cross-Sell'] : []),
+  ];
+  const activeMeta =
+    ACTIVITY_TYPE_META[activeActivityType] || ACTIVITY_TYPE_META.Note;
+  const activeAct = activities[activeActivityType];
+
+  // ── Render helper: FormRow ──
+  const FormRow = ({ children, columns = 1 }) => (
+    <View style={[styles.formRow, columns === 2 && styles.formRow2]}>
+      {children}
+    </View>
+  );
+  const FieldBlock = ({ label, required = false, children }) => (
+    <View style={styles.fieldBlock}>
+      <Text style={styles.fieldLabel}>
+        {label} {required ? <Text style={styles.reqStar}>*</Text> : null}
+      </Text>
+      {children}
+    </View>
+  );
+
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.modal}
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity
+        style={styles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
       >
-        <View style={styles.container}>
+        <View style={styles.modalBody}>
+          {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTextWrap}>
-              <Text style={styles.title}>
+              <Text style={styles.headerTitle}>
                 {lead ? 'Edit Lead' : 'Add New Lead'}
               </Text>
-              <Text style={styles.subtitle}>
+              <Text style={styles.headerSubtitle}>
                 Complete profile, assignment, activity, recording, payment and
                 reminder sections.
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Feather name="x" size={20} color="#64748b" />
+              <Icon name="close" size={20} color="#6b7280" />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.tabsWrapper}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.tabsContainer}
-            >
-              {allTabs.map(tab => (
-                <TouchableOpacity
-                  key={tab}
-                  onPress={() => setActiveTab(tab)}
-                  style={[styles.tab, activeTab === tab && styles.activeTab]}
-                >
-                  <Text
-                    style={[
-                      styles.tabText,
-                      activeTab === tab && styles.activeTabText,
-                    ]}
-                  >
-                    {tab}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
+          {/* Tabs */}
           <ScrollView
-            style={styles.content}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.tabsScroll}
           >
-            {activeTab === 'Profile' && renderProfileTab()}
-            {activeTab === 'Assign' && renderAssignTab()}
-            {activeTab === 'Activity' && renderActivityTab()}
-            {activeTab === 'Recording' && renderRecordingTab()}
-            {activeTab === 'Payment' && renderPaymentTab()}
-            {activeTab === 'Reminder' && renderReminderTab()}
-            {activeTab === 'Cross-Sell' && (
-              <SuccessServiceSelector
-                ref={crossSellRef}
-                lead={lead}
-                onSaved={onClose}
-              />
-            )}
+            <View style={styles.tabsInner}>
+              {allTabs.map(tab => {
+                const active = activeTab === tab;
+                return (
+                  <TouchableOpacity
+                    key={tab}
+                    onPress={() => setActiveTab(tab)}
+                    style={styles.tabBtn}
+                  >
+                    <Text
+                      style={[styles.tabText, active && styles.tabTextActive]}
+                    >
+                      {tab}
+                    </Text>
+                    {active ? <View style={styles.tabIndicator} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </ScrollView>
 
-          {showDatePicker ? (
-            <DateTimePicker
-              value={dateFromInput(
-                dateTarget === 'taskDueDate'
-                  ? form.activities?.Task?.dueDate
-                  : form[dateTarget],
-              )}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleDateConfirm}
-            />
-          ) : null}
+          {/* Form Body */}
+          <ScrollView
+            contentContainerStyle={styles.formScroll}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* ═══ PROFILE TAB ═══ */}
+            {activeTab === 'Profile' ? (
+              <View style={styles.formContainer}>
+                <FieldBlock label="Full Name" required>
+                  <TextInput
+                    value={form.name}
+                    onChangeText={v => handleChange('name', v)}
+                    placeholder="Contact name"
+                    style={styles.input}
+                  />
+                </FieldBlock>
 
-          {showTimePicker ? (
-            <DateTimePicker
-              value={timeFromInput(form.reminderTime)}
-              mode="time"
-              is24Hour
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleTimeConfirm}
-            />
-          ) : null}
+                <FormRow columns={2}>
+                  <FieldBlock label="Primary Phone" required>
+                    <CustomPhoneInput
+                      value={form.phone}
+                      onChange={fullNumber => handleChange('phone', fullNumber)}
+                      defaultCountry="IN"
+                    />
+                  </FieldBlock>
+                  <FieldBlock label="Status">
+                    <FieldPicker
+                      value={form.status}
+                      options={defaultStatusOptions}
+                      onChange={v => handleChange('status', v)}
+                    />
+                  </FieldBlock>
+                </FormRow>
 
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.saveBtn}
-              onPress={handleSubmit}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.saveText}>
-                  {activeTab === 'Cross-Sell'
-                    ? 'Save Services'
+                <FormRow columns={2}>
+                  <FieldBlock label="Priority">
+                    <FieldPicker
+                      value={form.priority}
+                      options={PRIORITY_OPTIONS}
+                      onChange={v => handleChange('priority', v)}
+                    />
+                  </FieldBlock>
+                  <FieldBlock label="Deal Value (₹)">
+                    <TextInput
+                      keyboardType="numeric"
+                      value={form.dealValue}
+                      onChangeText={v => handleChange('dealValue', v)}
+                      placeholder="Deal value"
+                      style={styles.input}
+                    />
+                  </FieldBlock>
+                </FormRow>
+
+                <FormRow columns={2}>
+                  <FieldBlock label="City">
+                    <TextInput
+                      value={form.city}
+                      onChangeText={v => handleChange('city', v)}
+                      placeholder="City"
+                      style={styles.input}
+                    />
+                  </FieldBlock>
+                  <FieldBlock label="Alternate Phone (Optional)">
+                    <CustomPhoneInput
+                      value={form.alternatePhone || ''}
+                      onChange={fullNumber =>
+                        handleChange('alternatePhone', fullNumber)
+                      }
+                      defaultCountry="IN"
+                    />
+                  </FieldBlock>
+                </FormRow>
+
+                <FormRow columns={2}>
+                  <FieldBlock label="Source">
+                    <FieldPicker
+                      value={form.source}
+                      options={defaultSourceOptions}
+                      onChange={v => handleChange('source', v)}
+                    />
+                  </FieldBlock>
+                  <FieldBlock label="Product">
+                    <TextInput
+                      value={form.product}
+                      onChangeText={v => handleChange('product', v)}
+                      placeholder="Product"
+                      style={styles.input}
+                    />
+                  </FieldBlock>
+                </FormRow>
+
+                <FormRow columns={2}>
+                  <FieldBlock label="Email">
+                    <TextInput
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      value={form.email}
+                      onChangeText={v => handleChange('email', v)}
+                      placeholder="Email address"
+                      style={styles.input}
+                    />
+                  </FieldBlock>
+                  <FieldBlock label="Close Date">
+                    <DateTimeField
+                      value={form.closeDate}
+                      onChange={v => handleChange('closeDate', v)}
+                      openKey="closeDate"
+                      pickerTargets={pickerTargets}
+                      setPickerTargets={setPickerTargets}
+                    />
+                  </FieldBlock>
+                </FormRow>
+
+                {customColumns.length > 0
+                  ? customColumns
+                      .filter(column => column.formVisible !== false)
+                      .map(column => (
+                        <FieldBlock key={column.key} label={column.label}>
+                          <TextInput
+                            value={form.customFields?.[column.key] || ''}
+                            onChangeText={v =>
+                              handleCustomFieldChange(column.key, v)
+                            }
+                            placeholder={`Enter ${column.label}`}
+                            style={styles.input}
+                          />
+                        </FieldBlock>
+                      ))
+                  : null}
+
+                <FieldBlock label="Initial Note">
+                  <TextInput
+                    multiline
+                    numberOfLines={3}
+                    value={form.note}
+                    onChangeText={v => handleChange('note', v)}
+                    placeholder="Initial note or lead details"
+                    style={[styles.input, styles.textarea]}
+                  />
+                </FieldBlock>
+              </View>
+            ) : null}
+
+            {/* ═══ ASSIGN TAB ═══ */}
+            {activeTab === 'Assign' ? (
+              <View style={styles.formContainer}>
+                <FieldBlock label="Primary Lead Owner" required>
+                  <FieldPicker
+                    value={form.assignedTo}
+                    options={users.map(u => ({ value: u._id, label: u.name }))}
+                    onChange={v => handleChange('assignedTo', v)}
+                    emptyLabel="Select owner"
+                    disabled={!canManageAssignment}
+                  />
+                  {!canManageAssignment ? (
+                    <Text style={styles.warningText}>
+                      You do not have permission to change assignment for this
+                      lead.
+                    </Text>
+                  ) : null}
+                </FieldBlock>
+
+                <View style={styles.coAssignBox}>
+                  <Text style={styles.fieldLabel}>Co-Assignees</Text>
+                  <View style={{ marginTop: 12 }}>
+                    <MultiSelect
+                      options={users
+                        .filter(u => u._id !== form.assignedTo)
+                        .map(u => ({
+                          value: u._id,
+                          label: u.name || u.email || 'Unknown user',
+                        }))}
+                      value={users
+                        .filter(u => u._id !== form.assignedTo)
+                        .map(u => ({
+                          value: u._id,
+                          label: u.name || u.email || 'Unknown user',
+                        }))
+                        .filter(opt => form.coAssignees.includes(opt.value))}
+                      onChange={selected => {
+                        const ids = Array.isArray(selected)
+                          ? selected.map(item => item.value)
+                          : [];
+                        handleChange('coAssignees', ids);
+                      }}
+                      placeholder="Select one or more co-assignees"
+                      disabled={!canManageAssignment}
+                      isSearchable
+                      closeMenuOnSelect={false}
+                      hideSelectedOptions={false}
+                      noOptionsMessage={() => 'No users available'}
+                      isMulti
+                      isClearable
+                      maxMenuHeight={280}
+                    />
+                  </View>
+                  {!canManageAssignment ? (
+                    <Text style={styles.warningText}>
+                      Co-assignee assignment is restricted for your role.
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+
+            {/* ═══ ACTIVITY TAB ═══ */}
+            {activeTab === 'Activity' ? (
+              <View style={styles.formContainer}>
+                <View style={styles.activityTypeHeader}>
+                  <Text style={styles.fieldLabel}>Activity Type</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.typeScroll}
+                  >
+                    <View style={styles.typeRow}>
+                      {Object.keys(ACTIVITY_TYPE_META).map(type => {
+                        const meta = ACTIVITY_TYPE_META[type];
+                        const act = activities[type];
+                        const hasData =
+                          act.text?.trim() ||
+                          act.duration?.trim() ||
+                          act.dueDate;
+                        const isActive = activeActivityType === type;
+                        return (
+                          <TouchableOpacity
+                            key={type}
+                            onPress={() => setActiveActivityType(type)}
+                            style={[
+                              styles.typePill,
+                              isActive
+                                ? { backgroundColor: meta.color }
+                                : styles.typePillInactive,
+                            ]}
+                          >
+                            <Icon
+                              name={meta.icon}
+                              size={14}
+                              color={isActive ? '#fff' : '#4b5563'}
+                            />
+                            <Text
+                              style={[
+                                styles.typePillText,
+                                isActive && styles.typePillTextActive,
+                              ]}
+                            >
+                              {type}
+                            </Text>
+                            {hasData ? (
+                              <View style={styles.typePillDot} />
+                            ) : null}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                </View>
+
+                <View style={styles.activityForm}>
+                  <Text style={styles.activityFormTitle}>
+                    {activeActivityType} Activity
+                  </Text>
+                  <TextInput
+                    multiline
+                    numberOfLines={2}
+                    value={activeAct.text}
+                    onChangeText={v =>
+                      updateActivity(activeActivityType, 'text', v)
+                    }
+                    placeholder={
+                      activeActivityType === 'Call'
+                        ? 'Call summary — what was discussed?'
+                        : 'Add details...'
+                    }
+                    style={[styles.input, styles.textarea]}
+                    placeholderTextColor="#9ca3af"
+                  />
+
+                  {activeActivityType === 'Call' ? (
+                    <View style={styles.callGrid}>
+                      <FieldBlock label="DURATION">
+                        <TextInput
+                          value={activeAct.duration}
+                          onChangeText={v =>
+                            updateActivity('Call', 'duration', v)
+                          }
+                          placeholder="3m 42s"
+                          style={styles.input}
+                        />
+                      </FieldBlock>
+                      <FieldBlock label="DIRECTION">
+                        <FieldPicker
+                          value={activeAct.direction}
+                          options={['Outgoing', 'Incoming', 'Missed']}
+                          onChange={v => updateActivity('Call', 'direction', v)}
+                        />
+                      </FieldBlock>
+                      <FieldBlock label="OUTCOME">
+                        <FieldPicker
+                          value={activeAct.outcome}
+                          options={['Spoke', 'No Answer', 'Left Voicemail']}
+                          onChange={v => updateActivity('Call', 'outcome', v)}
+                        />
+                      </FieldBlock>
+                    </View>
+                  ) : null}
+
+                  {activeActivityType === 'Task' ? (
+                    <View style={styles.taskGrid}>
+                      <FieldBlock label="DUE DATE" required>
+                        <DateTimeField
+                          value={activeAct.dueDate}
+                          onChange={v => updateActivity('Task', 'dueDate', v)}
+                          openKey="taskDueDate"
+                          pickerTargets={pickerTargets}
+                          setPickerTargets={setPickerTargets}
+                        />
+                      </FieldBlock>
+                      <FieldBlock label="ASSIGN TO">
+                        <FieldPicker
+                          value={activeAct.assignedTo}
+                          options={users.map(u => ({
+                            value: u._id,
+                            label: u.name,
+                          }))}
+                          onChange={v =>
+                            updateActivity('Task', 'assignedTo', v)
+                          }
+                        />
+                      </FieldBlock>
+                    </View>
+                  ) : null}
+
+                  <FieldBlock label="NOTIFY">
+                    <FieldPicker
+                      value={activeAct.notify}
+                      options={[
+                        { value: '', label: 'No one' },
+                        ...users.map(u => ({ value: u._id, label: u.name })),
+                      ]}
+                      onChange={v =>
+                        updateActivity(activeActivityType, 'notify', v)
+                      }
+                    />
+                  </FieldBlock>
+
+                  {activeAct.text?.trim() ||
+                  activeAct.duration?.trim() ||
+                  activeAct.dueDate ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        const base =
+                          activeActivityType === 'Call'
+                            ? {
+                                _id: activeAct._id || '',
+                                text: '',
+                                duration: '',
+                                direction: 'Outgoing',
+                                outcome: 'Spoke',
+                                notify: '',
+                              }
+                            : activeActivityType === 'Task'
+                            ? {
+                                _id: activeAct._id || '',
+                                text: '',
+                                dueDate: '',
+                                assignedTo: users[0]?._id || '',
+                                notify: '',
+                              }
+                            : {
+                                _id: activeAct._id || '',
+                                text: '',
+                                notify: '',
+                              };
+                        setActivities(prev => ({
+                          ...prev,
+                          [activeActivityType]: base,
+                        }));
+                      }}
+                    >
+                      <Text style={styles.clearLink}>
+                        ✕ Clear {activeActivityType} data
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+
+                {lead &&
+                Array.isArray(lead.activities) &&
+                lead.activities.length > 0 ? (
+                  <View style={styles.recentBlock}>
+                    <View style={styles.recentHeader}>
+                      <Text style={styles.recentTitle}>
+                        Recent Interactions
+                      </Text>
+                      <View style={styles.recentDivider} />
+                      <View style={styles.recentCount}>
+                        <Text style={styles.recentCountText}>
+                          {lead.activities.length} total
+                        </Text>
+                      </View>
+                    </View>
+                    {lead.activities.map((item, idx) => {
+                      const iconMap = {
+                        Note: {
+                          bg: '#f3e8ff',
+                          text: '#9333ea',
+                          icon: 'note-text-outline',
+                        },
+                        Call: {
+                          bg: '#dcfce7',
+                          text: '#16a34a',
+                          icon: 'phone-outline',
+                        },
+                        Email: {
+                          bg: '#dbeafe',
+                          text: '#2563eb',
+                          icon: 'email-outline',
+                        },
+                        Meeting: {
+                          bg: '#ffedd5',
+                          text: '#ea580c',
+                          icon: 'account-group-outline',
+                        },
+                        Task: {
+                          bg: '#f1f5f9',
+                          text: '#475569',
+                          icon: 'checkbox-marked-outline',
+                        },
+                        Status: {
+                          bg: '#e0e7ff',
+                          text: '#4f46e5',
+                          icon: 'sync',
+                        },
+                        Reminder: {
+                          bg: '#fef9c3',
+                          text: '#ca8a04',
+                          icon: 'bell-outline',
+                        },
+                      };
+                      const style = iconMap[item.type] || iconMap.Status;
+                      const getCallOutcomeBadge = outcome => {
+                        if (outcome === 'Spoke')
+                          return {
+                            label: 'Spoke',
+                            dot: '#22c55e',
+                            bg: '#dcfce7',
+                            text: '#15803d',
+                          };
+                        if (outcome === 'No Answer')
+                          return {
+                            label: 'No Answer',
+                            dot: '#ef4444',
+                            bg: '#fee2e2',
+                            text: '#b91c1c',
+                          };
+                        if (outcome === 'Left Voicemail')
+                          return {
+                            label: 'Left Voicemail',
+                            dot: '#eab308',
+                            bg: '#fef9c3',
+                            text: '#a16207',
+                          };
+                        return null;
+                      };
+                      const callOutcomeBadge =
+                        item.type === 'Call'
+                          ? getCallOutcomeBadge(item.callOutcome)
+                          : null;
+                      const userName =
+                        typeof item.user === 'string'
+                          ? item.user
+                          : item.user?.name ||
+                            item.createdBy?.name ||
+                            item.userName ||
+                            '—';
+                      return (
+                        <View key={item._id || idx} style={styles.recentItem}>
+                          <View style={styles.recentItemTop}>
+                            <View
+                              style={[
+                                styles.recentIcon,
+                                { backgroundColor: style.bg },
+                              ]}
+                            >
+                              <Icon
+                                name={style.icon}
+                                size={13}
+                                color={style.text}
+                              />
+                            </View>
+                            <Text style={styles.recentType}>
+                              {item.type || 'Interaction'}
+                            </Text>
+                            {callOutcomeBadge ? (
+                              <View
+                                style={[
+                                  styles.outcomeBadge,
+                                  {
+                                    backgroundColor: callOutcomeBadge.bg,
+                                    borderColor: callOutcomeBadge.dot,
+                                  },
+                                ]}
+                              >
+                                <View
+                                  style={[
+                                    styles.outcomeDot,
+                                    { backgroundColor: callOutcomeBadge.dot },
+                                  ]}
+                                />
+                                <Text
+                                  style={[
+                                    styles.outcomeText,
+                                    { color: callOutcomeBadge.text },
+                                  ]}
+                                >
+                                  {callOutcomeBadge.label}
+                                </Text>
+                              </View>
+                            ) : null}
+                            {idx === 0 ? (
+                              <View style={styles.recentBadge}>
+                                <Text style={styles.recentBadgeText}>
+                                  Recent
+                                </Text>
+                              </View>
+                            ) : null}
+                          </View>
+                          {item.text ? (
+                            <Text style={styles.recentText}>{item.text}</Text>
+                          ) : null}
+                          <Text style={styles.recentMeta}>
+                            {userName}
+                            {item.createdAt
+                              ? ` · ${new Date(item.createdAt).toLocaleString(
+                                  'en-IN',
+                                  {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true,
+                                  },
+                                )}`
+                              : ''}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            {/* ═══ RECORDING TAB ═══ */}
+            {activeTab === 'Recording' ? (
+              <View style={styles.formContainer}>
+                <View style={styles.recordingBlock}>
+                  <Text style={styles.sectionTitle}>Add New Recording</Text>
+                  <FieldBlock label="Label">
+                    <TextInput
+                      value={form.recordingLabel}
+                      onChangeText={v => handleChange('recordingLabel', v)}
+                      placeholder="First call · 30 Apr"
+                      style={styles.input}
+                    />
+                  </FieldBlock>
+                  <FieldBlock label="Recording URL">
+                    <TextInput
+                      value={form.recordingUrl}
+                      onChangeText={v => {
+                        handleChange('recordingUrl', v);
+                        if (recordingFile) setRecordingFile(null);
+                      }}
+                      placeholder="https://drive.google.com/..."
+                      autoCapitalize="none"
+                      style={styles.input}
+                    />
+                  </FieldBlock>
+
+                  <View style={styles.orDivider}>
+                    <View style={styles.orLine} />
+                    <Text style={styles.orText}>or upload a file</Text>
+                    <View style={styles.orLine} />
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={handlePickRecordingFile}
+                    style={styles.uploadZone}
+                  >
+                    {recordingFile ? (
+                      <View style={styles.fileRow}>
+                        <Icon name="microphone" size={24} color="#5a7bf6" />
+                        <View style={styles.fileInfo}>
+                          <Text style={styles.fileName} numberOfLines={1}>
+                            {recordingFile.name}
+                          </Text>
+                          <Text style={styles.fileSize}>
+                            {(
+                              (recordingFile.size || 0) /
+                              (1024 * 1024)
+                            ).toFixed(2)}{' '}
+                            MB
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setRecordingFile(null);
+                          }}
+                          style={styles.fileRemove}
+                        >
+                          <Icon name="close" size={16} color="#ef4444" />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <>
+                        <View style={styles.uploadIconCircle}>
+                          <Icon name="upload" size={24} color="#9ca3af" />
+                        </View>
+                        <Text style={styles.uploadTitle}>
+                          Tap to select a file
+                        </Text>
+                        <Text style={styles.uploadHint}>
+                          MP3, MP4, WAV, OGG, M4A, WebM · max 100MB
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  {uploadingRec ? (
+                    <View style={styles.progressWrap}>
+                      <View style={styles.progressTopRow}>
+                        <Text style={styles.progressLabel}>Uploading...</Text>
+                        <Text style={styles.progressLabel}>
+                          {uploadProgress}%
+                        </Text>
+                      </View>
+                      <View style={styles.progressTrack}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            { width: `${uploadProgress}%` },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {(recordingFile || form.recordingUrl.trim()) && lead?._id ? (
+                    <TouchableOpacity
+                      disabled={uploadingRec}
+                      onPress={handleRecordingUpload}
+                      style={[
+                        styles.uploadBtn,
+                        uploadingRec && styles.disabled,
+                      ]}
+                    >
+                      <Text style={styles.uploadBtnText}>
+                        {uploadingRec ? 'Uploading...' : 'Save Recording'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {!lead?._id && (recordingFile || form.recordingUrl.trim()) ? (
+                    <Text style={styles.warningTextCenter}>
+                      ⚠️ Recording will be saved after the lead is created
+                    </Text>
+                  ) : null}
+                </View>
+
+                {savedRecordings.length > 0 ? (
+                  <View style={styles.savedRecsBlock}>
+                    <View style={styles.savedRecsHeader}>
+                      <Icon name="microphone" size={16} color="#5a7bf6" />
+                      <Text style={styles.savedRecsTitle}>
+                        {' '}
+                        Saved Recordings ({savedRecordings.length})
+                      </Text>
+                    </View>
+                    {savedRecordings.map((rec, idx) => {
+                      const isVideo = /\.(mp4|webm|mov|avi|mkv)/i.test(
+                        rec.url || '',
+                      );
+                      const isPlaying = playingUrl === rec.url;
+                      return (
+                        <View
+                          key={rec._id || rec.url || idx}
+                          style={styles.savedRecItem}
+                        >
+                          <View style={styles.savedRecTopRow}>
+                            <View style={styles.savedRecIcon}>
+                              <Icon
+                                name={isVideo ? 'video-outline' : 'music'}
+                                size={16}
+                                color="#5a7bf6"
+                              />
+                            </View>
+                            <View style={styles.savedRecInfo}>
+                              <Text
+                                style={styles.savedRecLabel}
+                                numberOfLines={1}
+                              >
+                                {rec.label ||
+                                  rec.originalName ||
+                                  `Recording ${idx + 1}`}
+                              </Text>
+                              {rec.uploadedAt ? (
+                                <Text style={styles.savedRecMeta}>
+                                  {new Date(rec.uploadedAt).toLocaleDateString(
+                                    'en-IN',
+                                    {
+                                      day: 'numeric',
+                                      month: 'short',
+                                      year: 'numeric',
+                                    },
+                                  )}
+                                  {rec.size
+                                    ? ` · ${(rec.size / (1024 * 1024)).toFixed(
+                                        2,
+                                      )} MB`
+                                    : ''}
+                                </Text>
+                              ) : null}
+                            </View>
+                            <View style={styles.savedRecActions}>
+                              <TouchableOpacity
+                                onPress={() =>
+                                  setPlayingUrl(isPlaying ? null : rec.url)
+                                }
+                                style={styles.recActionBtn}
+                              >
+                                <Icon
+                                  name={
+                                    isPlaying
+                                      ? 'stop-circle-outline'
+                                      : 'play-circle-outline'
+                                  }
+                                  size={20}
+                                  color="#5a7bf6"
+                                />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => Linking.openURL(rec.url)}
+                                style={styles.recActionBtnGray}
+                              >
+                                <Icon
+                                  name="download"
+                                  size={16}
+                                  color="#6b7280"
+                                />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => handleDeleteRecording(rec)}
+                                style={styles.recActionBtnRed}
+                              >
+                                <Icon
+                                  name="trash-can-outline"
+                                  size={16}
+                                  color="#ef4444"
+                                />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                          {isPlaying ? (
+                            <View style={styles.mediaContainer}>
+                              <Video
+                                source={{ uri: rec.url }}
+                                resizeMode="contain"
+                                style={styles.mediaPlayer}
+                                controls
+                                paused={!isPlaying}
+                                playInBackground={false}
+                                playWhenInactive={false}
+                                ignoreSilentSwitch="ignore"
+                              />
+                            </View>
+                          ) : null}
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : null}
+
+                {savedRecordings.length === 0 &&
+                !recordingFile &&
+                !form.recordingUrl ? (
+                  <View style={styles.emptyRecording}>
+                    <Icon name="microphone" size={40} color="#d1d5db" />
+                    <Text style={styles.emptyRecordingText}>
+                      No recordings saved yet
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            {/* ═══ PAYMENT TAB ═══ */}
+            {activeTab === 'Payment' ? (
+              <View style={styles.formContainer}>
+                <FormRow columns={3}>
+                  <FieldBlock label="Amount (₹)">
+                    <TextInput
+                      keyboardType="numeric"
+                      value={form.paymentAmount}
+                      onChangeText={v => handleChange('paymentAmount', v)}
+                      placeholder="0"
+                      style={styles.input}
+                    />
+                  </FieldBlock>
+                  <FieldBlock label="Date">
+                    <DateTimeField
+                      value={form.paymentDate}
+                      onChange={v => handleChange('paymentDate', v)}
+                      openKey="paymentDate"
+                      pickerTargets={pickerTargets}
+                      setPickerTargets={setPickerTargets}
+                    />
+                  </FieldBlock>
+                  <FieldBlock label="Mode">
+                    <FieldPicker
+                      value={form.paymentMode}
+                      options={PAYMENT_MODES}
+                      onChange={v => handleChange('paymentMode', v)}
+                    />
+                  </FieldBlock>
+                </FormRow>
+                <FormRow columns={2}>
+                  <FieldBlock label="Status">
+                    <FieldPicker
+                      value={form.paymentStatus}
+                      options={PAYMENT_STATUS}
+                      onChange={v => handleChange('paymentStatus', v)}
+                    />
+                  </FieldBlock>
+                  <FieldBlock label="Reference">
+                    <TextInput
+                      value={form.paymentReference}
+                      onChangeText={v => handleChange('paymentReference', v)}
+                      placeholder="Transaction ID / UTR"
+                      style={styles.input}
+                    />
+                  </FieldBlock>
+                </FormRow>
+
+                {paymentHistory.length > 0 ? (
+                  <View style={styles.paymentHistoryBlock}>
+                    <View style={styles.paymentHistoryHeader}>
+                      <Text style={styles.paymentHistoryTitle}>
+                        Payment history
+                      </Text>
+                      <View style={styles.recentDivider} />
+                      <View style={styles.recentCount}>
+                        <Text style={styles.recentCountText}>
+                          {paymentHistory.length} entries
+                        </Text>
+                      </View>
+                    </View>
+                    <ScrollView style={{ maxHeight: 256 }}>
+                      <View style={{ gap: 12 }}>
+                        {[...paymentHistory]
+                          .sort(
+                            (a, b) =>
+                              new Date(b.paymentDate || b.createdAt) -
+                              new Date(a.paymentDate || a.createdAt),
+                          )
+                          .map(payment => (
+                            <PaymentHistoryItem
+                              key={
+                                payment._id ||
+                                payment.createdAt ||
+                                payment.paymentDate
+                              }
+                              payment={payment}
+                              onUpdated={handlePaymentUpdated}
+                            />
+                          ))}
+                      </View>
+                    </ScrollView>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            {/* ═══ REMINDER TAB ═══ */}
+            {activeTab === 'Reminder' ? (
+              <View style={styles.formContainer}>
+                <FormRow columns={2}>
+                  <FieldBlock label="Type">
+                    <FieldPicker
+                      value={form.reminderType}
+                      options={REMINDER_TYPES}
+                      onChange={v => handleChange('reminderType', v)}
+                    />
+                  </FieldBlock>
+                  <FieldBlock label="Assign To">
+                    <FieldPicker
+                      value={form.reminderAssignedTo}
+                      options={[
+                        { value: '', label: 'Select Assignee' },
+                        ...users.map(u => ({ value: u._id, label: u.name })),
+                      ]}
+                      onChange={v => handleChange('reminderAssignedTo', v)}
+                    />
+                  </FieldBlock>
+                </FormRow>
+                <FormRow columns={2}>
+                  <FieldBlock label="Date">
+                    <DateTimeField
+                      value={form.reminderDate}
+                      onChange={v => handleChange('reminderDate', v)}
+                      openKey="reminderDate"
+                      pickerTargets={pickerTargets}
+                      setPickerTargets={setPickerTargets}
+                    />
+                  </FieldBlock>
+                  <FieldBlock label="Time">
+                    <DateTimeField
+                      value={form.reminderTime}
+                      onChange={v => handleChange('reminderTime', v)}
+                      openKey="reminderTime"
+                      pickerTargets={pickerTargets}
+                      setPickerTargets={setPickerTargets}
+                      mode="time"
+                    />
+                  </FieldBlock>
+                </FormRow>
+                <FieldBlock label="Note">
+                  <TextInput
+                    value={form.reminderNote}
+                    onChangeText={v => handleChange('reminderNote', v)}
+                    placeholder="Reminder note"
+                    style={styles.input}
+                  />
+                </FieldBlock>
+                <FieldBlock label="Also notify">
+                  <FieldPicker
+                    value={form.reminderNotify}
+                    options={[
+                      { value: '', label: 'None' },
+                      ...users.map(u => ({ value: u._id, label: u.name })),
+                    ]}
+                    onChange={v => handleChange('reminderNotify', v)}
+                  />
+                </FieldBlock>
+              </View>
+            ) : null}
+
+            {/* ═══ CROSS-SELL TAB ═══ */}
+            {activeTab === 'Cross-Sell' ? (
+              <SuccessServiceSelector lead={lead} onSaved={onClose} isSuccess />
+            ) : null}
+
+            {/* Footer buttons */}
+            <View style={styles.footer}>
+              <TouchableOpacity onPress={onClose} style={styles.cancelBtn}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                disabled={submitting}
+                onPress={handleSubmit}
+                style={[styles.submitBtn, submitting && styles.disabled]}
+              >
+                <Text style={styles.submitBtnText}>
+                  {submitting
+                    ? 'Saving...'
                     : lead
                     ? 'Update Lead'
                     : 'Create Lead'}
                 </Text>
-              )}
-            </TouchableOpacity>
-          </View>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </TouchableOpacity>
     </Modal>
   );
 };
 
-const styles = StyleSheet.create({
-  modal: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
-    justifyContent: 'flex-end',
+// ── Small inline sub-components ──
+const FieldPicker = ({ value, options, onChange, emptyLabel, disabled }) => {
+  const items = Array.isArray(options)
+    ? options.map(opt => {
+        const val = typeof opt === 'object' ? opt.value ?? opt : opt;
+        const label =
+          typeof opt === 'object' ? opt.label ?? opt.value ?? opt : opt;
+        return { value: val, label };
+      })
+    : [];
+
+  return (
+    <View style={[fpStyles.wrap, disabled && fpStyles.disabled]}>
+      <Picker
+        enabled={!disabled}
+        selectedValue={value ?? ''}
+        onValueChange={v => onChange(v)}
+        style={fpStyles.picker}
+        mode="dropdown"
+      >
+        {emptyLabel ? <Picker.Item label={emptyLabel} value="" /> : null}
+        {items.map(opt => (
+          <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+        ))}
+      </Picker>
+    </View>
+  );
+};
+
+const fpStyles = StyleSheet.create({
+  wrap: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    minHeight: 44,
+    overflow: 'hidden',
+    justifyContent: 'center',
   },
-  container: {
-    backgroundColor: '#ffffff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '94%',
-    minHeight: '72%',
+  picker: { minHeight: 44, color: '#111827' },
+  disabled: { opacity: 0.6 },
+});
+
+const DateTimeField = ({
+  value,
+  onChange,
+  openKey,
+  pickerTargets,
+  setPickerTargets,
+  mode = 'date',
+}) => {
+  const open = pickerTargets?.[openKey] === mode;
+  const parseValue = () => {
+    if (!value) return new Date();
+    if (mode === 'time') {
+      const [h, m] = String(value).split(':');
+      const d = new Date();
+      d.setHours(Number(h) || 0, Number(m) || 0, 0, 0);
+      return d;
+    }
+    return new Date(`${value}T00:00:00`);
+  };
+
+  return (
+    <View>
+      <TouchableOpacity
+        onPress={() => setPickerTargets(p => ({ ...p, [openKey]: mode }))}
+        style={dtfStyles.btn}
+      >
+        <Text style={dtfStyles.text}>
+          {value || (mode === 'time' ? 'Select time' : 'Select date')}
+        </Text>
+        <Icon
+          name={mode === 'time' ? 'clock-outline' : 'calendar'}
+          size={16}
+          color="#64748b"
+        />
+      </TouchableOpacity>
+      {open ? (
+        <DateTimePicker
+          value={parseValue()}
+          mode={mode}
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          minimumDate={mode === 'date' ? new Date() : undefined}
+          onChange={(event, selectedDate) => {
+            setPickerTargets(p => ({ ...p, [openKey]: null }));
+            if (event?.type === 'dismissed') return;
+            if (selectedDate) {
+              if (mode === 'time') onChange(toInputTime(selectedDate));
+              else onChange(toInputDate(selectedDate));
+            }
+          }}
+        />
+      ) : null}
+    </View>
+  );
+};
+
+const dtfStyles = StyleSheet.create({
+  btn: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  text: { fontSize: 13, color: '#111827' },
+});
+
+// ── Styles ──
+const styles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalBody: {
+    flex: 1,
+    backgroundColor: '#fff',
+    margin: 16,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 10,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 14,
+    justifyContent: 'space-between',
+    padding: 20,
     borderBottomWidth: 1,
-    borderColor: '#f1f5f9',
+    borderBottomColor: '#e5e7eb',
+    gap: 12,
   },
   headerTextWrap: { flex: 1, paddingRight: 12 },
-  title: { fontSize: 19, fontWeight: '700', color: '#0f172a' },
-  subtitle: { fontSize: 12, color: '#64748b', marginTop: 3, lineHeight: 17 },
-  closeBtn: { backgroundColor: '#f8fafc', padding: 9, borderRadius: 22 },
-  tabsWrapper: {
-    borderBottomWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
-  },
-  tabsContainer: { paddingHorizontal: 16, paddingVertical: 10 },
-  tab: {
-    paddingHorizontal: 15,
-    paddingVertical: 9,
-    marginRight: 8,
-    borderRadius: 13,
-    backgroundColor: '#f1f5f9',
-    minHeight: 40,
-    justifyContent: 'center',
-  },
-  activeTab: { backgroundColor: '#5a7bf6' },
-  tabText: { color: '#475569', fontWeight: '600', fontSize: 13 },
-  activeTabText: { color: '#ffffff', fontWeight: '700' },
-  content: { flex: 1, paddingHorizontal: 18, paddingTop: 2 },
-  tabContent: { paddingBottom: 32 },
-  label: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#334155',
-    marginBottom: 6,
-    marginTop: 14,
-  },
-  subHeading: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 6,
-  },
-  helpText: { fontSize: 12, color: '#64748b', lineHeight: 17 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 9,
-    fontSize: 14,
-    color: '#0f172a',
-    backgroundColor: '#ffffff',
-    minHeight: 44,
-  },
-  textArea: { minHeight: 76, textAlignVertical: 'top' },
-  dateSelectorButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    marginTop: 2,
-    minHeight: 44,
-  },
-  dateSelectorText: { fontSize: 14, flex: 1, marginRight: 8 },
-  datePlaceholder: { color: '#94a3b8' },
-  dateSet: { color: '#0f172a' },
-  pickerWrapper: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-    overflow: 'hidden',
-    marginTop: 2,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  disabledControl: { opacity: 0.55, backgroundColor: '#f1f5f9' },
-  row: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  flexOne: { flex: 1 },
-  panel: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+  headerTitle: { fontSize: 20, fontWeight: '600', color: '#111827' },
+  headerSubtitle: { fontSize: 13, color: '#6b7280', marginTop: 2 },
+  closeBtn: {
+    width: 36,
+    height: 36,
     borderRadius: 18,
-    padding: 14,
-    marginTop: 14,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  warningText: { color: '#d97706', fontSize: 12, marginTop: 8, lineHeight: 17 },
-  centerText: { textAlign: 'center' },
-  activityPills: { paddingVertical: 4, gap: 8 },
-  activityPill: {
+  tabsScroll: { borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+  tabsInner: {
+    flexDirection: 'row',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  tabBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabText: { fontSize: 14, fontWeight: '500', color: '#4b5563' },
+  tabTextActive: { color: '#5a7bf6' },
+  tabIndicator: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: '#5a7bf6',
+    borderRadius: 2,
+  },
+  formScroll: { paddingBottom: 24 },
+  formContainer: { padding: 20, gap: 14 },
+  formRow: { gap: 14 },
+  formRow2: { flexDirection: 'row', gap: 14 },
+  fieldBlock: { flex: 1 },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 6,
+  },
+  reqStar: { color: '#ef4444' },
+  input: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#111827',
+  },
+  textarea: { minHeight: 80, textAlignVertical: 'top' },
+  warningText: { marginTop: 8, fontSize: 13, color: '#d97706' },
+  warningTextCenter: {
+    marginTop: 10,
+    fontSize: 12,
+    color: '#d97706',
+    textAlign: 'center',
+  },
+  coAssignBox: {
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+    padding: 16,
+    marginTop: 6,
+  },
+  activityTypeHeader: { marginBottom: 14, gap: 8 },
+  typeScroll: { marginTop: 4 },
+  typeRow: { flexDirection: 'row', gap: 8 },
+  typePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: 8,
     borderRadius: 999,
     paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
-    marginRight: 8,
+    paddingVertical: 8,
     position: 'relative',
   },
-  activityPillText: { fontSize: 13, fontWeight: '700', color: '#475569' },
-  activityPillTextActive: { color: '#ffffff' },
-  dataDot: {
+  typePillInactive: { backgroundColor: '#f3f4f6' },
+  typePillText: { fontSize: 13, fontWeight: '500', color: '#374151' },
+  typePillTextActive: { color: '#fff' },
+  typePillDot: {
     position: 'absolute',
-    top: 0,
-    right: 0,
+    top: -2,
+    right: -2,
     width: 10,
     height: 10,
-    borderRadius: 5,
-    backgroundColor: '#34d399',
+    borderRadius: 999,
+    backgroundColor: '#10b981',
     borderWidth: 2,
-    borderColor: '#ffffff',
+    borderColor: '#fff',
   },
-  clearButton: { marginTop: 12, alignSelf: 'flex-start' },
-  clearButtonText: { color: '#ef4444', fontSize: 12, fontWeight: '700' },
-  uploadAreaContainer: {
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: '#cbd5e1',
+  activityForm: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+    padding: 16,
+    gap: 14,
+  },
+  activityFormTitle: { fontSize: 14, fontWeight: '600', color: '#374151' },
+  callGrid: { flexDirection: 'row', gap: 10 },
+  taskGrid: { flexDirection: 'row', gap: 14 },
+  clearLink: { color: '#f87171', fontSize: 12 },
+  recentBlock: { marginTop: 16, gap: 12, maxHeight: 256 },
+  recentHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  recentTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  recentDivider: { flex: 1, height: 1, backgroundColor: '#e5e7eb' },
+  recentCount: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  recentCountText: { fontSize: 11, color: '#6b7280' },
+  recentItem: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#fff',
+    padding: 12,
+    gap: 6,
+  },
+  recentItemTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  recentIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recentType: { fontSize: 13, fontWeight: '500', color: '#1f2937' },
+  outcomeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1,
+  },
+  outcomeDot: { width: 6, height: 6, borderRadius: 999 },
+  outcomeText: { fontSize: 10, fontWeight: '600' },
+  recentBadge: {
+    backgroundColor: '#dcfce7',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  recentBadgeText: { fontSize: 10, fontWeight: '700', color: '#15803d' },
+  recentText: { fontSize: 12, color: '#4b5563', lineHeight: 17 },
+  recentMeta: { fontSize: 11, color: '#9ca3af', marginTop: 4 },
+  recordingBlock: { gap: 14 },
+  sectionTitle: { fontSize: 14, fontWeight: '600', color: '#374151' },
+  orDivider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  orLine: { flex: 1, height: 1, backgroundColor: '#e5e7eb' },
+  orText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  uploadZone: {
     borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    borderStyle: 'dashed',
     padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
-    minHeight: 112,
+    gap: 8,
+    minHeight: 100,
+    backgroundColor: '#fff',
   },
-  uploadAreaText: {
-    fontSize: 13,
-    color: '#475569',
-    fontWeight: '700',
-    marginTop: 8,
-    textAlign: 'center',
+  uploadIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  uploadAreaSubtext: { fontSize: 11, color: '#94a3b8', marginTop: 4 },
-  selectedFileRow: {
+  uploadTitle: { fontSize: 14, fontWeight: '600', color: '#374151' },
+  uploadHint: { fontSize: 12, color: '#9ca3af', textAlign: 'center' },
+  fileRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     width: '100%',
   },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 16,
-  },
-  divider: { flex: 1, height: 1, backgroundColor: '#e2e8f0' },
-  dividerText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#94a3b8',
-    textTransform: 'uppercase',
-  },
-  actionButton: {
-    backgroundColor: '#5a7bf6',
-    borderRadius: 12,
-    paddingVertical: 13,
+  fileInfo: { flex: 1 },
+  fileName: { fontSize: 13, fontWeight: '600', color: '#111827' },
+  fileSize: { fontSize: 11, color: '#9ca3af', marginTop: 2 },
+  fileRemove: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#fee2e2',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 15,
-    minHeight: 46,
   },
-  actionButtonText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
-  progressContainer: { marginTop: 14 },
-  progressMeta: { flexDirection: 'row', justifyContent: 'space-between' },
+  progressWrap: { gap: 6 },
+  progressTopRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  progressLabel: { fontSize: 11, color: '#6b7280' },
   progressTrack: {
     height: 6,
-    backgroundColor: '#e2e8f0',
     borderRadius: 999,
-    overflow: 'hidden',
-    marginTop: 6,
-  },
-  progressFill: { height: 6, backgroundColor: '#5a7bf6', borderRadius: 999 },
-  recordingCard: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 16,
-    marginTop: 10,
+    backgroundColor: '#e5e7eb',
     overflow: 'hidden',
   },
-  recordingCardRowTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 12,
-  },
-  mediaIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(90,123,246,0.10)',
+  progressFill: { height: 6, borderRadius: 999, backgroundColor: '#5a7bf6' },
+  uploadBtn: {
+    borderRadius: 12,
+    backgroundColor: '#5a7bf6',
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recordingCardTitle: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
-  recordingCardUrl: { fontSize: 11, color: '#64748b', marginTop: 2 },
-  iconBtnPrimary: {
-    backgroundColor: 'rgba(90,123,246,0.10)',
-    padding: 10,
-    borderRadius: 20,
-  },
-  iconBtnNeutral: { backgroundColor: '#f1f5f9', padding: 10, borderRadius: 20 },
-  iconBtnDanger: { backgroundColor: '#fef2f2', padding: 10, borderRadius: 20 },
-  playerBox: { paddingHorizontal: 12, paddingBottom: 12 },
-  videoPlayer: {
-    width: '100%',
-    height: 210,
-    backgroundColor: '#000000',
-    borderRadius: 12,
-  },
-  audioPlayer: {
-    width: '100%',
-    height: 54,
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-  },
-  emptyState: {
+  uploadBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  disabled: { opacity: 0.5 },
+  savedRecsBlock: { marginTop: 20, gap: 12 },
+  savedRecsHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  savedRecsTitle: { fontSize: 14, fontWeight: '600', color: '#374151' },
+  savedRecItem: {
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderStyle: 'dashed',
-    borderRadius: 18,
-    paddingVertical: 36,
-    alignItems: 'center',
-    marginTop: 18,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#fff',
+    overflow: 'hidden',
   },
-  emptyText: {
-    color: '#94a3b8',
-    marginTop: 8,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  historyContainer: {
-    marginTop: 24,
-    borderTopWidth: 1,
-    borderColor: '#e2e8f0',
-    paddingTop: 16,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  historyHeading: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  countBadge: {
-    fontSize: 11,
-    color: '#64748b',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  historyCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    padding: 12,
-    marginBottom: 10,
-  },
-  historyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  historyType: { fontSize: 13, fontWeight: '700', color: '#334155' },
-  outcomeBadge: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#16a34a',
-    backgroundColor: '#dcfce7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  recentBadge: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#15803d',
-    backgroundColor: '#dcfce7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  historyBody: { fontSize: 13, color: '#475569', marginTop: 7, lineHeight: 18 },
-  historyFooter: { fontSize: 11, color: '#94a3b8', marginTop: 8 },
-  serviceList: { marginTop: 12, gap: 8 },
-  serviceRow: {
+  savedRecTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
+    padding: 12,
   },
-  serviceRowSelected: {
-    borderColor: '#2563eb',
-    backgroundColor: 'rgba(37,99,235,0.06)',
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#cbd5e1',
+  savedRecIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(90,123,246,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxSelected: { borderColor: '#2563eb', backgroundColor: '#2563eb' },
-  serviceText: { fontSize: 13, fontWeight: '600', color: '#0f172a' },
+  savedRecInfo: { flex: 1 },
+  savedRecLabel: { fontSize: 14, fontWeight: '600', color: '#1f2937' },
+  savedRecMeta: { fontSize: 12, color: '#9ca3af', marginTop: 2 },
+  savedRecActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  recActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(90,123,246,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recActionBtnGray: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recActionBtnRed: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mediaContainer: { paddingHorizontal: 12, paddingBottom: 12 },
+  mediaPlayer: {
+    width: '100%',
+    height: 180,
+    backgroundColor: '#000',
+    borderRadius: 12,
+  },
+  emptyRecording: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#e5e7eb',
+    paddingVertical: 40,
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyRecordingText: { fontSize: 13, color: '#9ca3af' },
+  paymentHistoryBlock: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+    padding: 16,
+    marginTop: 6,
+  },
+  paymentHistoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  paymentHistoryTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    padding: 16,
     borderTopWidth: 1,
-    borderColor: '#f1f5f9',
-    backgroundColor: '#ffffff',
+    borderTopColor: '#e5e7eb',
+    backgroundColor: '#fff',
   },
   cancelBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    justifyContent: 'center',
-    minHeight: 46,
-  },
-  cancelText: { color: '#475569', fontWeight: '700', fontSize: 14 },
-  saveBtn: {
-    backgroundColor: '#5a7bf6',
-    paddingHorizontal: 24,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 12,
-    minWidth: 130,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 46,
   },
-  saveText: { color: '#ffffff', fontWeight: '800', fontSize: 14 },
+  cancelBtnText: { fontSize: 14, fontWeight: '500', color: '#374151' },
+  submitBtn: {
+    borderRadius: 12,
+    backgroundColor: '#5a7bf6',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    shadowColor: '#818cf8',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  submitBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
 });
 
 export default LeadFormModal;
