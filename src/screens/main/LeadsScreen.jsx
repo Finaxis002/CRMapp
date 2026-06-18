@@ -712,7 +712,7 @@ const LeadsScreen = () => {
 
   // ── Render ──
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['bottom']} style={styles.safeArea}>
       <View style={styles.container}>
         {/* ══ HEADER ══════════════════════════════════════════ */}
         <View style={styles.header}>
