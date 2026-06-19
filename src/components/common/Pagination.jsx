@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -18,7 +18,7 @@ const Pagination = ({
 
   const buildPages = () => {
     const pages = [];
-    if (totalPages <= 7) {
+    if (totalPages <= 5) {
       for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
       pages.push(1);
@@ -41,75 +41,87 @@ const Pagination = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.leftBlock}>
-        <Text style={styles.infoText}>
-          Showing{' '}
-          <Text style={styles.boldText}>
-            {from}-{to}
-          </Text>{' '}
-          of <Text style={styles.boldText}>{total}</Text> leads
+      {/* Top Row: Info + Per Page */}
+      <View style={styles.topRow}>
+        <Text style={styles.infoText} numberOfLines={1}>
+          <Text style={styles.boldText}>{from}-{to}</Text>
+          <Text style={styles.muted}> of </Text>
+          <Text style={styles.boldText}>{total}</Text>
         </Text>
 
-        <View style={styles.limitRow}>
-          <Text style={styles.limitLabel}>Rows per page:</Text>
-          <View style={[styles.pickerWrap, loading && styles.disabled]}>
-            <Picker
-              enabled={!loading}
-              selectedValue={limit}
-              onValueChange={value => onLimitChange(Number(value))}
-              mode="dropdown"
-              style={styles.picker}
-            >
-              {limitOptions.map(n => (
-                <Picker.Item key={n} label={String(n)} value={n} />
-              ))}
-            </Picker>
+        <View style={[styles.pickerWrap, loading && styles.disabled]}>
+          {/* Visible label overlay - always shows current value */}
+          <View style={styles.pickerLabelRow} pointerEvents="none">
+            <Text style={styles.pickerLabelText}>{limit} / page</Text>
+            <Icon name="chevron-down" size={16} color="#64748B" />
           </View>
+
+          {/* Transparent picker on top for interaction */}
+          <Picker
+            enabled={!loading}
+            selectedValue={limit}
+            onValueChange={value => onLimitChange(Number(value))}
+            mode="dropdown"
+            dropdownIconColor="transparent"
+            style={styles.pickerHidden}
+          >
+            {limitOptions.map(n => (
+              <Picker.Item key={n} label={`${n} / page`} value={n} />
+            ))}
+          </Picker>
         </View>
       </View>
 
+      {/* Bottom Row: Pagination Controls */}
       <View style={styles.pagesRow}>
         <TouchableOpacity
           disabled={disabledPrev}
           onPress={() => onPageChange(page - 1)}
-          style={[styles.navBtn, disabledPrev && styles.disabled]}
+          style={[styles.navBtn, disabledPrev && styles.disabledBtn]}
+          activeOpacity={0.7}
         >
-          <Icon name="chevron-left" size={16} color="#374151" />
-          <Text style={styles.navText}>Prev</Text>
+          <Icon
+            name="chevron-left"
+            size={18}
+            color={disabledPrev ? '#CBD5E1' : '#475569'}
+          />
         </TouchableOpacity>
 
-        {buildPages().map((p, i) =>
-          p === '...' ? (
-            <Text key={`dots-${i}`} style={styles.dots}>
-              ...
-            </Text>
-          ) : (
-            <TouchableOpacity
-              key={p}
-              disabled={loading}
-              onPress={() => onPageChange(p)}
-              style={[
-                styles.pageBtn,
-                p === page && styles.activePageBtn,
-                loading && styles.disabled,
-              ]}
-            >
-              <Text
-                style={[styles.pageText, p === page && styles.activePageText]}
+        <View style={styles.pagesGroup}>
+          {buildPages().map((p, i) =>
+            p === '...' ? (
+              <View key={`dots-${i}`} style={styles.dotsWrap}>
+                <Text style={styles.dots}>···</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                key={p}
+                disabled={loading || p === page}
+                onPress={() => onPageChange(p)}
+                style={[styles.pageBtn, p === page && styles.activePageBtn]}
+                activeOpacity={0.7}
               >
-                {p}
-              </Text>
-            </TouchableOpacity>
-          ),
-        )}
+                <Text
+                  style={[styles.pageText, p === page && styles.activePageText]}
+                >
+                  {p}
+                </Text>
+              </TouchableOpacity>
+            ),
+          )}
+        </View>
 
         <TouchableOpacity
           disabled={disabledNext}
           onPress={() => onPageChange(page + 1)}
-          style={[styles.navBtn, disabledNext && styles.disabled]}
+          style={[styles.navBtn, disabledNext && styles.disabledBtn]}
+          activeOpacity={0.7}
         >
-          <Text style={styles.navText}>Next</Text>
-          <Icon name="chevron-right" size={16} color="#374151" />
+          <Icon
+            name="chevron-right"
+            size={18}
+            color={disabledNext ? '#CBD5E1' : '#475569'}
+          />
         </TouchableOpacity>
       </View>
     </View>
@@ -118,67 +130,130 @@ const Pagination = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#f9fafb',
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 10,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    gap: 12,
+    borderTopColor: '#EEF2F7',
   },
-  leftBlock: { gap: 10 },
-  infoText: { fontSize: 14, color: '#6b7280' },
-  boldText: { fontWeight: '600', color: '#374151' },
-  limitRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  limitLabel: { fontSize: 12, fontWeight: '500', color: '#6b7280' },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  infoText: {
+    fontSize: 12.5,
+    color: '#0F172A',
+    flexShrink: 1,
+  },
+  muted: {
+    color: '#94A3B8',
+    fontWeight: '400',
+  },
+  boldText: {
+    fontWeight: '700',
+    color: '#0F172A',
+  },
   pickerWrap: {
-    height: 34,
-    minWidth: 92,
+    height: 36,
+    minWidth: 110,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: '#E2E8F0',
     borderRadius: 8,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
   },
-  picker: { height: 34, width: 110, color: '#374151' },
+  pickerLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    height: '100%',
+  },
+  pickerLabelText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  pickerHidden: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0,
+    color: 'transparent',
+  },
   pagesRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
   },
-  navBtn: {
+  pagesGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
     gap: 4,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
   },
-  navText: { fontSize: 14, fontWeight: '500', color: '#374151' },
+  navBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   pageBtn: {
     minWidth: 34,
+    height: 34,
     paddingHorizontal: 8,
-    paddingVertical: 7,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  activePageBtn: { backgroundColor: '#5a7bf6', borderColor: '#5a7bf6' },
-  pageText: { fontSize: 14, fontWeight: '500', color: '#374151' },
-  activePageText: { color: '#fff' },
+  activePageBtn: {
+    backgroundColor: '#5A7BF6',
+    shadowColor: '#5A7BF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  pageText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  activePageText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  dotsWrap: {
+    width: 22,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   dots: {
-    paddingHorizontal: 6,
-    paddingVertical: 7,
-    fontSize: 14,
-    color: '#9ca3af',
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '600',
   },
-  disabled: { opacity: 0.4 },
+  disabled: {
+    opacity: 0.5,
+  },
+  disabledBtn: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#F1F5F9',
+  },
 });
 
 export default Pagination;
