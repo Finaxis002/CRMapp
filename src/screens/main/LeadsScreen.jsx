@@ -177,6 +177,7 @@ const LeadsScreen = () => {
   const [leads, setLeads] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // ── Modals ──
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -345,6 +346,16 @@ const LeadsScreen = () => {
       toast.error(err?.response?.data?.message || 'Unable to load leads.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ── Pull-to-refresh handler ──
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadLeads();
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -724,19 +735,6 @@ const LeadsScreen = () => {
               </Text>
             </View>
             <View style={styles.headerActions}>
-              {/* Refresh */}
-              <TouchableOpacity
-                onPress={() => loadLeads()}
-                disabled={loading}
-                style={styles.iconBtn}
-              >
-                {loading ? (
-                  <ActivityIndicator size="small" color={ACCENT} />
-                ) : (
-                  <Text style={styles.iconBtnText}>↻</Text>
-                )}
-              </TouchableOpacity>
-
               {/* Sort */}
               <TouchableOpacity
                 onPress={() => setShowSortSheet(true)}
@@ -908,6 +906,8 @@ const LeadsScreen = () => {
           <LeadsListMobile
             leads={leads}
             loading={loading}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelectOne}
             onPreview={handleOpenPreview}

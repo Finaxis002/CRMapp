@@ -1,25 +1,33 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+} from 'react-native';
 import LeadCardMobile from './LeadCardMobile.jsx';
+
+const ACCENT = '#5a7bf6';
 
 /**
  * LeadsListMobile
- * Renders the leads as a stack of cards on mobile (replaces the <table> on small screens).
+ * Renders the leads as a stack of cards on mobile with pull-to-refresh.
  *
- * Props: (mostly pass-through to LeadCardMobile)
- *  - leads            (array)
- *  - loading          (bool)
- *  - selectedIds      (Set)
- *  - onToggleSelect(id)
- *  - onPreview(lead, e)
- *  - onEdit(lead)
- *  - onDelete(id, e)
+ * Props:
+ *  - leads, loading
+ *  - refreshing (bool)
+ *  - onRefresh ()
+ *  - selectedIds (Set)
+ *  - onToggleSelect(id), onPreview(lead, e), onEdit(lead), onDelete(id, e)
  *  - canEditAnyLead, canDeleteLead
  *  - getStageColor, getContrastTextColor, getPriorityColor, getAssignedName, formatCurrency
  */
 const LeadsListMobile = ({
   leads,
   loading,
+  refreshing = false,
+  onRefresh,
   selectedIds,
   onToggleSelect,
   onPreview,
@@ -33,10 +41,25 @@ const LeadsListMobile = ({
   getAssignedName,
   formatCurrency,
 }) => {
-  // ── Loading skeletons ──
-  if (loading) {
+  const refreshControl = onRefresh ? (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      colors={[ACCENT]}
+      tintColor={ACCENT}
+      progressBackgroundColor="#ffffff"
+      title="Pull to refresh..."
+      titleColor="#6b7280"
+    />
+  ) : undefined;
+
+  // ── Loading skeletons (only on first load, not on pull-refresh) ──
+  if (loading && !refreshing && (!leads || leads.length === 0)) {
     return (
-      <ScrollView contentContainerStyle={styles.listContainer}>
+      <ScrollView
+        contentContainerStyle={styles.listContainer}
+        refreshControl={refreshControl}
+      >
         {[...Array(5)].map((_, idx) => (
           <View key={`m-skel-${idx}`} style={styles.skeletonCard}>
             <View style={styles.skeletonHeader}>
@@ -58,20 +81,29 @@ const LeadsListMobile = ({
     );
   }
 
-  // ── Empty state ──
+  // ── Empty state (still allow pull-to-refresh) ──
   if (!leads || leads.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
+      <ScrollView
+        contentContainerStyle={styles.emptyContainer}
+        refreshControl={refreshControl}
+      >
         <Text style={styles.emptyIcon}>📄</Text>
         <Text style={styles.emptyTitle}>No leads found</Text>
-        <Text style={styles.emptySubtitle}>Try adjusting your filters</Text>
-      </View>
+        <Text style={styles.emptySubtitle}>
+          Pull down to refresh or adjust your filters
+        </Text>
+      </ScrollView>
     );
   }
 
   // ── Cards ──
   return (
-    <ScrollView contentContainerStyle={styles.listContainer}>
+    <ScrollView
+      contentContainerStyle={styles.listContainer}
+      refreshControl={refreshControl}
+      showsVerticalScrollIndicator={false}
+    >
       {leads.map(lead => (
         <LeadCardMobile
           key={lead._id}
