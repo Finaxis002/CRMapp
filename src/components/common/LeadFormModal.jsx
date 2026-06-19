@@ -18,7 +18,9 @@ import {
   Platform,
   Linking,
   Dimensions,
+  StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -415,6 +417,8 @@ const LeadFormModal = ({
     Meeting: { _id: '', text: '', notify: '' },
     Task: { _id: '', text: '', dueDate: '', assignedTo: '', notify: '' },
   });
+
+  const insets = useSafeAreaInsets();
 
   const customColumns = Array.isArray(settings?.customColumns)
     ? settings.customColumns
@@ -1069,1032 +1073,1060 @@ const LeadFormModal = ({
       visible={visible}
       transparent
       animationType="slide"
+      statusBarTranslucent={true}
       onRequestClose={onClose}
     >
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
-        <View style={styles.modalBody}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerTextWrap}>
-              <Text style={styles.headerTitle}>
-                {lead ? 'Edit Lead' : 'Add New Lead'}
-              </Text>
-              <Text style={styles.headerSubtitle}>
-                Complete profile, assignment, activity, recording, payment and
-                reminder sections.
-              </Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Icon name="close" size={20} color="#6b7280" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Tabs */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.tabsScroll}
-          >
-            <View style={styles.tabsInner}>
-              {allTabs.map(tab => {
-                const active = activeTab === tab;
-                return (
-                  <TouchableOpacity
-                    key={tab}
-                    onPress={() => setActiveTab(tab)}
-                    style={styles.tabBtn}
-                  >
-                    <Text
-                      style={[styles.tabText, active && styles.tabTextActive]}
-                    >
-                      {tab}
-                    </Text>
-                    {active ? <View style={styles.tabIndicator} /> : null}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </ScrollView>
-
-          {/* Form Body */}
-          <ScrollView
-            contentContainerStyle={styles.formScroll}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* ═══ PROFILE TAB ═══ */}
-            {activeTab === 'Profile' ? (
-              <View style={styles.formContainer}>
-                <FieldBlock label="Full Name" required>
-                  <TextInput
-                    value={form.name}
-                    onChangeText={v => handleChange('name', v)}
-                    placeholder="Contact name"
-                    style={styles.input}
-                  />
-                </FieldBlock>
-
-                <FormRow columns={2}>
-                  <FieldBlock label="Primary Phone" required>
-                    <CustomPhoneInput
-                      value={form.phone}
-                      onChange={fullNumber => handleChange('phone', fullNumber)}
-                      defaultCountry="IN"
-                    />
-                  </FieldBlock>
-                  <FieldBlock label="Status">
-                    <FieldPicker
-                      value={form.status}
-                      options={defaultStatusOptions}
-                      onChange={v => handleChange('status', v)}
-                    />
-                  </FieldBlock>
-                </FormRow>
-
-                <FormRow columns={2}>
-                  <FieldBlock label="Priority">
-                    <FieldPicker
-                      value={form.priority}
-                      options={PRIORITY_OPTIONS}
-                      onChange={v => handleChange('priority', v)}
-                    />
-                  </FieldBlock>
-                  <FieldBlock label="Deal Value (₹)">
-                    <TextInput
-                      keyboardType="numeric"
-                      value={form.dealValue}
-                      onChangeText={v => handleChange('dealValue', v)}
-                      placeholder="Deal value"
-                      style={styles.input}
-                    />
-                  </FieldBlock>
-                </FormRow>
-
-                <FormRow columns={2}>
-                  <FieldBlock label="City">
-                    <TextInput
-                      value={form.city}
-                      onChangeText={v => handleChange('city', v)}
-                      placeholder="City"
-                      style={styles.input}
-                    />
-                  </FieldBlock>
-                  <FieldBlock label="Alternate Phone (Optional)">
-                    <CustomPhoneInput
-                      value={form.alternatePhone || ''}
-                      onChange={fullNumber =>
-                        handleChange('alternatePhone', fullNumber)
-                      }
-                      defaultCountry="IN"
-                    />
-                  </FieldBlock>
-                </FormRow>
-
-                <FormRow columns={2}>
-                  <FieldBlock label="Source">
-                    <FieldPicker
-                      value={form.source}
-                      options={defaultSourceOptions}
-                      onChange={v => handleChange('source', v)}
-                    />
-                  </FieldBlock>
-                  <FieldBlock label="Product">
-                    <TextInput
-                      value={form.product}
-                      onChangeText={v => handleChange('product', v)}
-                      placeholder="Product"
-                      style={styles.input}
-                    />
-                  </FieldBlock>
-                </FormRow>
-
-                <FormRow columns={2}>
-                  <FieldBlock label="Email">
-                    <TextInput
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      value={form.email}
-                      onChangeText={v => handleChange('email', v)}
-                      placeholder="Email address"
-                      style={styles.input}
-                    />
-                  </FieldBlock>
-                  <FieldBlock label="Close Date">
-                    <DateTimeField
-                      value={form.closeDate}
-                      onChange={v => handleChange('closeDate', v)}
-                      openKey="closeDate"
-                      pickerTargets={pickerTargets}
-                      setPickerTargets={setPickerTargets}
-                    />
-                  </FieldBlock>
-                </FormRow>
-
-                {customColumns.length > 0
-                  ? customColumns
-                      .filter(column => column.formVisible !== false)
-                      .map(column => (
-                        <FieldBlock key={column.key} label={column.label}>
-                          <TextInput
-                            value={form.customFields?.[column.key] || ''}
-                            onChangeText={v =>
-                              handleCustomFieldChange(column.key, v)
-                            }
-                            placeholder={`Enter ${column.label}`}
-                            style={styles.input}
-                          />
-                        </FieldBlock>
-                      ))
-                  : null}
-
-                <FieldBlock label="Initial Note">
-                  <TextInput
-                    multiline
-                    numberOfLines={3}
-                    value={form.note}
-                    onChangeText={v => handleChange('note', v)}
-                    placeholder="Initial note or lead details"
-                    style={[styles.input, styles.textarea]}
-                  />
-                </FieldBlock>
+      <StatusBar
+        translucent
+        backgroundColor="transparent"
+        barStyle="dark-content"
+      />
+      <View style={styles.overlay}>
+        <TouchableOpacity
+          style={styles.backdrop}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <View
+          style={[
+            styles.modalSafeArea,
+            { paddingTop: insets.top, paddingBottom: insets.bottom },
+          ]}
+        >
+          <View style={styles.modalBody}>
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={styles.headerTextWrap}>
+                <Text style={styles.headerTitle}>
+                  {lead ? 'Edit Lead' : 'Add New Lead'}
+                </Text>
+                <Text style={styles.headerSubtitle}>
+                  Complete profile, assignment, activity, recording, payment and
+                  reminder sections.
+                </Text>
               </View>
-            ) : null}
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <Icon name="close" size={20} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
 
-            {/* ═══ ASSIGN TAB ═══ */}
-            {activeTab === 'Assign' ? (
-              <View style={styles.formContainer}>
-                <FieldBlock label="Primary Lead Owner" required>
-                  <FieldPicker
-                    value={form.assignedTo}
-                    options={users.map(u => ({ value: u._id, label: u.name }))}
-                    onChange={v => handleChange('assignedTo', v)}
-                    emptyLabel="Select owner"
-                    disabled={!canManageAssignment}
-                  />
-                  {!canManageAssignment ? (
-                    <Text style={styles.warningText}>
-                      You do not have permission to change assignment for this
-                      lead.
-                    </Text>
-                  ) : null}
-                </FieldBlock>
-
-                <View style={styles.coAssignBox}>
-                  <Text style={styles.fieldLabel}>Co-Assignees</Text>
-                  <View style={{ marginTop: 12 }}>
-                    <MultiSelect
-                      options={users
-                        .filter(u => u._id !== form.assignedTo)
-                        .map(u => ({
-                          value: u._id,
-                          label: u.name || u.email || 'Unknown user',
-                        }))}
-                      value={users
-                        .filter(u => u._id !== form.assignedTo)
-                        .map(u => ({
-                          value: u._id,
-                          label: u.name || u.email || 'Unknown user',
-                        }))
-                        .filter(opt => form.coAssignees.includes(opt.value))}
-                      onChange={selected => {
-                        const ids = Array.isArray(selected)
-                          ? selected.map(item => item.value)
-                          : [];
-                        handleChange('coAssignees', ids);
-                      }}
-                      placeholder="Select one or more co-assignees"
-                      disabled={!canManageAssignment}
-                      isSearchable
-                      closeMenuOnSelect={false}
-                      hideSelectedOptions={false}
-                      noOptionsMessage={() => 'No users available'}
-                      isMulti
-                      isClearable
-                      maxMenuHeight={280}
-                    />
-                  </View>
-                  {!canManageAssignment ? (
-                    <Text style={styles.warningText}>
-                      Co-assignee assignment is restricted for your role.
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
-            ) : null}
-
-            {/* ═══ ACTIVITY TAB ═══ */}
-            {activeTab === 'Activity' ? (
-              <View style={styles.formContainer}>
-                <View style={styles.activityTypeHeader}>
-                  <Text style={styles.fieldLabel}>Activity Type</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.typeScroll}
-                  >
-                    <View style={styles.typeRow}>
-                      {Object.keys(ACTIVITY_TYPE_META).map(type => {
-                        const meta = ACTIVITY_TYPE_META[type];
-                        const act = activities[type];
-                        const hasData =
-                          act.text?.trim() ||
-                          act.duration?.trim() ||
-                          act.dueDate;
-                        const isActive = activeActivityType === type;
-                        return (
-                          <TouchableOpacity
-                            key={type}
-                            onPress={() => setActiveActivityType(type)}
-                            style={[
-                              styles.typePill,
-                              isActive
-                                ? { backgroundColor: meta.color }
-                                : styles.typePillInactive,
-                            ]}
-                          >
-                            <Icon
-                              name={meta.icon}
-                              size={14}
-                              color={isActive ? '#fff' : '#4b5563'}
-                            />
-                            <Text
-                              style={[
-                                styles.typePillText,
-                                isActive && styles.typePillTextActive,
-                              ]}
-                            >
-                              {type}
-                            </Text>
-                            {hasData ? (
-                              <View style={styles.typePillDot} />
-                            ) : null}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </ScrollView>
-                </View>
-
-                <View style={styles.activityForm}>
-                  <Text style={styles.activityFormTitle}>
-                    {activeActivityType} Activity
-                  </Text>
-                  <TextInput
-                    multiline
-                    numberOfLines={2}
-                    value={activeAct.text}
-                    onChangeText={v =>
-                      updateActivity(activeActivityType, 'text', v)
-                    }
-                    placeholder={
-                      activeActivityType === 'Call'
-                        ? 'Call summary — what was discussed?'
-                        : 'Add details...'
-                    }
-                    style={[styles.input, styles.textarea]}
-                    placeholderTextColor="#9ca3af"
-                  />
-
-                  {activeActivityType === 'Call' ? (
-                    <View style={styles.callGrid}>
-                      <FieldBlock label="DURATION">
-                        <TextInput
-                          value={activeAct.duration}
-                          onChangeText={v =>
-                            updateActivity('Call', 'duration', v)
-                          }
-                          placeholder="3m 42s"
-                          style={styles.input}
-                        />
-                      </FieldBlock>
-                      <FieldBlock label="DIRECTION">
-                        <FieldPicker
-                          value={activeAct.direction}
-                          options={['Outgoing', 'Incoming', 'Missed']}
-                          onChange={v => updateActivity('Call', 'direction', v)}
-                        />
-                      </FieldBlock>
-                      <FieldBlock label="OUTCOME">
-                        <FieldPicker
-                          value={activeAct.outcome}
-                          options={['Spoke', 'No Answer', 'Left Voicemail']}
-                          onChange={v => updateActivity('Call', 'outcome', v)}
-                        />
-                      </FieldBlock>
-                    </View>
-                  ) : null}
-
-                  {activeActivityType === 'Task' ? (
-                    <View style={styles.taskGrid}>
-                      <FieldBlock label="DUE DATE" required>
-                        <DateTimeField
-                          value={activeAct.dueDate}
-                          onChange={v => updateActivity('Task', 'dueDate', v)}
-                          openKey="taskDueDate"
-                          pickerTargets={pickerTargets}
-                          setPickerTargets={setPickerTargets}
-                        />
-                      </FieldBlock>
-                      <FieldBlock label="ASSIGN TO">
-                        <FieldPicker
-                          value={activeAct.assignedTo}
-                          options={users.map(u => ({
-                            value: u._id,
-                            label: u.name,
-                          }))}
-                          onChange={v =>
-                            updateActivity('Task', 'assignedTo', v)
-                          }
-                        />
-                      </FieldBlock>
-                    </View>
-                  ) : null}
-
-                  <FieldBlock label="NOTIFY">
-                    <FieldPicker
-                      value={activeAct.notify}
-                      options={[
-                        { value: '', label: 'No one' },
-                        ...users.map(u => ({ value: u._id, label: u.name })),
-                      ]}
-                      onChange={v =>
-                        updateActivity(activeActivityType, 'notify', v)
-                      }
-                    />
-                  </FieldBlock>
-
-                  {activeAct.text?.trim() ||
-                  activeAct.duration?.trim() ||
-                  activeAct.dueDate ? (
+            {/* Tabs */}
+            <View style={styles.tabsContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tabsInner}
+              >
+                {allTabs.map(tab => {
+                  const active = activeTab === tab;
+                  return (
                     <TouchableOpacity
-                      onPress={() => {
-                        const base =
-                          activeActivityType === 'Call'
-                            ? {
-                                _id: activeAct._id || '',
-                                text: '',
-                                duration: '',
-                                direction: 'Outgoing',
-                                outcome: 'Spoke',
-                                notify: '',
-                              }
-                            : activeActivityType === 'Task'
-                            ? {
-                                _id: activeAct._id || '',
-                                text: '',
-                                dueDate: '',
-                                assignedTo: users[0]?._id || '',
-                                notify: '',
-                              }
-                            : {
-                                _id: activeAct._id || '',
-                                text: '',
-                                notify: '',
-                              };
-                        setActivities(prev => ({
-                          ...prev,
-                          [activeActivityType]: base,
-                        }));
-                      }}
+                      key={tab}
+                      onPress={() => setActiveTab(tab)}
+                      style={styles.tabBtn}
                     >
-                      <Text style={styles.clearLink}>
-                        ✕ Clear {activeActivityType} data
+                      <Text
+                        style={[styles.tabText, active && styles.tabTextActive]}
+                      >
+                        {tab}
                       </Text>
+                      {active ? <View style={styles.tabIndicator} /> : null}
                     </TouchableOpacity>
-                  ) : null}
-                </View>
+                  );
+                })}
+              </ScrollView>
+            </View>
 
-                {lead &&
-                Array.isArray(lead.activities) &&
-                lead.activities.length > 0 ? (
-                  <View style={styles.recentBlock}>
-                    <View style={styles.recentHeader}>
-                      <Text style={styles.recentTitle}>
-                        Recent Interactions
+            {/* Form Body */}
+            <ScrollView
+              contentContainerStyle={styles.formScroll}
+              keyboardShouldPersistTaps="handled"
+              style={styles.formScrollView}
+            >
+              {/* ═══ PROFILE TAB ═══ */}
+              {activeTab === 'Profile' ? (
+                <View style={styles.formContainer}>
+                  <FieldBlock label="Full Name" required>
+                    <TextInput
+                      value={form.name}
+                      onChangeText={v => handleChange('name', v)}
+                      placeholder="Contact name"
+                      style={styles.input}
+                    />
+                  </FieldBlock>
+
+                  <FormRow columns={2}>
+                    <FieldBlock label="Primary Phone" required>
+                      <CustomPhoneInput
+                        value={form.phone}
+                        onChange={fullNumber =>
+                          handleChange('phone', fullNumber)
+                        }
+                        defaultCountry="IN"
+                      />
+                    </FieldBlock>
+                    <FieldBlock label="Status">
+                      <FieldPicker
+                        value={form.status}
+                        options={defaultStatusOptions}
+                        onChange={v => handleChange('status', v)}
+                      />
+                    </FieldBlock>
+                  </FormRow>
+
+                  <FormRow columns={2}>
+                    <FieldBlock label="Priority">
+                      <FieldPicker
+                        value={form.priority}
+                        options={PRIORITY_OPTIONS}
+                        onChange={v => handleChange('priority', v)}
+                      />
+                    </FieldBlock>
+                    <FieldBlock label="Deal Value (₹)">
+                      <TextInput
+                        keyboardType="numeric"
+                        value={form.dealValue}
+                        onChangeText={v => handleChange('dealValue', v)}
+                        placeholder="Deal value"
+                        style={styles.input}
+                      />
+                    </FieldBlock>
+                  </FormRow>
+
+                  <FormRow columns={2}>
+                    <FieldBlock label="City">
+                      <TextInput
+                        value={form.city}
+                        onChangeText={v => handleChange('city', v)}
+                        placeholder="City"
+                        style={styles.input}
+                      />
+                    </FieldBlock>
+                    <FieldBlock label="Alternate Phone (Optional)">
+                      <CustomPhoneInput
+                        value={form.alternatePhone || ''}
+                        onChange={fullNumber =>
+                          handleChange('alternatePhone', fullNumber)
+                        }
+                        defaultCountry="IN"
+                      />
+                    </FieldBlock>
+                  </FormRow>
+
+                  <FormRow columns={2}>
+                    <FieldBlock label="Source">
+                      <FieldPicker
+                        value={form.source}
+                        options={defaultSourceOptions}
+                        onChange={v => handleChange('source', v)}
+                      />
+                    </FieldBlock>
+                    <FieldBlock label="Product">
+                      <TextInput
+                        value={form.product}
+                        onChangeText={v => handleChange('product', v)}
+                        placeholder="Product"
+                        style={styles.input}
+                      />
+                    </FieldBlock>
+                  </FormRow>
+
+                  <FormRow columns={2}>
+                    <FieldBlock label="Email">
+                      <TextInput
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        value={form.email}
+                        onChangeText={v => handleChange('email', v)}
+                        placeholder="Email address"
+                        style={styles.input}
+                      />
+                    </FieldBlock>
+                    <FieldBlock label="Close Date">
+                      <DateTimeField
+                        value={form.closeDate}
+                        onChange={v => handleChange('closeDate', v)}
+                        openKey="closeDate"
+                        pickerTargets={pickerTargets}
+                        setPickerTargets={setPickerTargets}
+                      />
+                    </FieldBlock>
+                  </FormRow>
+
+                  {customColumns.length > 0
+                    ? customColumns
+                        .filter(column => column.formVisible !== false)
+                        .map(column => (
+                          <FieldBlock key={column.key} label={column.label}>
+                            <TextInput
+                              value={form.customFields?.[column.key] || ''}
+                              onChangeText={v =>
+                                handleCustomFieldChange(column.key, v)
+                              }
+                              placeholder={`Enter ${column.label}`}
+                              style={styles.input}
+                            />
+                          </FieldBlock>
+                        ))
+                    : null}
+
+                  <FieldBlock label="Initial Note">
+                    <TextInput
+                      multiline
+                      numberOfLines={3}
+                      value={form.note}
+                      onChangeText={v => handleChange('note', v)}
+                      placeholder="Initial note or lead details"
+                      style={[styles.input, styles.textarea]}
+                    />
+                  </FieldBlock>
+                </View>
+              ) : null}
+
+              {/* ═══ ASSIGN TAB ═══ */}
+              {activeTab === 'Assign' ? (
+                <View style={styles.formContainer}>
+                  <FieldBlock label="Primary Lead Owner" required>
+                    <FieldPicker
+                      value={form.assignedTo}
+                      options={users.map(u => ({
+                        value: u._id,
+                        label: u.name,
+                      }))}
+                      onChange={v => handleChange('assignedTo', v)}
+                      emptyLabel="Select owner"
+                      disabled={!canManageAssignment}
+                    />
+                    {!canManageAssignment ? (
+                      <Text style={styles.warningText}>
+                        You do not have permission to change assignment for this
+                        lead.
                       </Text>
-                      <View style={styles.recentDivider} />
-                      <View style={styles.recentCount}>
-                        <Text style={styles.recentCountText}>
-                          {lead.activities.length} total
-                        </Text>
-                      </View>
+                    ) : null}
+                  </FieldBlock>
+
+                  <View style={styles.coAssignBox}>
+                    <Text style={styles.fieldLabel}>Co-Assignees</Text>
+                    <View style={{ marginTop: 12 }}>
+                      <MultiSelect
+                        options={users
+                          .filter(u => u._id !== form.assignedTo)
+                          .map(u => ({
+                            value: u._id,
+                            label: u.name || u.email || 'Unknown user',
+                          }))}
+                        value={users
+                          .filter(u => u._id !== form.assignedTo)
+                          .map(u => ({
+                            value: u._id,
+                            label: u.name || u.email || 'Unknown user',
+                          }))
+                          .filter(opt => form.coAssignees.includes(opt.value))}
+                        onChange={selected => {
+                          const ids = Array.isArray(selected)
+                            ? selected.map(item => item.value)
+                            : [];
+                          handleChange('coAssignees', ids);
+                        }}
+                        placeholder="Select one or more co-assignees"
+                        disabled={!canManageAssignment}
+                        isSearchable
+                        closeMenuOnSelect={false}
+                        hideSelectedOptions={false}
+                        noOptionsMessage={() => 'No users available'}
+                        isMulti
+                        isClearable
+                        maxMenuHeight={280}
+                      />
                     </View>
-                    {lead.activities.map((item, idx) => {
-                      const iconMap = {
-                        Note: {
-                          bg: '#f3e8ff',
-                          text: '#9333ea',
-                          icon: 'note-text-outline',
-                        },
-                        Call: {
-                          bg: '#dcfce7',
-                          text: '#16a34a',
-                          icon: 'phone-outline',
-                        },
-                        Email: {
-                          bg: '#dbeafe',
-                          text: '#2563eb',
-                          icon: 'email-outline',
-                        },
-                        Meeting: {
-                          bg: '#ffedd5',
-                          text: '#ea580c',
-                          icon: 'account-group-outline',
-                        },
-                        Task: {
-                          bg: '#f1f5f9',
-                          text: '#475569',
-                          icon: 'checkbox-marked-outline',
-                        },
-                        Status: {
-                          bg: '#e0e7ff',
-                          text: '#4f46e5',
-                          icon: 'sync',
-                        },
-                        Reminder: {
-                          bg: '#fef9c3',
-                          text: '#ca8a04',
-                          icon: 'bell-outline',
-                        },
-                      };
-                      const style = iconMap[item.type] || iconMap.Status;
-                      const getCallOutcomeBadge = outcome => {
-                        if (outcome === 'Spoke')
-                          return {
-                            label: 'Spoke',
-                            dot: '#22c55e',
-                            bg: '#dcfce7',
-                            text: '#15803d',
-                          };
-                        if (outcome === 'No Answer')
-                          return {
-                            label: 'No Answer',
-                            dot: '#ef4444',
-                            bg: '#fee2e2',
-                            text: '#b91c1c',
-                          };
-                        if (outcome === 'Left Voicemail')
-                          return {
-                            label: 'Left Voicemail',
-                            dot: '#eab308',
-                            bg: '#fef9c3',
-                            text: '#a16207',
-                          };
-                        return null;
-                      };
-                      const callOutcomeBadge =
-                        item.type === 'Call'
-                          ? getCallOutcomeBadge(item.callOutcome)
-                          : null;
-                      const userName =
-                        typeof item.user === 'string'
-                          ? item.user
-                          : item.user?.name ||
-                            item.createdBy?.name ||
-                            item.userName ||
-                            '—';
-                      return (
-                        <View key={item._id || idx} style={styles.recentItem}>
-                          <View style={styles.recentItemTop}>
-                            <View
+                    {!canManageAssignment ? (
+                      <Text style={styles.warningText}>
+                        Co-assignee assignment is restricted for your role.
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
+
+              {/* ═══ ACTIVITY TAB ═══ */}
+              {activeTab === 'Activity' ? (
+                <View style={styles.formContainer}>
+                  <View style={styles.activityTypeHeader}>
+                    <Text style={styles.fieldLabel}>Activity Type</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.typeScroll}
+                    >
+                      <View style={styles.typeRow}>
+                        {Object.keys(ACTIVITY_TYPE_META).map(type => {
+                          const meta = ACTIVITY_TYPE_META[type];
+                          const act = activities[type];
+                          const hasData =
+                            act.text?.trim() ||
+                            act.duration?.trim() ||
+                            act.dueDate;
+                          const isActive = activeActivityType === type;
+                          return (
+                            <TouchableOpacity
+                              key={type}
+                              onPress={() => setActiveActivityType(type)}
                               style={[
-                                styles.recentIcon,
-                                { backgroundColor: style.bg },
+                                styles.typePill,
+                                isActive
+                                  ? { backgroundColor: meta.color }
+                                  : styles.typePillInactive,
                               ]}
                             >
                               <Icon
-                                name={style.icon}
-                                size={13}
-                                color={style.text}
+                                name={meta.icon}
+                                size={14}
+                                color={isActive ? '#fff' : '#4b5563'}
                               />
-                            </View>
-                            <Text style={styles.recentType}>
-                              {item.type || 'Interaction'}
-                            </Text>
-                            {callOutcomeBadge ? (
-                              <View
+                              <Text
                                 style={[
-                                  styles.outcomeBadge,
-                                  {
-                                    backgroundColor: callOutcomeBadge.bg,
-                                    borderColor: callOutcomeBadge.dot,
-                                  },
+                                  styles.typePillText,
+                                  isActive && styles.typePillTextActive,
                                 ]}
                               >
-                                <View
-                                  style={[
-                                    styles.outcomeDot,
-                                    { backgroundColor: callOutcomeBadge.dot },
-                                  ]}
-                                />
-                                <Text
-                                  style={[
-                                    styles.outcomeText,
-                                    { color: callOutcomeBadge.text },
-                                  ]}
-                                >
-                                  {callOutcomeBadge.label}
-                                </Text>
-                              </View>
-                            ) : null}
-                            {idx === 0 ? (
-                              <View style={styles.recentBadge}>
-                                <Text style={styles.recentBadgeText}>
-                                  Recent
-                                </Text>
-                              </View>
-                            ) : null}
-                          </View>
-                          {item.text ? (
-                            <Text style={styles.recentText}>{item.text}</Text>
-                          ) : null}
-                          <Text style={styles.recentMeta}>
-                            {userName}
-                            {item.createdAt
-                              ? ` · ${new Date(item.createdAt).toLocaleString(
-                                  'en-IN',
-                                  {
-                                    day: '2-digit',
-                                    month: 'short',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hour12: true,
-                                  },
-                                )}`
-                              : ''}
-                          </Text>
-                        </View>
-                      );
-                    })}
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-
-            {/* ═══ RECORDING TAB ═══ */}
-            {activeTab === 'Recording' ? (
-              <View style={styles.formContainer}>
-                <View style={styles.recordingBlock}>
-                  <Text style={styles.sectionTitle}>Add New Recording</Text>
-                  <FieldBlock label="Label">
-                    <TextInput
-                      value={form.recordingLabel}
-                      onChangeText={v => handleChange('recordingLabel', v)}
-                      placeholder="First call · 30 Apr"
-                      style={styles.input}
-                    />
-                  </FieldBlock>
-                  <FieldBlock label="Recording URL">
-                    <TextInput
-                      value={form.recordingUrl}
-                      onChangeText={v => {
-                        handleChange('recordingUrl', v);
-                        if (recordingFile) setRecordingFile(null);
-                      }}
-                      placeholder="https://drive.google.com/..."
-                      autoCapitalize="none"
-                      style={styles.input}
-                    />
-                  </FieldBlock>
-
-                  <View style={styles.orDivider}>
-                    <View style={styles.orLine} />
-                    <Text style={styles.orText}>or upload a file</Text>
-                    <View style={styles.orLine} />
-                  </View>
-
-                  <TouchableOpacity
-                    onPress={handlePickRecordingFile}
-                    style={styles.uploadZone}
-                  >
-                    {recordingFile ? (
-                      <View style={styles.fileRow}>
-                        <Icon name="microphone" size={24} color="#5a7bf6" />
-                        <View style={styles.fileInfo}>
-                          <Text style={styles.fileName} numberOfLines={1}>
-                            {recordingFile.name}
-                          </Text>
-                          <Text style={styles.fileSize}>
-                            {(
-                              (recordingFile.size || 0) /
-                              (1024 * 1024)
-                            ).toFixed(2)}{' '}
-                            MB
-                          </Text>
-                        </View>
-                        <TouchableOpacity
-                          onPress={() => {
-                            setRecordingFile(null);
-                          }}
-                          style={styles.fileRemove}
-                        >
-                          <Icon name="close" size={16} color="#ef4444" />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <>
-                        <View style={styles.uploadIconCircle}>
-                          <Icon name="upload" size={24} color="#9ca3af" />
-                        </View>
-                        <Text style={styles.uploadTitle}>
-                          Tap to select a file
-                        </Text>
-                        <Text style={styles.uploadHint}>
-                          MP3, MP4, WAV, OGG, M4A, WebM · max 100MB
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-
-                  {uploadingRec ? (
-                    <View style={styles.progressWrap}>
-                      <View style={styles.progressTopRow}>
-                        <Text style={styles.progressLabel}>Uploading...</Text>
-                        <Text style={styles.progressLabel}>
-                          {uploadProgress}%
-                        </Text>
-                      </View>
-                      <View style={styles.progressTrack}>
-                        <View
-                          style={[
-                            styles.progressFill,
-                            { width: `${uploadProgress}%` },
-                          ]}
-                        />
-                      </View>
-                    </View>
-                  ) : null}
-
-                  {(recordingFile || form.recordingUrl.trim()) && lead?._id ? (
-                    <TouchableOpacity
-                      disabled={uploadingRec}
-                      onPress={handleRecordingUpload}
-                      style={[
-                        styles.uploadBtn,
-                        uploadingRec && styles.disabled,
-                      ]}
-                    >
-                      <Text style={styles.uploadBtnText}>
-                        {uploadingRec ? 'Uploading...' : 'Save Recording'}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : null}
-
-                  {!lead?._id && (recordingFile || form.recordingUrl.trim()) ? (
-                    <Text style={styles.warningTextCenter}>
-                      ⚠️ Recording will be saved after the lead is created
-                    </Text>
-                  ) : null}
-                </View>
-
-                {savedRecordings.length > 0 ? (
-                  <View style={styles.savedRecsBlock}>
-                    <View style={styles.savedRecsHeader}>
-                      <Icon name="microphone" size={16} color="#5a7bf6" />
-                      <Text style={styles.savedRecsTitle}>
-                        {' '}
-                        Saved Recordings ({savedRecordings.length})
-                      </Text>
-                    </View>
-                    {savedRecordings.map((rec, idx) => {
-                      const isVideo = /\.(mp4|webm|mov|avi|mkv)/i.test(
-                        rec.url || '',
-                      );
-                      const isPlaying = playingUrl === rec.url;
-                      return (
-                        <View
-                          key={rec._id || rec.url || idx}
-                          style={styles.savedRecItem}
-                        >
-                          <View style={styles.savedRecTopRow}>
-                            <View style={styles.savedRecIcon}>
-                              <Icon
-                                name={isVideo ? 'video-outline' : 'music'}
-                                size={16}
-                                color="#5a7bf6"
-                              />
-                            </View>
-                            <View style={styles.savedRecInfo}>
-                              <Text
-                                style={styles.savedRecLabel}
-                                numberOfLines={1}
-                              >
-                                {rec.label ||
-                                  rec.originalName ||
-                                  `Recording ${idx + 1}`}
+                                {type}
                               </Text>
-                              {rec.uploadedAt ? (
-                                <Text style={styles.savedRecMeta}>
-                                  {new Date(rec.uploadedAt).toLocaleDateString(
-                                    'en-IN',
-                                    {
-                                      day: 'numeric',
-                                      month: 'short',
-                                      year: 'numeric',
-                                    },
-                                  )}
-                                  {rec.size
-                                    ? ` · ${(rec.size / (1024 * 1024)).toFixed(
-                                        2,
-                                      )} MB`
-                                    : ''}
-                                </Text>
+                              {hasData ? (
+                                <View style={styles.typePillDot} />
                               ) : null}
-                            </View>
-                            <View style={styles.savedRecActions}>
-                              <TouchableOpacity
-                                onPress={() =>
-                                  setPlayingUrl(isPlaying ? null : rec.url)
-                                }
-                                style={styles.recActionBtn}
-                              >
-                                <Icon
-                                  name={
-                                    isPlaying
-                                      ? 'stop-circle-outline'
-                                      : 'play-circle-outline'
-                                  }
-                                  size={20}
-                                  color="#5a7bf6"
-                                />
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                onPress={() => Linking.openURL(rec.url)}
-                                style={styles.recActionBtnGray}
-                              >
-                                <Icon
-                                  name="download"
-                                  size={16}
-                                  color="#6b7280"
-                                />
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                onPress={() => handleDeleteRecording(rec)}
-                                style={styles.recActionBtnRed}
-                              >
-                                <Icon
-                                  name="trash-can-outline"
-                                  size={16}
-                                  color="#ef4444"
-                                />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                          {isPlaying ? (
-                            <View style={styles.mediaContainer}>
-                              <Video
-                                source={{ uri: rec.url }}
-                                resizeMode="contain"
-                                style={styles.mediaPlayer}
-                                controls
-                                paused={!isPlaying}
-                                playInBackground={false}
-                                playWhenInactive={false}
-                                ignoreSilentSwitch="ignore"
-                              />
-                            </View>
-                          ) : null}
-                        </View>
-                      );
-                    })}
-                  </View>
-                ) : null}
-
-                {savedRecordings.length === 0 &&
-                !recordingFile &&
-                !form.recordingUrl ? (
-                  <View style={styles.emptyRecording}>
-                    <Icon name="microphone" size={40} color="#d1d5db" />
-                    <Text style={styles.emptyRecordingText}>
-                      No recordings saved yet
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-
-            {/* ═══ PAYMENT TAB ═══ */}
-            {activeTab === 'Payment' ? (
-              <View style={styles.formContainer}>
-                <FormRow columns={3}>
-                  <FieldBlock label="Amount (₹)">
-                    <TextInput
-                      keyboardType="numeric"
-                      value={form.paymentAmount}
-                      onChangeText={v => handleChange('paymentAmount', v)}
-                      placeholder="0"
-                      style={styles.input}
-                    />
-                  </FieldBlock>
-                  <FieldBlock label="Date">
-                    <DateTimeField
-                      value={form.paymentDate}
-                      onChange={v => handleChange('paymentDate', v)}
-                      openKey="paymentDate"
-                      pickerTargets={pickerTargets}
-                      setPickerTargets={setPickerTargets}
-                    />
-                  </FieldBlock>
-                  <FieldBlock label="Mode">
-                    <FieldPicker
-                      value={form.paymentMode}
-                      options={PAYMENT_MODES}
-                      onChange={v => handleChange('paymentMode', v)}
-                    />
-                  </FieldBlock>
-                </FormRow>
-                <FormRow columns={2}>
-                  <FieldBlock label="Status">
-                    <FieldPicker
-                      value={form.paymentStatus}
-                      options={PAYMENT_STATUS}
-                      onChange={v => handleChange('paymentStatus', v)}
-                    />
-                  </FieldBlock>
-                  <FieldBlock label="Reference">
-                    <TextInput
-                      value={form.paymentReference}
-                      onChangeText={v => handleChange('paymentReference', v)}
-                      placeholder="Transaction ID / UTR"
-                      style={styles.input}
-                    />
-                  </FieldBlock>
-                </FormRow>
-
-                {paymentHistory.length > 0 ? (
-                  <View style={styles.paymentHistoryBlock}>
-                    <View style={styles.paymentHistoryHeader}>
-                      <Text style={styles.paymentHistoryTitle}>
-                        Payment history
-                      </Text>
-                      <View style={styles.recentDivider} />
-                      <View style={styles.recentCount}>
-                        <Text style={styles.recentCountText}>
-                          {paymentHistory.length} entries
-                        </Text>
-                      </View>
-                    </View>
-                    <ScrollView style={{ maxHeight: 256 }}>
-                      <View style={{ gap: 12 }}>
-                        {[...paymentHistory]
-                          .sort(
-                            (a, b) =>
-                              new Date(b.paymentDate || b.createdAt) -
-                              new Date(a.paymentDate || a.createdAt),
-                          )
-                          .map(payment => (
-                            <PaymentHistoryItem
-                              key={
-                                payment._id ||
-                                payment.createdAt ||
-                                payment.paymentDate
-                              }
-                              payment={payment}
-                              onUpdated={handlePaymentUpdated}
-                            />
-                          ))}
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
                     </ScrollView>
                   </View>
-                ) : null}
-              </View>
-            ) : null}
 
-            {/* ═══ REMINDER TAB ═══ */}
-            {activeTab === 'Reminder' ? (
-              <View style={styles.formContainer}>
-                <FormRow columns={2}>
-                  <FieldBlock label="Type">
-                    <FieldPicker
-                      value={form.reminderType}
-                      options={REMINDER_TYPES}
-                      onChange={v => handleChange('reminderType', v)}
+                  <View style={styles.activityForm}>
+                    <Text style={styles.activityFormTitle}>
+                      {activeActivityType} Activity
+                    </Text>
+                    <TextInput
+                      multiline
+                      numberOfLines={2}
+                      value={activeAct.text}
+                      onChangeText={v =>
+                        updateActivity(activeActivityType, 'text', v)
+                      }
+                      placeholder={
+                        activeActivityType === 'Call'
+                          ? 'Call summary — what was discussed?'
+                          : 'Add details...'
+                      }
+                      style={[styles.input, styles.textarea]}
+                      placeholderTextColor="#9ca3af"
+                    />
+
+                    {activeActivityType === 'Call' ? (
+                      <View style={styles.callGrid}>
+                        <FieldBlock label="DURATION">
+                          <TextInput
+                            value={activeAct.duration}
+                            onChangeText={v =>
+                              updateActivity('Call', 'duration', v)
+                            }
+                            placeholder="3m 42s"
+                            style={styles.input}
+                          />
+                        </FieldBlock>
+                        <FieldBlock label="DIRECTION">
+                          <FieldPicker
+                            value={activeAct.direction}
+                            options={['Outgoing', 'Incoming', 'Missed']}
+                            onChange={v =>
+                              updateActivity('Call', 'direction', v)
+                            }
+                          />
+                        </FieldBlock>
+                        <FieldBlock label="OUTCOME">
+                          <FieldPicker
+                            value={activeAct.outcome}
+                            options={['Spoke', 'No Answer', 'Left Voicemail']}
+                            onChange={v => updateActivity('Call', 'outcome', v)}
+                          />
+                        </FieldBlock>
+                      </View>
+                    ) : null}
+
+                    {activeActivityType === 'Task' ? (
+                      <View style={styles.taskGrid}>
+                        <FieldBlock label="DUE DATE" required>
+                          <DateTimeField
+                            value={activeAct.dueDate}
+                            onChange={v => updateActivity('Task', 'dueDate', v)}
+                            openKey="taskDueDate"
+                            pickerTargets={pickerTargets}
+                            setPickerTargets={setPickerTargets}
+                          />
+                        </FieldBlock>
+                        <FieldBlock label="ASSIGN TO">
+                          <FieldPicker
+                            value={activeAct.assignedTo}
+                            options={users.map(u => ({
+                              value: u._id,
+                              label: u.name,
+                            }))}
+                            onChange={v =>
+                              updateActivity('Task', 'assignedTo', v)
+                            }
+                          />
+                        </FieldBlock>
+                      </View>
+                    ) : null}
+
+                    <FieldBlock label="NOTIFY">
+                      <FieldPicker
+                        value={activeAct.notify}
+                        options={[
+                          { value: '', label: 'No one' },
+                          ...users.map(u => ({ value: u._id, label: u.name })),
+                        ]}
+                        onChange={v =>
+                          updateActivity(activeActivityType, 'notify', v)
+                        }
+                      />
+                    </FieldBlock>
+
+                    {activeAct.text?.trim() ||
+                    activeAct.duration?.trim() ||
+                    activeAct.dueDate ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          const base =
+                            activeActivityType === 'Call'
+                              ? {
+                                  _id: activeAct._id || '',
+                                  text: '',
+                                  duration: '',
+                                  direction: 'Outgoing',
+                                  outcome: 'Spoke',
+                                  notify: '',
+                                }
+                              : activeActivityType === 'Task'
+                              ? {
+                                  _id: activeAct._id || '',
+                                  text: '',
+                                  dueDate: '',
+                                  assignedTo: users[0]?._id || '',
+                                  notify: '',
+                                }
+                              : {
+                                  _id: activeAct._id || '',
+                                  text: '',
+                                  notify: '',
+                                };
+                          setActivities(prev => ({
+                            ...prev,
+                            [activeActivityType]: base,
+                          }));
+                        }}
+                      >
+                        <Text style={styles.clearLink}>
+                          ✕ Clear {activeActivityType} data
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+
+                  {lead &&
+                  Array.isArray(lead.activities) &&
+                  lead.activities.length > 0 ? (
+                    <View style={styles.recentBlock}>
+                      <View style={styles.recentHeader}>
+                        <Text style={styles.recentTitle}>
+                          Recent Interactions
+                        </Text>
+                        <View style={styles.recentDivider} />
+                        <View style={styles.recentCount}>
+                          <Text style={styles.recentCountText}>
+                            {lead.activities.length} total
+                          </Text>
+                        </View>
+                      </View>
+                      {lead.activities.map((item, idx) => {
+                        const iconMap = {
+                          Note: {
+                            bg: '#f3e8ff',
+                            text: '#9333ea',
+                            icon: 'note-text-outline',
+                          },
+                          Call: {
+                            bg: '#dcfce7',
+                            text: '#16a34a',
+                            icon: 'phone-outline',
+                          },
+                          Email: {
+                            bg: '#dbeafe',
+                            text: '#2563eb',
+                            icon: 'email-outline',
+                          },
+                          Meeting: {
+                            bg: '#ffedd5',
+                            text: '#ea580c',
+                            icon: 'account-group-outline',
+                          },
+                          Task: {
+                            bg: '#f1f5f9',
+                            text: '#475569',
+                            icon: 'checkbox-marked-outline',
+                          },
+                          Status: {
+                            bg: '#e0e7ff',
+                            text: '#4f46e5',
+                            icon: 'sync',
+                          },
+                          Reminder: {
+                            bg: '#fef9c3',
+                            text: '#ca8a04',
+                            icon: 'bell-outline',
+                          },
+                        };
+                        const style = iconMap[item.type] || iconMap.Status;
+                        const getCallOutcomeBadge = outcome => {
+                          if (outcome === 'Spoke')
+                            return {
+                              label: 'Spoke',
+                              dot: '#22c55e',
+                              bg: '#dcfce7',
+                              text: '#15803d',
+                            };
+                          if (outcome === 'No Answer')
+                            return {
+                              label: 'No Answer',
+                              dot: '#ef4444',
+                              bg: '#fee2e2',
+                              text: '#b91c1c',
+                            };
+                          if (outcome === 'Left Voicemail')
+                            return {
+                              label: 'Left Voicemail',
+                              dot: '#eab308',
+                              bg: '#fef9c3',
+                              text: '#a16207',
+                            };
+                          return null;
+                        };
+                        const callOutcomeBadge =
+                          item.type === 'Call'
+                            ? getCallOutcomeBadge(item.callOutcome)
+                            : null;
+                        const userName =
+                          typeof item.user === 'string'
+                            ? item.user
+                            : item.user?.name ||
+                              item.createdBy?.name ||
+                              item.userName ||
+                              '—';
+                        return (
+                          <View key={item._id || idx} style={styles.recentItem}>
+                            <View style={styles.recentItemTop}>
+                              <View
+                                style={[
+                                  styles.recentIcon,
+                                  { backgroundColor: style.bg },
+                                ]}
+                              >
+                                <Icon
+                                  name={style.icon}
+                                  size={13}
+                                  color={style.text}
+                                />
+                              </View>
+                              <Text style={styles.recentType}>
+                                {item.type || 'Interaction'}
+                              </Text>
+                              {callOutcomeBadge ? (
+                                <View
+                                  style={[
+                                    styles.outcomeBadge,
+                                    {
+                                      backgroundColor: callOutcomeBadge.bg,
+                                      borderColor: callOutcomeBadge.dot,
+                                    },
+                                  ]}
+                                >
+                                  <View
+                                    style={[
+                                      styles.outcomeDot,
+                                      { backgroundColor: callOutcomeBadge.dot },
+                                    ]}
+                                  />
+                                  <Text
+                                    style={[
+                                      styles.outcomeText,
+                                      { color: callOutcomeBadge.text },
+                                    ]}
+                                  >
+                                    {callOutcomeBadge.label}
+                                  </Text>
+                                </View>
+                              ) : null}
+                              {idx === 0 ? (
+                                <View style={styles.recentBadge}>
+                                  <Text style={styles.recentBadgeText}>
+                                    Recent
+                                  </Text>
+                                </View>
+                              ) : null}
+                            </View>
+                            {item.text ? (
+                              <Text style={styles.recentText}>{item.text}</Text>
+                            ) : null}
+                            <Text style={styles.recentMeta}>
+                              {userName}
+                              {item.createdAt
+                                ? ` · ${new Date(item.createdAt).toLocaleString(
+                                    'en-IN',
+                                    {
+                                      day: '2-digit',
+                                      month: 'short',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true,
+                                    },
+                                  )}`
+                                : ''}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {/* ═══ RECORDING TAB ═══ */}
+              {activeTab === 'Recording' ? (
+                <View style={styles.formContainer}>
+                  <View style={styles.recordingBlock}>
+                    <Text style={styles.sectionTitle}>Add New Recording</Text>
+                    <FieldBlock label="Label">
+                      <TextInput
+                        value={form.recordingLabel}
+                        onChangeText={v => handleChange('recordingLabel', v)}
+                        placeholder="First call · 30 Apr"
+                        style={styles.input}
+                      />
+                    </FieldBlock>
+                    <FieldBlock label="Recording URL">
+                      <TextInput
+                        value={form.recordingUrl}
+                        onChangeText={v => {
+                          handleChange('recordingUrl', v);
+                          if (recordingFile) setRecordingFile(null);
+                        }}
+                        placeholder="https://drive.google.com/..."
+                        autoCapitalize="none"
+                        style={styles.input}
+                      />
+                    </FieldBlock>
+
+                    <View style={styles.orDivider}>
+                      <View style={styles.orLine} />
+                      <Text style={styles.orText}>or upload a file</Text>
+                      <View style={styles.orLine} />
+                    </View>
+
+                    <TouchableOpacity
+                      onPress={handlePickRecordingFile}
+                      style={styles.uploadZone}
+                    >
+                      {recordingFile ? (
+                        <View style={styles.fileRow}>
+                          <Icon name="microphone" size={24} color="#5a7bf6" />
+                          <View style={styles.fileInfo}>
+                            <Text style={styles.fileName} numberOfLines={1}>
+                              {recordingFile.name}
+                            </Text>
+                            <Text style={styles.fileSize}>
+                              {(
+                                (recordingFile.size || 0) /
+                                (1024 * 1024)
+                              ).toFixed(2)}{' '}
+                              MB
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => {
+                              setRecordingFile(null);
+                            }}
+                            style={styles.fileRemove}
+                          >
+                            <Icon name="close" size={16} color="#ef4444" />
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <>
+                          <View style={styles.uploadIconCircle}>
+                            <Icon name="upload" size={24} color="#9ca3af" />
+                          </View>
+                          <Text style={styles.uploadTitle}>
+                            Tap to select a file
+                          </Text>
+                          <Text style={styles.uploadHint}>
+                            MP3, MP4, WAV, OGG, M4A, WebM · max 100MB
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    {uploadingRec ? (
+                      <View style={styles.progressWrap}>
+                        <View style={styles.progressTopRow}>
+                          <Text style={styles.progressLabel}>Uploading...</Text>
+                          <Text style={styles.progressLabel}>
+                            {uploadProgress}%
+                          </Text>
+                        </View>
+                        <View style={styles.progressTrack}>
+                          <View
+                            style={[
+                              styles.progressFill,
+                              { width: `${uploadProgress}%` },
+                            ]}
+                          />
+                        </View>
+                      </View>
+                    ) : null}
+
+                    {(recordingFile || form.recordingUrl.trim()) &&
+                    lead?._id ? (
+                      <TouchableOpacity
+                        disabled={uploadingRec}
+                        onPress={handleRecordingUpload}
+                        style={[
+                          styles.uploadBtn,
+                          uploadingRec && styles.disabled,
+                        ]}
+                      >
+                        <Text style={styles.uploadBtnText}>
+                          {uploadingRec ? 'Uploading...' : 'Save Recording'}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+
+                    {!lead?._id &&
+                    (recordingFile || form.recordingUrl.trim()) ? (
+                      <Text style={styles.warningTextCenter}>
+                        ⚠️ Recording will be saved after the lead is created
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  {savedRecordings.length > 0 ? (
+                    <View style={styles.savedRecsBlock}>
+                      <View style={styles.savedRecsHeader}>
+                        <Icon name="microphone" size={16} color="#5a7bf6" />
+                        <Text style={styles.savedRecsTitle}>
+                          {' '}
+                          Saved Recordings ({savedRecordings.length})
+                        </Text>
+                      </View>
+                      {savedRecordings.map((rec, idx) => {
+                        const isVideo = /\.(mp4|webm|mov|avi|mkv)/i.test(
+                          rec.url || '',
+                        );
+                        const isPlaying = playingUrl === rec.url;
+                        return (
+                          <View
+                            key={rec._id || rec.url || idx}
+                            style={styles.savedRecItem}
+                          >
+                            <View style={styles.savedRecTopRow}>
+                              <View style={styles.savedRecIcon}>
+                                <Icon
+                                  name={isVideo ? 'video-outline' : 'music'}
+                                  size={16}
+                                  color="#5a7bf6"
+                                />
+                              </View>
+                              <View style={styles.savedRecInfo}>
+                                <Text
+                                  style={styles.savedRecLabel}
+                                  numberOfLines={1}
+                                >
+                                  {rec.label ||
+                                    rec.originalName ||
+                                    `Recording ${idx + 1}`}
+                                </Text>
+                                {rec.uploadedAt ? (
+                                  <Text style={styles.savedRecMeta}>
+                                    {new Date(
+                                      rec.uploadedAt,
+                                    ).toLocaleDateString('en-IN', {
+                                      day: 'numeric',
+                                      month: 'short',
+                                      year: 'numeric',
+                                    })}
+                                    {rec.size
+                                      ? ` · ${(
+                                          rec.size /
+                                          (1024 * 1024)
+                                        ).toFixed(2)} MB`
+                                      : ''}
+                                  </Text>
+                                ) : null}
+                              </View>
+                              <View style={styles.savedRecActions}>
+                                <TouchableOpacity
+                                  onPress={() =>
+                                    setPlayingUrl(isPlaying ? null : rec.url)
+                                  }
+                                  style={styles.recActionBtn}
+                                >
+                                  <Icon
+                                    name={
+                                      isPlaying
+                                        ? 'stop-circle-outline'
+                                        : 'play-circle-outline'
+                                    }
+                                    size={20}
+                                    color="#5a7bf6"
+                                  />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onPress={() => Linking.openURL(rec.url)}
+                                  style={styles.recActionBtnGray}
+                                >
+                                  <Icon
+                                    name="download"
+                                    size={16}
+                                    color="#6b7280"
+                                  />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onPress={() => handleDeleteRecording(rec)}
+                                  style={styles.recActionBtnRed}
+                                >
+                                  <Icon
+                                    name="trash-can-outline"
+                                    size={16}
+                                    color="#ef4444"
+                                  />
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                            {isPlaying ? (
+                              <View style={styles.mediaContainer}>
+                                <Video
+                                  source={{ uri: rec.url }}
+                                  resizeMode="contain"
+                                  style={styles.mediaPlayer}
+                                  controls
+                                  paused={!isPlaying}
+                                  playInBackground={false}
+                                  playWhenInactive={false}
+                                  ignoreSilentSwitch="ignore"
+                                />
+                              </View>
+                            ) : null}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+
+                  {savedRecordings.length === 0 &&
+                  !recordingFile &&
+                  !form.recordingUrl ? (
+                    <View style={styles.emptyRecording}>
+                      <Icon name="microphone" size={40} color="#d1d5db" />
+                      <Text style={styles.emptyRecordingText}>
+                        No recordings saved yet
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {/* ═══ PAYMENT TAB ═══ */}
+              {activeTab === 'Payment' ? (
+                <View style={styles.formContainer}>
+                  <FormRow columns={3}>
+                    <FieldBlock label="Amount (₹)">
+                      <TextInput
+                        keyboardType="numeric"
+                        value={form.paymentAmount}
+                        onChangeText={v => handleChange('paymentAmount', v)}
+                        placeholder="0"
+                        style={styles.input}
+                      />
+                    </FieldBlock>
+                    <FieldBlock label="Date">
+                      <DateTimeField
+                        value={form.paymentDate}
+                        onChange={v => handleChange('paymentDate', v)}
+                        openKey="paymentDate"
+                        pickerTargets={pickerTargets}
+                        setPickerTargets={setPickerTargets}
+                      />
+                    </FieldBlock>
+                    <FieldBlock label="Mode">
+                      <FieldPicker
+                        value={form.paymentMode}
+                        options={PAYMENT_MODES}
+                        onChange={v => handleChange('paymentMode', v)}
+                      />
+                    </FieldBlock>
+                  </FormRow>
+                  <FormRow columns={2}>
+                    <FieldBlock label="Status">
+                      <FieldPicker
+                        value={form.paymentStatus}
+                        options={PAYMENT_STATUS}
+                        onChange={v => handleChange('paymentStatus', v)}
+                      />
+                    </FieldBlock>
+                    <FieldBlock label="Reference">
+                      <TextInput
+                        value={form.paymentReference}
+                        onChangeText={v => handleChange('paymentReference', v)}
+                        placeholder="Transaction ID / UTR"
+                        style={styles.input}
+                      />
+                    </FieldBlock>
+                  </FormRow>
+
+                  {paymentHistory.length > 0 ? (
+                    <View style={styles.paymentHistoryBlock}>
+                      <View style={styles.paymentHistoryHeader}>
+                        <Text style={styles.paymentHistoryTitle}>
+                          Payment history
+                        </Text>
+                        <View style={styles.recentDivider} />
+                        <View style={styles.recentCount}>
+                          <Text style={styles.recentCountText}>
+                            {paymentHistory.length} entries
+                          </Text>
+                        </View>
+                      </View>
+                      <ScrollView style={{ maxHeight: 256 }}>
+                        <View style={{ gap: 12 }}>
+                          {[...paymentHistory]
+                            .sort(
+                              (a, b) =>
+                                new Date(b.paymentDate || b.createdAt) -
+                                new Date(a.paymentDate || a.createdAt),
+                            )
+                            .map(payment => (
+                              <PaymentHistoryItem
+                                key={
+                                  payment._id ||
+                                  payment.createdAt ||
+                                  payment.paymentDate
+                                }
+                                payment={payment}
+                                onUpdated={handlePaymentUpdated}
+                              />
+                            ))}
+                        </View>
+                      </ScrollView>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {/* ═══ REMINDER TAB ═══ */}
+              {activeTab === 'Reminder' ? (
+                <View style={styles.formContainer}>
+                  <FormRow columns={2}>
+                    <FieldBlock label="Type">
+                      <FieldPicker
+                        value={form.reminderType}
+                        options={REMINDER_TYPES}
+                        onChange={v => handleChange('reminderType', v)}
+                      />
+                    </FieldBlock>
+                    <FieldBlock label="Assign To">
+                      <FieldPicker
+                        value={form.reminderAssignedTo}
+                        options={[
+                          { value: '', label: 'Select Assignee' },
+                          ...users.map(u => ({ value: u._id, label: u.name })),
+                        ]}
+                        onChange={v => handleChange('reminderAssignedTo', v)}
+                      />
+                    </FieldBlock>
+                  </FormRow>
+                  <FormRow columns={2}>
+                    <FieldBlock label="Date">
+                      <DateTimeField
+                        value={form.reminderDate}
+                        onChange={v => handleChange('reminderDate', v)}
+                        openKey="reminderDate"
+                        pickerTargets={pickerTargets}
+                        setPickerTargets={setPickerTargets}
+                      />
+                    </FieldBlock>
+                    <FieldBlock label="Time">
+                      <DateTimeField
+                        value={form.reminderTime}
+                        onChange={v => handleChange('reminderTime', v)}
+                        openKey="reminderTime"
+                        pickerTargets={pickerTargets}
+                        setPickerTargets={setPickerTargets}
+                        mode="time"
+                      />
+                    </FieldBlock>
+                  </FormRow>
+                  <FieldBlock label="Note">
+                    <TextInput
+                      value={form.reminderNote}
+                      onChangeText={v => handleChange('reminderNote', v)}
+                      placeholder="Reminder note"
+                      style={styles.input}
                     />
                   </FieldBlock>
-                  <FieldBlock label="Assign To">
+                  <FieldBlock label="Also notify">
                     <FieldPicker
-                      value={form.reminderAssignedTo}
+                      value={form.reminderNotify}
                       options={[
-                        { value: '', label: 'Select Assignee' },
+                        { value: '', label: 'None' },
                         ...users.map(u => ({ value: u._id, label: u.name })),
                       ]}
-                      onChange={v => handleChange('reminderAssignedTo', v)}
+                      onChange={v => handleChange('reminderNotify', v)}
                     />
                   </FieldBlock>
-                </FormRow>
-                <FormRow columns={2}>
-                  <FieldBlock label="Date">
-                    <DateTimeField
-                      value={form.reminderDate}
-                      onChange={v => handleChange('reminderDate', v)}
-                      openKey="reminderDate"
-                      pickerTargets={pickerTargets}
-                      setPickerTargets={setPickerTargets}
-                    />
-                  </FieldBlock>
-                  <FieldBlock label="Time">
-                    <DateTimeField
-                      value={form.reminderTime}
-                      onChange={v => handleChange('reminderTime', v)}
-                      openKey="reminderTime"
-                      pickerTargets={pickerTargets}
-                      setPickerTargets={setPickerTargets}
-                      mode="time"
-                    />
-                  </FieldBlock>
-                </FormRow>
-                <FieldBlock label="Note">
-                  <TextInput
-                    value={form.reminderNote}
-                    onChangeText={v => handleChange('reminderNote', v)}
-                    placeholder="Reminder note"
-                    style={styles.input}
-                  />
-                </FieldBlock>
-                <FieldBlock label="Also notify">
-                  <FieldPicker
-                    value={form.reminderNotify}
-                    options={[
-                      { value: '', label: 'None' },
-                      ...users.map(u => ({ value: u._id, label: u.name })),
-                    ]}
-                    onChange={v => handleChange('reminderNotify', v)}
-                  />
-                </FieldBlock>
+                </View>
+              ) : null}
+
+              {/* ═══ CROSS-SELL TAB ═══ */}
+              {activeTab === 'Cross-Sell' ? (
+                <SuccessServiceSelector
+                  lead={lead}
+                  onSaved={onClose}
+                  isSuccess
+                />
+              ) : null}
+
+              {/* Footer buttons */}
+              <View style={styles.footer}>
+                <TouchableOpacity onPress={onClose} style={styles.cancelBtn}>
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  disabled={submitting}
+                  onPress={handleSubmit}
+                  style={[styles.submitBtn, submitting && styles.disabled]}
+                >
+                  <Text style={styles.submitBtnText}>
+                    {submitting
+                      ? 'Saving...'
+                      : lead
+                      ? 'Update Lead'
+                      : 'Create Lead'}
+                  </Text>
+                </TouchableOpacity>
               </View>
-            ) : null}
-
-            {/* ═══ CROSS-SELL TAB ═══ */}
-            {activeTab === 'Cross-Sell' ? (
-              <SuccessServiceSelector lead={lead} onSaved={onClose} isSuccess />
-            ) : null}
-
-            {/* Footer buttons */}
-            <View style={styles.footer}>
-              <TouchableOpacity onPress={onClose} style={styles.cancelBtn}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                disabled={submitting}
-                onPress={handleSubmit}
-                style={[styles.submitBtn, submitting && styles.disabled]}
-              >
-                <Text style={styles.submitBtnText}>
-                  {submitting
-                    ? 'Saving...'
-                    : lead
-                    ? 'Update Lead'
-                    : 'Create Lead'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </View>
         </View>
-      </TouchableOpacity>
+      </View>
     </Modal>
   );
 };
@@ -2217,20 +2249,42 @@ const dtfStyles = StyleSheet.create({
 
 // ── Styles ──
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-start',
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  modalSafeArea: { flex: 1, backgroundColor: '#fff' },
   modalBody: {
     flex: 1,
+    alignSelf: 'stretch',
     backgroundColor: '#fff',
-    margin: 16,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    width: '100%',
+    height: '100%',
+    marginHorizontal: 0,
+    marginTop: 0,
+    marginBottom: 0,
+    borderRadius: 0,
+    borderWidth: 0,
     shadowColor: '#000',
     shadowOpacity: 0.15,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 4 },
     elevation: 10,
     overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  formScrollView: {
+    flex: 1,
+    backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
@@ -2252,16 +2306,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tabsScroll: { borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+  tabsContainer: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    maxHeight: 48,
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  tabsScroll: {},
   tabsInner: {
     flexDirection: 'row',
     paddingHorizontal: 8,
     paddingVertical: 4,
     gap: 4,
+    alignItems: 'center',
   },
   tabBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
@@ -2276,8 +2338,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#5a7bf6',
     borderRadius: 2,
   },
-  formScroll: { paddingBottom: 24 },
-  formContainer: { padding: 20, gap: 14 },
+  formScroll: { paddingBottom: 24, flexGrow: 1 },
+  formContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
+    gap: 12,
+  },
   formRow: { gap: 14 },
   formRow2: { flexDirection: 'row', gap: 14 },
   fieldBlock: { flex: 1 },
