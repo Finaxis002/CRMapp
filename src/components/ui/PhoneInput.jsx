@@ -53,10 +53,14 @@ const COUNTRIES = [
   { code: 'VN', name: 'Vietnam', dial: '+84', flag: 'vn' },
 ];
 
-const Flag = ({ code, size = 20 }) => (
+const Flag = ({ code, size = 16 }) => (
   <Image
     source={{ uri: `https://flagcdn.com/w40/${code}.png` }}
-    style={{ width: size, height: size * 0.75, borderRadius: 2 }}
+    style={{
+      width: size,
+      height: size * 0.72,
+      borderRadius: 2,
+    }}
     resizeMode="cover"
   />
 );
@@ -67,6 +71,7 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
   );
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
     if (value && String(value).startsWith('+')) {
@@ -111,53 +116,93 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
 
   return (
     <View style={styles.root}>
-      <View style={styles.inputRow}>
+      <View style={[styles.inputRow, isFocused && styles.inputRowFocused]}>
+        {/* Country button - Flag + Dial + Arrow (compact) */}
         <TouchableOpacity
           onPress={() => setOpen(o => !o)}
           style={styles.countryButton}
+          activeOpacity={0.7}
         >
-          <Flag code={selected.flag} size={18} />
+          <Flag code={selected.flag} size={16} />
           <Text style={styles.dialText}>{selected.dial}</Text>
-          <Icon name="chevron-down" size={16} color="#9ca3af" />
+          <Icon name="chevron-down" size={12} color="#9ca3af" />
         </TouchableOpacity>
 
+        {/* Phone input - max space */}
         <TextInput
           keyboardType="phone-pad"
           value={rawNumber}
           onChangeText={handleNumberChange}
-          placeholder="Enter phone number"
-          placeholderTextColor="#9ca3af"
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          placeholder="Phone number"
+          placeholderTextColor="#cbd5e1"
           style={styles.numberInput}
+          maxLength={12}
         />
       </View>
 
+      {/* Country picker modal */}
       <Modal
         visible={open}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setOpen(false)}
       >
         <TouchableWithoutFeedback onPress={() => setOpen(false)}>
           <View style={styles.overlay}>
             <TouchableWithoutFeedback>
               <View style={styles.dropdown}>
+                {/* Header */}
+                <View style={styles.modalHeader}>
+                  <View>
+                    <Text style={styles.modalTitle}>Select Country</Text>
+                    <Text style={styles.modalSubtitle}>
+                      Choose your country code
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setOpen(false)}
+                    style={styles.closeBtn}
+                  >
+                    <Icon name="close" size={18} color="#6b7280" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Search */}
                 <View style={styles.searchWrap}>
+                  <Icon name="magnify" size={18} color="#9ca3af" />
                   <TextInput
                     autoFocus
                     value={query}
                     onChangeText={setQuery}
-                    placeholder="Search country..."
+                    placeholder="Search by country or code..."
                     placeholderTextColor="#9ca3af"
                     style={styles.searchInput}
                   />
+                  {query ? (
+                    <TouchableOpacity onPress={() => setQuery('')}>
+                      <Icon name="close-circle" size={18} color="#9ca3af" />
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
 
+                {/* Country list */}
                 <FlatList
                   data={filtered}
                   keyExtractor={item => item.code}
                   style={styles.countryList}
+                  keyboardShouldPersistTaps="handled"
                   ListEmptyComponent={
-                    <Text style={styles.emptyText}>No country found</Text>
+                    <View style={styles.emptyWrap}>
+                      <Icon
+                        name="map-search-outline"
+                        size={40}
+                        color="#d1d5db"
+                      />
+                      <Text style={styles.emptyText}>No country found</Text>
+                    </View>
                   }
                   renderItem={({ item }) => {
                     const active = selected.code === item.code;
@@ -168,17 +213,36 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
                           styles.countryRow,
                           active && styles.countryRowActive,
                         ]}
+                        activeOpacity={0.6}
                       >
-                        <Flag code={item.flag} size={18} />
+                        <Flag code={item.flag} size={22} />
+                        <View style={styles.countryInfo}>
+                          <Text
+                            style={[
+                              styles.countryName,
+                              active && styles.countryNameActive,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {item.name}
+                          </Text>
+                        </View>
                         <Text
                           style={[
-                            styles.countryName,
-                            active && styles.countryNameActive,
+                            styles.countryDial,
+                            active && styles.countryDialActive,
                           ]}
                         >
-                          {item.name}
+                          {item.dial}
                         </Text>
-                        <Text style={styles.countryDial}>{item.dial}</Text>
+                        {active ? (
+                          <Icon
+                            name="check-circle"
+                            size={18}
+                            color="#5a7bf6"
+                            style={{ marginLeft: 4 }}
+                          />
+                        ) : null}
                       </TouchableOpacity>
                     );
                   }}
@@ -193,80 +257,151 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
 };
 
 const styles = StyleSheet.create({
-  root: { width: '100%', marginTop: 4 },
+  root: { width: '100%' },
+
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    height: 42,
+    height: 44,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#d1d5db',
     backgroundColor: '#fff',
     overflow: 'hidden',
   },
+
+  inputRowFocused: {
+    borderColor: '#5a7bf6',
+    borderWidth: 1.5,
+  },
+
   countryButton: {
     height: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
+    gap: 3,
+    paddingHorizontal: 6,
+    backgroundColor: '#f9fafb',
     borderRightWidth: 1,
     borderRightColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
   },
-  dialText: { fontSize: 14, fontWeight: '600', color: '#374151' },
+
+  dialText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+
   numberInput: {
     flex: 1,
     height: '100%',
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     color: '#111827',
-    fontSize: 14,
+    fontSize: 13,
+    paddingVertical: 0,
+    fontWeight: '500',
+    minWidth: 0,
   },
+
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.35)',
+    backgroundColor: 'rgba(15,23,42,0.5)',
     justifyContent: 'center',
     padding: 20,
   },
   dropdown: {
-    maxHeight: 360,
-    borderRadius: 12,
+    maxHeight: 540,
+    borderRadius: 20,
     backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 25,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 15,
   },
-  searchWrap: {
-    padding: 8,
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
   },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 12,
+    height: 42,
+  },
   searchInput: {
-    height: 36,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    backgroundColor: '#f9fafb',
-    paddingHorizontal: 12,
+    flex: 1,
     color: '#111827',
     fontSize: 14,
+    paddingVertical: 0,
   },
-  countryList: { maxHeight: 300 },
+  countryList: { maxHeight: 400 },
   countryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
-  countryRowActive: { backgroundColor: '#eff6ff' },
-  countryName: { flex: 1, fontSize: 14, color: '#1f2937' },
-  countryNameActive: { color: '#1d4ed8', fontWeight: '600' },
-  countryDial: { fontSize: 12, color: '#9ca3af', fontFamily: 'monospace' },
+  countryRowActive: {
+    backgroundColor: 'rgba(90,123,246,0.06)',
+  },
+  countryInfo: { flex: 1 },
+  countryName: {
+    fontSize: 14,
+    color: '#1f2937',
+    fontWeight: '500',
+  },
+  countryNameActive: {
+    color: '#5a7bf6',
+    fontWeight: '600',
+  },
+  countryDial: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  countryDialActive: {
+    color: '#5a7bf6',
+  },
+  emptyWrap: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: 8,
+  },
   emptyText: {
-    textAlign: 'center',
-    paddingVertical: 20,
     color: '#9ca3af',
     fontSize: 14,
   },

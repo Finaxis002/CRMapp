@@ -21,7 +21,6 @@ import {
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -30,12 +29,13 @@ import Video from 'react-native-video';
 import axios from 'axios';
 
 import CustomPhoneInput from '../ui/PhoneInput.jsx';
+import CustomDropdown from '../ui/CustomDropdown.jsx';
 import MultiSelect from '../ui/MultiSelect';
 import CrossSellTab from './Crossselltab';
 import PaymentHistoryItem from '../common/LeadFormModel/PaymentHistoryItem.jsx';
 import api from '../../services/api.js';
 
-// ── Shims: web's react-hot-toast → native Alert ──
+// ── Shims ──
 const toast = {
   success: msg => Alert.alert('Success', String(msg)),
   error: msg => Alert.alert('Error', String(msg)),
@@ -117,7 +117,143 @@ const toInputTime = d => {
 };
 
 // ════════════════════════════════════════════════════════════════
-// SuccessServiceSelector
+//  FORM HELPERS - DEFINED OUTSIDE TO PREVENT RE-CREATION
+// ════════════════════════════════════════════════════════════════
+const FormRow = React.memo(({ children, columns = 1 }) => (
+  <View
+    style={[
+      { gap: 14 },
+      columns === 2 && { flexDirection: 'row', gap: 14 },
+      columns === 3 && { flexDirection: 'row', gap: 10 },
+    ]}
+  >
+    {children}
+  </View>
+));
+
+const FieldBlock = React.memo(({ label, required = false, children }) => (
+  <View style={{ flex: 1 }}>
+    <Text
+      style={{
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#374151',
+        marginBottom: 6,
+      }}
+    >
+      {label} {required ? <Text style={{ color: '#ef4444' }}>*</Text> : null}
+    </Text>
+    {children}
+  </View>
+));
+
+// ════════════════════════════════════════════════════════════════
+//  Native FieldPicker replaced by shared CustomDropdown wrapper
+// ════════════════════════════════════════════════════════════════
+const FieldPicker = React.memo(
+  ({ value, options, onChange, emptyLabel, disabled }) => {
+    const normalizedOptions = Array.isArray(options)
+      ? options.map(opt => {
+          const val = typeof opt === 'object' ? opt.value ?? opt : opt;
+          const label =
+            typeof opt === 'object'
+              ? opt.label ?? opt.value ?? opt
+              : String(opt);
+          return { value: val, label };
+        })
+      : [];
+
+    return (
+      <CustomDropdown
+        value={value}
+        onChange={onChange}
+        options={normalizedOptions}
+        placeholder={emptyLabel || 'Select'}
+        disabled={disabled}
+        searchable={false}
+        showSelectedCount={false}
+      />
+    );
+  },
+);
+
+const DateTimeField = React.memo(
+  ({
+    value,
+    onChange,
+    openKey,
+    pickerTargets,
+    setPickerTargets,
+    mode = 'date',
+  }) => {
+    const open = pickerTargets?.[openKey] === mode;
+    const parseValue = () => {
+      if (!value) return new Date();
+      if (mode === 'time') {
+        const [h, m] = String(value).split(':');
+        const d = new Date();
+        d.setHours(Number(h) || 0, Number(m) || 0, 0, 0);
+        return d;
+      }
+      return new Date(`${value}T00:00:00`);
+    };
+
+    return (
+      <View>
+        <TouchableOpacity
+          onPress={() => setPickerTargets(p => ({ ...p, [openKey]: mode }))}
+          style={dtfStyles.btn}
+        >
+          <Text style={dtfStyles.text}>
+            {value || (mode === 'time' ? 'Select time' : 'Select date')}
+          </Text>
+          <Icon
+            name={mode === 'time' ? 'clock-outline' : 'calendar'}
+            size={16}
+            color="#64748b"
+          />
+        </TouchableOpacity>
+        {open ? (
+          <DateTimePicker
+            value={parseValue()}
+            mode={mode}
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            minimumDate={mode === 'date' ? new Date() : undefined}
+            onChange={(event, selectedDate) => {
+              if (event?.type === 'dismissed') {
+                setPickerTargets(p => ({ ...p, [openKey]: null }));
+                return;
+              }
+              setPickerTargets(p => ({ ...p, [openKey]: null }));
+              if (selectedDate) {
+                if (mode === 'time') onChange(toInputTime(selectedDate));
+                else onChange(toInputDate(selectedDate));
+              }
+            }}
+          />
+        ) : null}
+      </View>
+    );
+  },
+);
+
+const dtfStyles = StyleSheet.create({
+  btn: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  text: { fontSize: 13, color: '#111827' },
+});
+
+// ════════════════════════════════════════════════════════════════
+// SuccessServiceSelector (same as before - no changes)
 // ════════════════════════════════════════════════════════════════
 const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
   const [availableServices, setAvailableServices] = useState(
@@ -129,7 +265,7 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
   const [reactivationDate, setReactivationDate] = useState('');
   const [reactivationTime, setReactivationTime] = useState('09:00');
   const [saving, setSaving] = useState(false);
-  const [pickerTarget, setPickerTarget] = useState(null); // 'date' | 'time'
+  const [pickerTarget, setPickerTarget] = useState(null);
 
   useEffect(() => {
     if (!lead?._id) return;
@@ -258,12 +394,14 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
             mode="date"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
             minimumDate={new Date()}
-            onValueChange={(event, selectedDate) => {
-              if (event?.type === 'dismissed') return;
+            onChange={(event, selectedDate) => {
+              if (event?.type === 'dismissed') {
+                setPickerTarget(null);
+                return;
+              }
               setPickerTarget(null);
               if (selectedDate) setReactivationDate(toInputDate(selectedDate));
             }}
-            onDismiss={() => setPickerTarget(null)}
           />
         ) : null}
         {pickerTarget === 'time' ? (
@@ -275,12 +413,14 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
             }
             mode="time"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onValueChange={(event, selectedDate) => {
-              if (event?.type === 'dismissed') return;
+            onChange={(event, selectedDate) => {
+              if (event?.type === 'dismissed') {
+                setPickerTarget(null);
+                return;
+              }
               setPickerTarget(null);
               if (selectedDate) setReactivationTime(toInputTime(selectedDate));
             }}
-            onDismiss={() => setPickerTarget(null)}
           />
         ) : null}
       </View>
@@ -373,7 +513,7 @@ const ss = StyleSheet.create({
 });
 
 // ════════════════════════════════════════════════════════════════
-// LeadFormModal
+// LeadFormModal - MAIN COMPONENT
 // ════════════════════════════════════════════════════════════════
 const LeadFormModal = ({
   visible,
@@ -402,7 +542,7 @@ const LeadFormModal = ({
   const [paymentHistory, setPaymentHistory] = useState(
     Array.isArray(lead?.payments) ? lead.payments : [],
   );
-  const [pickerTargets, setPickerTargets] = useState({}); // { key: 'date'|'time'|'datetime' }
+  const [pickerTargets, setPickerTargets] = useState({});
   const [activities, setActivities] = useState({
     Note: { _id: '', text: '', notify: '' },
     Call: {
@@ -431,7 +571,6 @@ const LeadFormModal = ({
     : DEFAULT_SOURCE_OPTIONS;
   const canManageAssignment = canAssignLead || canChangeLeadOwner;
 
-  // ── Build form fields ──
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -525,11 +664,6 @@ const LeadFormModal = ({
       return;
     }
 
-    // Build form from lead
-    const latestActivity =
-      Array.isArray(lead.activities) && lead.activities.length
-        ? lead.activities[0]
-        : null;
     const pendingReminders = Array.isArray(lead.reminders)
       ? lead.reminders.filter(r => !r.isDone)
       : [];
@@ -645,7 +779,6 @@ const LeadFormModal = ({
     setActiveTab(initialTab || 'Profile');
   }, [visible, lead]);
 
-  // ── Payment sync ──
   useEffect(() => {
     setPaymentHistory(Array.isArray(lead?.payments) ? lead.payments : []);
   }, [lead?.payments]);
@@ -658,7 +791,8 @@ const LeadFormModal = ({
     );
   };
 
-  const handleChange = (key, value) => {
+  // ✅ useCallback se wrap kiya - reference same rahega
+  const handleChange = useCallback((key, value) => {
     setForm(prev => {
       const nextForm = { ...prev, [key]: value };
       if (key === 'assignedTo') {
@@ -666,20 +800,19 @@ const LeadFormModal = ({
       }
       return nextForm;
     });
-  };
+  }, []);
 
-  const handleCustomFieldChange = (key, value) => {
+  const handleCustomFieldChange = useCallback((key, value) => {
     setForm(prev => ({
       ...prev,
       customFields: { ...prev.customFields, [key]: value },
     }));
-  };
+  }, []);
 
-  const updateActivity = (type, key, val) => {
+  const updateActivity = useCallback((type, key, val) => {
     setActivities(prev => ({ ...prev, [type]: { ...prev[type], [key]: val } }));
-  };
+  }, []);
 
-  // ── Build payload ──
   const buildPayload = () => {
     const payload = {
       name: form.name.trim(),
@@ -839,7 +972,6 @@ const LeadFormModal = ({
     return payload;
   };
 
-  // ── Recording file pick via @react-native-documents/picker ──
   const handlePickRecordingFile = async () => {
     try {
       const result = await pick({
@@ -941,7 +1073,6 @@ const LeadFormModal = ({
     }
   };
 
-  // ── Submit handler ──
   const handleSubmit = async () => {
     if (lead && !canEditAnyLead) {
       toast.error('You do not have permission to edit this lead.');
@@ -992,7 +1123,6 @@ const LeadFormModal = ({
       setActiveTab('Payment');
       return;
     }
-
     if (activities.Task.text?.trim() && !activities.Task.dueDate) {
       toast.error('Task due date is required.');
       setActiveTab('Activity');
@@ -1005,10 +1135,7 @@ const LeadFormModal = ({
       return;
     }
 
-    if (activeTab === 'Cross-Sell') {
-      // Cross-Sell save handled inside SuccessServiceSelector via ref/parent — not applicable here
-      return;
-    }
+    if (activeTab === 'Cross-Sell') return;
 
     const payload = buildPayload();
     setSubmitting(true);
@@ -1049,24 +1176,7 @@ const LeadFormModal = ({
     ...TABS,
     ...(form.status === 'Success' || lead?.isCrossSell ? ['Cross-Sell'] : []),
   ];
-  const activeMeta =
-    ACTIVITY_TYPE_META[activeActivityType] || ACTIVITY_TYPE_META.Note;
   const activeAct = activities[activeActivityType];
-
-  // ── Render helper: FormRow ──
-  const FormRow = ({ children, columns = 1 }) => (
-    <View style={[styles.formRow, columns === 2 && styles.formRow2]}>
-      {children}
-    </View>
-  );
-  const FieldBlock = ({ label, required = false, children }) => (
-    <View style={styles.fieldBlock}>
-      <Text style={styles.fieldLabel}>
-        {label} {required ? <Text style={styles.reqStar}>*</Text> : null}
-      </Text>
-      {children}
-    </View>
-  );
 
   return (
     <Modal
@@ -1143,7 +1253,7 @@ const LeadFormModal = ({
               keyboardShouldPersistTaps="handled"
               style={styles.formScrollView}
             >
-              {/* ═══ PROFILE TAB ═══ */}
+              {/* PROFILE TAB */}
               {activeTab === 'Profile' ? (
                 <View style={styles.formContainer}>
                   <FieldBlock label="Full Name" required>
@@ -1283,7 +1393,7 @@ const LeadFormModal = ({
                 </View>
               ) : null}
 
-              {/* ═══ ASSIGN TAB ═══ */}
+              {/* ASSIGN TAB */}
               {activeTab === 'Assign' ? (
                 <View style={styles.formContainer}>
                   <FieldBlock label="Primary Lead Owner" required>
@@ -1348,7 +1458,7 @@ const LeadFormModal = ({
                 </View>
               ) : null}
 
-              {/* ═══ ACTIVITY TAB ═══ */}
+              {/* ACTIVITY TAB */}
               {activeTab === 'Activity' ? (
                 <View style={styles.formContainer}>
                   <View style={styles.activityTypeHeader}>
@@ -1700,7 +1810,7 @@ const LeadFormModal = ({
                 </View>
               ) : null}
 
-              {/* ═══ RECORDING TAB ═══ */}
+              {/* RECORDING TAB */}
               {activeTab === 'Recording' ? (
                 <View style={styles.formContainer}>
                   <View style={styles.recordingBlock}>
@@ -1752,9 +1862,7 @@ const LeadFormModal = ({
                             </Text>
                           </View>
                           <TouchableOpacity
-                            onPress={() => {
-                              setRecordingFile(null);
-                            }}
+                            onPress={() => setRecordingFile(null)}
                             style={styles.fileRemove}
                           >
                             <Icon name="close" size={16} color="#ef4444" />
@@ -1944,7 +2052,7 @@ const LeadFormModal = ({
                 </View>
               ) : null}
 
-              {/* ═══ PAYMENT TAB ═══ */}
+              {/* PAYMENT TAB */}
               {activeTab === 'Payment' ? (
                 <View style={styles.formContainer}>
                   <FormRow columns={3}>
@@ -2031,7 +2139,7 @@ const LeadFormModal = ({
                 </View>
               ) : null}
 
-              {/* ═══ REMINDER TAB ═══ */}
+              {/* REMINDER TAB */}
               {activeTab === 'Reminder' ? (
                 <View style={styles.formContainer}>
                   <FormRow columns={2}>
@@ -2095,7 +2203,7 @@ const LeadFormModal = ({
                 </View>
               ) : null}
 
-              {/* ═══ CROSS-SELL TAB ═══ */}
+              {/* CROSS-SELL TAB */}
               {activeTab === 'Cross-Sell' ? (
                 <SuccessServiceSelector
                   lead={lead}
@@ -2104,7 +2212,7 @@ const LeadFormModal = ({
                 />
               ) : null}
 
-              {/* Footer buttons */}
+              {/* Footer */}
               <View style={styles.footer}>
                 <TouchableOpacity onPress={onClose} style={styles.cancelBtn}>
                   <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -2131,122 +2239,6 @@ const LeadFormModal = ({
   );
 };
 
-// ── Small inline sub-components ──
-const FieldPicker = ({ value, options, onChange, emptyLabel, disabled }) => {
-  const items = Array.isArray(options)
-    ? options.map(opt => {
-        const val = typeof opt === 'object' ? opt.value ?? opt : opt;
-        const label =
-          typeof opt === 'object' ? opt.label ?? opt.value ?? opt : opt;
-        return { value: val, label };
-      })
-    : [];
-
-  return (
-    <View style={[fpStyles.wrap, disabled && fpStyles.disabled]}>
-      <Picker
-        enabled={!disabled}
-        selectedValue={value ?? ''}
-        onValueChange={v => onChange(v)}
-        style={fpStyles.picker}
-        mode="dropdown"
-      >
-        {emptyLabel ? <Picker.Item label={emptyLabel} value="" /> : null}
-        {items.map(opt => (
-          <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-        ))}
-      </Picker>
-    </View>
-  );
-};
-
-const fpStyles = StyleSheet.create({
-  wrap: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
-    minHeight: 44,
-    overflow: 'hidden',
-    justifyContent: 'center',
-  },
-  picker: { minHeight: 44, color: '#111827' },
-  disabled: { opacity: 0.6 },
-});
-
-const DateTimeField = ({
-  value,
-  onChange,
-  openKey,
-  pickerTargets,
-  setPickerTargets,
-  mode = 'date',
-}) => {
-  const open = pickerTargets?.[openKey] === mode;
-  const parseValue = () => {
-    if (!value) return new Date();
-    if (mode === 'time') {
-      const [h, m] = String(value).split(':');
-      const d = new Date();
-      d.setHours(Number(h) || 0, Number(m) || 0, 0, 0);
-      return d;
-    }
-    return new Date(`${value}T00:00:00`);
-  };
-
-  return (
-    <View>
-      <TouchableOpacity
-        onPress={() => setPickerTargets(p => ({ ...p, [openKey]: mode }))}
-        style={dtfStyles.btn}
-      >
-        <Text style={dtfStyles.text}>
-          {value || (mode === 'time' ? 'Select time' : 'Select date')}
-        </Text>
-        <Icon
-          name={mode === 'time' ? 'clock-outline' : 'calendar'}
-          size={16}
-          color="#64748b"
-        />
-      </TouchableOpacity>
-      {open ? (
-        <DateTimePicker
-          value={parseValue()}
-          mode={mode}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          minimumDate={mode === 'date' ? new Date() : undefined}
-          onValueChange={(event, selectedDate) => {
-            if (event?.type === 'dismissed') return;
-            setPickerTargets(p => ({ ...p, [openKey]: null }));
-            if (selectedDate) {
-              if (mode === 'time') onChange(toInputTime(selectedDate));
-              else onChange(toInputDate(selectedDate));
-            }
-          }}
-          onDismiss={() => {
-            setPickerTargets(p => ({ ...p, [openKey]: null }));
-          }}
-        />
-      ) : null}
-    </View>
-  );
-};
-
-const dtfStyles = StyleSheet.create({
-  btn: {
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  text: { fontSize: 13, color: '#111827' },
-});
-
 // ── Styles ──
 const styles = StyleSheet.create({
   overlay: {
@@ -2254,13 +2246,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-start',
   },
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   modalSafeArea: { flex: 1, backgroundColor: '#fff' },
   modalBody: {
     flex: 1,
@@ -2282,10 +2268,7 @@ const styles = StyleSheet.create({
     display: 'flex',
     flexDirection: 'column',
   },
-  formScrollView: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
+  formScrollView: { flex: 1, backgroundColor: '#fff' },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -2313,7 +2296,6 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 0,
   },
-  tabsScroll: {},
   tabsInner: {
     flexDirection: 'row',
     paddingHorizontal: 8,
@@ -2345,16 +2327,12 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     gap: 12,
   },
-  formRow: { gap: 14 },
-  formRow2: { flexDirection: 'row', gap: 14 },
-  fieldBlock: { flex: 1 },
   fieldLabel: {
     fontSize: 13,
     fontWeight: '600',
     color: '#374151',
     marginBottom: 6,
   },
-  reqStar: { color: '#ef4444' },
   input: {
     minHeight: 44,
     borderRadius: 12,
