@@ -34,6 +34,8 @@ import MultiSelect from '../ui/MultiSelect';
 import CrossSellTab from './Crossselltab';
 import PaymentHistoryItem from '../common/LeadFormModel/PaymentHistoryItem.jsx';
 import api from '../../services/api.js';
+import { getCallLogsForLead } from '../../services/callLogsService.js';
+import CallLogCard from '../../services/callLogCard.js';
 
 // ── Shims ──
 const toast = {
@@ -538,6 +540,7 @@ const LeadFormModal = ({
   const [uploadingRec, setUploadingRec] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [savedRecordings, setSavedRecordings] = useState([]);
+  const [trackedCallLogs, setTrackedCallLogs] = useState([]);
   const [playingUrl, setPlayingUrl] = useState(null);
   const [paymentHistory, setPaymentHistory] = useState(
     Array.isArray(lead?.payments) ? lead.payments : [],
@@ -782,6 +785,28 @@ const LeadFormModal = ({
   useEffect(() => {
     setPaymentHistory(Array.isArray(lead?.payments) ? lead.payments : []);
   }, [lead?.payments]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadTrackedCallLogs = async () => {
+      if (!lead?._id || !visible) {
+        if (active) setTrackedCallLogs([]);
+        return;
+      }
+      try {
+        const logs = await getCallLogsForLead(lead._id);
+        if (active) setTrackedCallLogs(Array.isArray(logs) ? logs : []);
+      } catch {
+        if (active) setTrackedCallLogs([]);
+      }
+    };
+
+    loadTrackedCallLogs();
+    return () => {
+      active = false;
+    };
+  }, [lead?._id, visible]);
 
   const handlePaymentUpdated = updatedPayment => {
     setPaymentHistory(prev =>
@@ -1642,6 +1667,37 @@ const LeadFormModal = ({
                     ) : null}
                   </View>
 
+                  {activeActivityType === 'Call' &&
+                  trackedCallLogs.length > 0 ? (
+                    <View style={{ marginTop: 20 }}>
+                      <View style={styles.recentHeader}>
+                        <Text style={styles.recentTitle}>
+                          📞 Tracked Calls (App)
+                        </Text>
+                        <View style={styles.recentDivider} />
+                        <View style={styles.recentCount}>
+                          <Text style={styles.recentCountText}>
+                            {trackedCallLogs.length} calls
+                          </Text>
+                        </View>
+                      </View>
+                      {trackedCallLogs.map(log => (
+                        <CallLogCard
+                          key={log._id || log.id}
+                          callLog={log}
+                          theme={{
+                            bgSurface: '#fff',
+                            border: '#e5e7eb',
+                            textPrimary: '#111827',
+                            textMuted: '#6b7280',
+                            accent: '#5a7bf6',
+                            inputBg: '#f3f4f6',
+                          }}
+                        />
+                      ))}
+                    </View>
+                  ) : null}
+
                   {lead &&
                   Array.isArray(lead.activities) &&
                   lead.activities.length > 0 ? (
@@ -2036,6 +2092,36 @@ const LeadFormModal = ({
                           </View>
                         );
                       })}
+                    </View>
+                  ) : null}
+
+                  {trackedCallLogs.filter(log => log.recordingUploaded).length >
+                  0 ? (
+                    <View style={{ marginTop: 24 }}>
+                      <Text style={styles.sectionTitle}>
+                        Auto-tracked Call Recordings (
+                        {
+                          trackedCallLogs.filter(log => log.recordingUploaded)
+                            .length
+                        }
+                        )
+                      </Text>
+                      {trackedCallLogs
+                        .filter(log => log.recordingUploaded)
+                        .map(log => (
+                          <CallLogCard
+                            key={log._id || log.id}
+                            callLog={log}
+                            theme={{
+                              bgSurface: '#fff',
+                              border: '#e5e7eb',
+                              textPrimary: '#111827',
+                              textMuted: '#6b7280',
+                              accent: '#5a7bf6',
+                              inputBg: '#f3f4f6',
+                            }}
+                          />
+                        ))}
                     </View>
                   ) : null}
 

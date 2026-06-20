@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator, StatusBar } from 'react-native';
+import { View, ActivityIndicator, StatusBar, Platform } from 'react-native';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -11,6 +11,11 @@ import { navigationRef } from './src/services/navigationService';
 import { setUser, setInitializing, logout } from './src/store/slices/authSlice';
 import { fetchSettings } from './src/store/slices/settingsSlice';
 import { authService } from './src/services/authService';
+import {
+  initCallTracker,
+  requestCallPermissions,
+  startCallTracker,
+} from './src/services/callTrackerService';
 
 import AppNavigator from './src/navigation/AppNavigator';
 import { ToastContainer } from './src/hooks/useToast';
@@ -43,6 +48,18 @@ const AppContent = () => {
     if (!isAuthenticated) return;
     dispatch(fetchSettings());
   }, [dispatch, isAuthenticated]);
+
+  useEffect(() => {
+    const initTracking = async () => {
+      if (Platform.OS !== 'android') return;
+      const granted = await requestCallPermissions();
+      if (!granted) return;
+      await initCallTracker();
+      await startCallTracker();
+    };
+
+    initTracking();
+  }, []);
 
   if (isInitializing) {
     return (

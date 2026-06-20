@@ -331,7 +331,9 @@ const InteractionsTab = ({
     }
 
     if (editItem.type === 'Task') {
-      payload.taskDueDate = form.dueDate ? new Date(form.dueDate) : undefined;
+      payload.taskDueDate = editForm.dueDate
+        ? new Date(editForm.dueDate)
+        : undefined;
       payload.taskAssignedTo = editForm.assignedTo || undefined;
     }
 
@@ -803,8 +805,11 @@ const InteractionsTab = ({
                       }
                       mode="date"
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onValueChange={(event, selectedDate) => {
-                        if (event?.type === 'dismissed') return;
+                      onChange={(event, selectedDate) => {
+                        if (event?.type === 'dismissed') {
+                          setShowDatePicker(false);
+                          return;
+                        }
                         setShowDatePicker(Platform.OS === 'ios');
                         if (selectedDate) {
                           const dateString = selectedDate
@@ -816,9 +821,6 @@ const InteractionsTab = ({
                           }));
                         }
                       }}
-                      onDismiss={() =>
-                        setShowDatePicker(Platform.OS === 'android')
-                      }
                     />
                   )}
                 </View>

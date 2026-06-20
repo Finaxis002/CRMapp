@@ -18,6 +18,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Picker } from '@react-native-picker/picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { leadsService } from '../../services/leadsService.js';
+import {
+  useCallRecordingEvents,
+  showRecordingToast,
+} from '../../hooks/useCallRecordingEvents.js';
 import InteractionsTab from './LeadPreviewDrawer/InteractionsTab.jsx';
 import TasksTab from './LeadPreviewDrawer/TasksTab.jsx';
 import NotesTab from './LeadPreviewDrawer/NotesTab.jsx';
@@ -123,6 +127,12 @@ const LeadPreviewDrawer = ({
       setMobileView('info');
     }
   }, [visible, lead]);
+
+  useCallRecordingEvents(event => {
+    if (!visible) return;
+    showRecordingToast(event);
+    if (onRefresh) onRefresh();
+  }, visible);
 
   if (!lead) return null;
 
