@@ -1,195 +1,169 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, ScrollView, View, StyleSheet } from 'react-native';
-
-const columns = [
-  { name: 'New', color: '#2563eb' },
-  { name: 'Did Not Answered', color: '#eab308' },
-  { name: 'Interested', color: '#b86e00' },
-  { name: 'Details Shared', color: '#6c35de' },
-  { name: 'Final Discussions', color: '#06b6d4' },
-  { name: 'Success', color: '#2a7d4f' },
-  { name: 'Closed', color: '#1a1a18' },
-];
-
-const withAlpha = (hex, alpha) => {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
+import { View, Animated, ScrollView, StyleSheet } from 'react-native';
 
 const KanbanSkeleton = () => {
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
         Animated.timing(fadeAnim, {
-          toValue: 0.4,
+          toValue: 0.9,
           duration: 800,
           useNativeDriver: true,
         }),
         Animated.timing(fadeAnim, {
-          toValue: 1,
+          toValue: 0.4,
           duration: 800,
           useNativeDriver: true,
         }),
       ]),
     ).start();
-  }, [fadeAnim]);
+  }, []);
 
-  const SkeletonBlock = ({ style }) => (
+  const SkeletonBox = ({ width, height, style }) => (
     <Animated.View
-      style={[styles.skeletonBase, { opacity: fadeAnim }, style]}
+      style={[
+        {
+          width,
+          height,
+          backgroundColor: '#e5e7eb',
+          borderRadius: 6,
+          opacity: fadeAnim,
+        },
+        style,
+      ]}
     />
   );
 
-  const SkeletonCard = () => (
-    <View style={styles.card}>
-      <SkeletonBlock style={styles.cardLine1} />
-      <SkeletonBlock style={styles.cardLine2} />
-      <View style={styles.cardTagsRow}>
-        <SkeletonBlock style={styles.cardTag} />
-        <SkeletonBlock style={styles.cardTag} />
+  // Stage tab skeleton
+  const StageTabSkeleton = () => (
+    <View style={styles.tabSkeleton}>
+      <SkeletonBox width={70} height={14} />
+      <SkeletonBox
+        width={22}
+        height={14}
+        style={{ marginLeft: 6, borderRadius: 999 }}
+      />
+    </View>
+  );
+
+  // Lead card skeleton
+  const LeadCardSkeleton = () => (
+    <View style={styles.cardSkeleton}>
+      <View style={styles.cardTopRow}>
+        <SkeletonBox width="65%" height={16} />
+        <SkeletonBox width={60} height={14} />
+      </View>
+
+      <SkeletonBox width="45%" height={13} style={{ marginTop: 6 }} />
+
+      <View style={styles.cardBottomRow}>
+        <SkeletonBox width="40%" height={12} />
+        <SkeletonBox width={55} height={18} style={{ borderRadius: 999 }} />
       </View>
     </View>
   );
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.scrollContent}
-    >
-      <View style={styles.columnsRow}>
-        {columns.map(column => (
-          <View key={column.name} style={styles.column}>
-            {/* Header */}
-            <View style={styles.columnHeader}>
-              <View style={styles.columnHeaderTop}>
-                <View style={styles.columnHeaderLeft}>
-                  <View
-                    style={[styles.dot, { backgroundColor: column.color }]}
-                  />
-                  <SkeletonBlock style={styles.headerTitle} />
-                  <SkeletonBlock style={styles.headerCount} />
-                </View>
-              </View>
-              <Animated.View
-                style={[
-                  styles.headerBar,
-                  {
-                    backgroundColor: withAlpha(column.color, 0.4),
-                    opacity: fadeAnim,
-                  },
-                ]}
-              />
-            </View>
-
-            {/* Cards */}
-            <View style={styles.cardsContainer}>
-              {[...Array(4)].map((_, index) => (
-                <SkeletonCard key={index} />
-              ))}
-            </View>
+    <View style={styles.container}>
+      {/* Header Skeleton */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <View>
+            <SkeletonBox width={90} height={20} />
+            <SkeletonBox width={130} height={12} style={{ marginTop: 4 }} />
           </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <SkeletonBox width={40} height={40} style={{ borderRadius: 12 }} />
+            <SkeletonBox width={70} height={40} style={{ borderRadius: 12 }} />
+          </View>
+        </View>
+
+        {/* User Filter Skeleton */}
+        <SkeletonBox
+          width="100%"
+          height={36}
+          style={{ marginTop: 12, borderRadius: 10 }}
+        />
+      </View>
+
+      {/* Stage Tabs Skeleton */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabsScroll}
+      >
+        {[1, 2, 3, 4, 5].map(i => (
+          <StageTabSkeleton key={i} />
+        ))}
+      </ScrollView>
+
+      {/* Lead Cards Skeleton */}
+      <View style={styles.cardsContainer}>
+        {[1, 2, 3, 4, 5].map(i => (
+          <LeadCardSkeleton key={i} />
         ))}
       </View>
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    paddingBottom: 16,
+  container: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
   },
-  columnsRow: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  column: {
-    width: 288,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  columnHeader: {
+  header: {
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
-  columnHeaderTop: {
+  headerTop: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    alignItems: 'center',
   },
-  columnHeaderLeft: {
+  tabsScroll: {
+    paddingHorizontal: 16,
+    marginTop: 12,
+  },
+  tabSkeleton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  dot: {
-    height: 10,
-    width: 10,
-    borderRadius: 5,
-  },
-  headerTitle: {
-    height: 16,
-    width: 96,
-    borderRadius: 4,
-  },
-  headerCount: {
-    height: 24,
-    width: 32,
-    borderRadius: 9999,
-  },
-  headerBar: {
-    height: 4,
-    borderRadius: 9999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#fff',
+    marginRight: 8,
   },
   cardsContainer: {
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-    gap: 8,
-    minHeight: 200,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    gap: 10,
   },
-  card: {
-    borderRadius: 12,
-    padding: 12,
+  cardSkeleton: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    gap: 8,
+    borderColor: '#f1f5f9',
+    marginBottom: 8,
   },
-  cardLine1: {
-    height: 16,
-    width: '75%',
-    borderRadius: 4,
-  },
-  cardLine2: {
-    height: 12,
-    width: '50%',
-    borderRadius: 4,
-  },
-  cardTagsRow: {
+  cardTopRow: {
     flexDirection: 'row',
-    gap: 4,
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  cardTag: {
-    height: 20,
-    width: 48,
-    borderRadius: 9999,
-  },
-  skeletonBase: {
-    backgroundColor: '#e5e7eb',
-    borderRadius: 4,
+  cardBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
   },
 });
 
