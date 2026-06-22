@@ -8,6 +8,7 @@ import android.os.Looper
 import android.provider.CallLog
 import android.media.MediaRecorder
 import android.telephony.PhoneStateListener
+import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.util.Log
 import com.facebook.react.bridge.Arguments
@@ -27,6 +28,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
   private var isRecording = false
   private var outputFilePath: String? = null
   private var phoneStateListener: PhoneStateListener? = null
+  private var telephonyCallback: Any? = null 
   private var telephonyManager: TelephonyManager? = null
   private var currentPhoneNumber: String? = null
   private var currentCallType: String? = null
@@ -46,42 +48,49 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
       .emit(eventName, params)
   }
 
+  private fun handleCallStateChanged(state: Int) {
+    when (state) {
+      TelephonyManager.CALL_STATE_OFFHOOK -> {
+        if (!isRecording) {
+          val callType = when (lastCallState) {
+            TelephonyManager.CALL_STATE_RINGING -> "Incoming"
+            else -> "Outgoing"
+          }
+          currentPhoneNumber = null
+          currentCallType = callType
+          currentDeviceCallId = UUID.randomUUID().toString()
+          callStartTimestamp = System.currentTimeMillis()
+          startRecordingInternal()
+        }
+      }
+      TelephonyManager.CALL_STATE_IDLE -> {
+        if (isRecording) {
+          stopRecordingInternal()
+        }
+      }
+    }
+    lastCallState = state
+  }
+
   @ReactMethod
   fun initCallTracker(promise: Promise) {
     try {
       val context = reactContext.applicationContext
-      telephonyManager =
-        context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+      telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
 
-      phoneStateListener = object : PhoneStateListener() {
-        override fun onCallStateChanged(state: Int, phoneNumber: String?) {
-          when (state) {
-            TelephonyManager.CALL_STATE_OFFHOOK -> {
-              if (!isRecording) {
-                // NOTE: `phoneNumber` is null on Android 10+ for privacy reasons.
-                // We capture the real number from CallLog on IDLE (see below).
-                val callType = when (lastCallState) {
-                  TelephonyManager.CALL_STATE_RINGING -> "Incoming"
-                  else -> "Outgoing"
-                }
-                currentPhoneNumber = null // will be filled from CallLog
-                currentCallType = callType
-                currentDeviceCallId = UUID.randomUUID().toString()
-                callStartTimestamp = System.currentTimeMillis()
-                startRecordingInternal()
-              }
-            }
-            TelephonyManager.CALL_STATE_IDLE -> {
-              if (isRecording) {
-                stopRecordingInternal()
-              }
-            }
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { 
+        telephonyCallback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+          override fun onCallStateChanged(state: Int) {
+            handleCallStateChanged(state)
           }
-          lastCallState = state
+        }
+      } else {
+        phoneStateListener = object : PhoneStateListener() {
+          override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+            handleCallStateChanged(state)
+          }
         }
       }
-
-      telephonyManager?.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
       promise.resolve(true)
     } catch (error: Exception) {
       Log.w("CallTrackerModule", "initCallTracker error", error)
@@ -92,11 +101,21 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
   @ReactMethod
   fun startCallTracker(promise: Promise) {
     try {
-      if (phoneStateListener == null || telephonyManager == null) {
+      if (telephonyManager == null) {
         initCallTracker(promise)
         return
       }
-      telephonyManager?.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
+      
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        telephonyCallback?.let {
+          telephonyManager?.registerTelephonyCallback(reactContext.mainExecutor, it as TelephonyCallback)
+        }
+      } else {
+        phoneStateListener?.let {
+          telephonyManager?.listen(it, PhoneStateListener.LISTEN_CALL_STATE)
+        }
+      }
+
       startForegroundService(reactContext.applicationContext)
       promise.resolve(true)
     } catch (error: Exception) {
@@ -108,7 +127,14 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
   @ReactMethod
   fun stopCallTracker(promise: Promise) {
     try {
-      telephonyManager?.listen(phoneStateListener, PhoneStateListener.LISTEN_NONE)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        telephonyCallback?.let {
+          telephonyManager?.unregisterTelephonyCallback(it as TelephonyCallback)
+        }
+      } else {
+        telephonyManager?.listen(phoneStateListener, PhoneStateListener.LISTEN_NONE)
+      }
+      
       stopRecordingInternal()
       stopForegroundService(reactContext.applicationContext)
       promise.resolve(true)
@@ -118,17 +144,9 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
     }
   }
 
-  /**
-   * Recording: try VOICE_COMMUNICATION first, fall back to MIC.
-   * REALITY (Approach 1): on Android 10+, VOICE_CALL throws SecurityException for
-   * non-system apps, so we don't even try it. MIC always works but captures the
-   * near-end (executive) only; the far-end (customer) is captured only if the
-   * executive uses speakerphone. That's the inherent Salesmax-style limitation.
-   */
   private fun startRecordingInternal() {
     try {
       val outputDir = reactContext.cacheDir
-      // FIX #2: .m4a (MPEG4 + AAC) — backend multer accepts it; .mp4 is rejected.
       val outputFile = File(outputDir, "call_recording_${System.currentTimeMillis()}.m4a")
       outputFilePath = outputFile.absolutePath
 
@@ -145,6 +163,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
           } else {
             @Suppress("DEPRECATION") MediaRecorder()
           }
+          
           rec.apply {
             setAudioSource(source)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
@@ -162,50 +181,43 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
           Log.i("CallTrackerModule", "Recording started with source $source")
           break
         } catch (error: Exception) {
-          Log.w("CallTrackerModule", "Recording failed with source $source", error)
-          try { recorder?.release() } catch (_: Exception) {}
+          Log.w("CallTrackerModule", "Recording failed with source $source. Trying next...", error)
           recorder = null
-          isRecording = false
         }
       }
 
       if (!started) {
         Log.w("CallTrackerModule", "Unable to start recording with any audio source")
         outputFilePath = null
+        isRecording = false
       }
     } catch (error: Exception) {
       Log.w("CallTrackerModule", "startRecordingInternal error", error)
       isRecording = false
-      try { recorder?.release() } catch (_: Exception) {}
-      recorder = null
     }
   }
 
   private fun stopRecordingInternal() {
     var recordingPath: String? = null
     try {
-      recorder?.apply {
-        stop()
-        release()
+      if (isRecording) {
+        recorder?.stop()
       }
-      recordingPath = outputFilePath
     } catch (error: Exception) {
-      Log.w("CallTrackerModule", "stopRecordingInternal recorder error", error)
+      Log.w("CallTrackerModule", "stopRecordingInternal stop error", error)
     } finally {
+      try { recorder?.release() } catch (_: Exception) {}
       recorder = null
       isRecording = false
+      recordingPath = outputFilePath
       outputFilePath = null
     }
 
-    // FIX #3: the phone number is not delivered by PhoneStateListener on modern
-    // Android. Wait for the system to write the CallLog entry, then read the
-    // REAL number, type, duration, and timestamp from it.
     val capturedFilePath = recordingPath
     val capturedDeviceCallId = currentDeviceCallId
     val capturedStartTs = callStartTimestamp
     val provisionalCallType = currentCallType ?: "Outgoing"
 
-    // reset device-side state
     currentPhoneNumber = null
     currentCallType = null
     currentDeviceCallId = null
@@ -223,11 +235,6 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
     }, CALLLOG_QUERY_DELAY_MS)
   }
 
-  /**
-   * Reads the most recent CallLog row to get the accurate number / type /
-   * duration. Falls back to whatever we captured during the call if the row
-   * isn't available yet.
-   */
   private fun enrichAndEmitFromCallLog(
     filePath: String,
     deviceCallId: String?,
@@ -306,8 +313,6 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
   }
 
   companion object {
-    // System writes the CallLog entry shortly after IDLE. 1.8s is a safe delay
-    // that works across OEMs without making the upload feel laggy.
     private const val CALLLOG_QUERY_DELAY_MS = 1800L
   }
 }
