@@ -17,7 +17,22 @@ const callRecordingListeners = new Set();
 
 const normalizeFileUri = path => {
   if (!path) return path;
-  return path.startsWith('file://') ? path : `file://${path}`;
+  if (path.startsWith('content://') || path.startsWith('file://')) return path;
+  return `file://${path}`;
+};
+
+// ✅ NEW: Centralized MIME type sniffer
+const getAudioMimeType = fileName => {
+  if (!fileName) return 'audio/mp4';
+  const name = fileName.toLowerCase();
+  if (name.endsWith('.amr')) return 'audio/amr';
+  if (name.endsWith('.3gp') || name.endsWith('.3gpp')) return 'audio/3gpp';
+  if (name.endsWith('.mp3')) return 'audio/mpeg';
+  if (name.endsWith('.wav')) return 'audio/wav';
+  if (name.endsWith('.ogg')) return 'audio/ogg';
+  if (name.endsWith('.aac')) return 'audio/aac';
+  if (name.endsWith('.m4a')) return 'audio/mp4';
+  return 'audio/mp4'; // safe default
 };
 
 export const addCallRecordingListener = callback => {
@@ -42,8 +57,22 @@ const notifyCallRecordingListeners = event => {
   });
 };
 
+const syncCallLogMetadata = async payload => {
+  if (!payload) return null;
+  try {
+    const response = await api.post('/call-logs', { logs: [payload] });
+    return response.data?.data || null;
+  } catch (error) {
+    console.warn('syncCallLogMetadata failed', {
+      error: error?.response?.data || error?.message || error,
+      payload,
+    });
+    throw error;
+  }
+};
+
 const handleRecordingCompleted = async event => {
-  if (!event?.recordingFilePath) return;
+  if (!event) return;
 
   notifyCallRecordingListeners(event);
 
@@ -57,9 +86,14 @@ const handleRecordingCompleted = async event => {
   };
 
   try {
-    await uploadCallRecording(payload);
+    if (event.recordingFilePath) {
+      await uploadCallRecording(payload);
+    } else {
+      console.log('No recording found, syncing metadata only');
+      await syncCallLogMetadata(payload);
+    }
   } catch (error) {
-    console.warn('CallTracker upload failed', {
+    console.warn('CallTracker sync failed', {
       error: error?.response?.data || error?.message || error,
       event,
     });
@@ -74,10 +108,6 @@ const subscribeToRecordingEvents = () => {
   );
 };
 
-// ── FIX #1: permission request + check ─────────────────────────────────
-// FOREGROUND_SERVICE is a normal (install-time) permission — NOT requested
-// at runtime, so do NOT check it against requestMultiple results (that value
-// is undefined → always false). POST_NOTIFICATIONS added for Android 13+.
 export async function requestCallPermissions() {
   if (Platform.OS !== 'android') return false;
 
@@ -87,10 +117,11 @@ export async function requestCallPermissions() {
     PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
   ];
 
-  // Android 13+ (API 33) requires runtime POST_NOTIFICATIONS for the
-  // foreground-service notification to show.
   if (Platform.Version >= 33) {
     permissions.push(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    permissions.push(PermissionsAndroid.PERMISSIONS.READ_MEDIA_AUDIO);
+  } else {
+    permissions.push(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
   }
 
   try {
@@ -104,9 +135,19 @@ export async function requestCallPermissions() {
       granted[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] ===
         PermissionsAndroid.RESULTS.GRANTED;
 
-    // POST_NOTIFICATIONS: if device is < API 33 it's not in the map, treat as ok.
-    // Even if denied on 33+, we still allow tracking (notification just won't show).
-    return coreGranted;
+    const notificationsGranted =
+      Platform.Version < 33 ||
+      granted[PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS] ===
+        PermissionsAndroid.RESULTS.GRANTED;
+
+    const storageGranted =
+      Platform.Version < 33 ||
+      granted[PermissionsAndroid.PERMISSIONS.READ_MEDIA_AUDIO] ===
+        PermissionsAndroid.RESULTS.GRANTED ||
+      granted[PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE] ===
+        PermissionsAndroid.RESULTS.GRANTED;
+
+    return coreGranted && notificationsGranted && storageGranted;
   } catch (error) {
     console.warn('CallTracker permission request failed', error);
     return false;
@@ -157,12 +198,16 @@ export async function uploadCallRecording({
   const filename =
     uri.substring(uri.lastIndexOf('/') + 1) || 'call_recording.m4a';
 
-  // FIX #2: backend multer accepts .m4a (not .mp4). Native now outputs .m4a too.
+  // ✅ Use centralized MIME detector
+  const fileType = getAudioMimeType(filename);
+
+  console.log('📤 Uploading recording:', { filename, fileType, uri });
+
   const formData = new FormData();
   formData.append('recording', {
     uri,
     name: filename,
-    type: 'audio/mp4',
+    type: fileType,
   });
   formData.append('phoneNumber', phoneNumber);
   formData.append('callType', callType);
@@ -179,11 +224,7 @@ export async function uploadCallRecording({
     console.warn('uploadCallRecording failed', {
       uri,
       filename,
-      phoneNumber,
-      callType,
-      duration,
-      callTimestamp,
-      deviceCallId,
+      fileType,
       response: error?.response?.data || error?.message || error,
     });
     throw error;
