@@ -21,7 +21,7 @@ const normalizeFileUri = path => {
   return `file://${path}`;
 };
 
-// ✅ NEW: Centralized MIME type sniffer
+// ✅ Centralized MIME type sniffer
 const getAudioMimeType = fileName => {
   if (!fileName) return 'audio/mp4';
   const name = fileName.toLowerCase();
@@ -71,17 +71,22 @@ const syncCallLogMetadata = async payload => {
   }
 };
 
+const generateRandomId = () => Math.random().toString(36).substring(2, 15);
+
 const handleRecordingCompleted = async event => {
   if (!event) return;
 
   notifyCallRecordingListeners(event);
+
+  const fallbackCallId =
+    event.deviceCallId || `unknown_${Date.now()}_${generateRandomId()}`;
 
   const payload = {
     phoneNumber: event.phoneNumber || '',
     callType: event.callType || 'Incoming',
     duration: Number(event.duration || 0),
     callTimestamp: Number(event.callTimestamp || Date.now()),
-    deviceCallId: event.deviceCallId || undefined,
+    deviceCallId: fallbackCallId,
     recordingFilePath: event.recordingFilePath,
   };
 
@@ -198,10 +203,7 @@ export async function uploadCallRecording({
   const filename =
     uri.substring(uri.lastIndexOf('/') + 1) || 'call_recording.m4a';
 
-  // ✅ Use centralized MIME detector
   const fileType = getAudioMimeType(filename);
-
-  console.log('📤 Uploading recording:', { filename, fileType, uri });
 
   const formData = new FormData();
   formData.append('recording', {

@@ -10,24 +10,6 @@ import Video from 'react-native-video';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { getRecordingUrl } from './callLogsService.js';
 
-/**
- * CallLogCard  —  React Native CLI port.
- * Replaces:
- *   <audio>              → react-native-video (audio-only mode)
- *   lucide-react icons   → react-native-vector-icons/Ionicons
- *   Tailwind classes     → StyleSheet
- *   <a download>         → Linking.openURL
- *   expo-av              → NOT used (RN CLI project)
- *
- * Backend CallLog schema fields (unchanged):
- *   phoneNumber       string   e.g. "+919876543210"
- *   callType          string   "Incoming" | "Outgoing" | "Missed" | "Rejected"
- *   duration          number   seconds
- *   callTimestamp     Date     when the call happened
- *   recordingUrl      string   RELATIVE path "/uploads/call-recordings/xxx.m4a"
- *   recordingUploaded boolean
- */
-
 const TYPE_META = {
   Incoming: {
     iconColor: '#16a34a',
@@ -75,6 +57,7 @@ const cleanNumber = n => (n ? String(n).replace(/\D/g, '').slice(-10) : '—');
 const CallLogCard = ({ callLog, theme = {} }) => {
   const [playing, setPlaying] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const videoRef = useRef(null);
 
   const type = callLog.callType || 'Outgoing';
@@ -91,12 +74,26 @@ const CallLogCard = ({ callLog, theme = {} }) => {
   const hasRecording = Boolean(callLog.recordingUploaded && recordingUrl);
 
   const togglePlay = () => {
-    if (!loaded) return; // not ready yet
-    setPlaying(prev => !prev);
+    if (!loaded || hasError) return;
+    setPlaying(!playing);
   };
 
   const handleDownload = () => {
     if (recordingUrl) Linking.openURL(recordingUrl);
+  };
+
+  const onEnd = () => {
+    setPlaying(false);
+
+    if (videoRef.current) {
+      videoRef.current.seek(0);
+    }
+  };
+
+  const onError = e => {
+    console.warn(`Video failed for ${cleanNumber(callLog.phoneNumber)}`);
+    setPlaying(false);
+    setHasError(true);
   };
 
   return (
@@ -116,9 +113,16 @@ const CallLogCard = ({ callLog, theme = {} }) => {
                 {type}
               </Text>
             </View>
-            {hasRecording && (
+            {hasRecording && !hasError && (
               <View style={styles.recBadge}>
                 <Text style={styles.recBadgeText}>🎙 Recorded</Text>
+              </View>
+            )}
+            {hasError && (
+              <View style={[styles.recBadge, { backgroundColor: '#fef2f2' }]}>
+                <Text style={[styles.recBadgeText, { color: '#b91c1c' }]}>
+                  ⚠ Unavailable
+                </Text>
               </View>
             )}
           </View>
@@ -134,7 +138,7 @@ const CallLogCard = ({ callLog, theme = {} }) => {
         </View>
 
         {/* Actions */}
-        {hasRecording && (
+        {hasRecording && !hasError && (
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.playBtn, { backgroundColor: inputBg }]}
@@ -156,20 +160,21 @@ const CallLogCard = ({ callLog, theme = {} }) => {
         )}
       </View>
 
-      {/* react-native-video in audio-only mode (audioOnly + height:0) */}
-      {hasRecording && (
+      {/* react-native-video in audio-only mode */}
+      {hasRecording && !hasError && (
         <Video
+          key={`video-${callLog._id || callLog.deviceCallId}`}
           ref={videoRef}
           source={{ uri: recordingUrl }}
-          audioOnly
+          audioOnly={true}
           paused={!playing}
+          repeat={false}
+          playInBackground={false}
+          ignoreSilentSwitch="ignore"
           style={styles.hiddenPlayer}
           onLoad={() => setLoaded(true)}
-          onEnd={() => setPlaying(false)}
-          onError={e => {
-            console.warn('CallLogCard video error:', e);
-            setPlaying(false);
-          }}
+          onEnd={onEnd}
+          onError={onError}
           resizeMode="contain"
         />
       )}
