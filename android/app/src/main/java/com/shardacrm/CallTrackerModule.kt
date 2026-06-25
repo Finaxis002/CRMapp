@@ -198,7 +198,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
       val searchEnd = callEndTimeSec + 30
 
       Log.d("NativeSearch", "Searching MediaStore from $searchStart to $searchEnd sec")
-
+      
       val projection = arrayOf(
           MediaStore.Audio.Media._ID,
           MediaStore.Audio.Media.TITLE,
@@ -405,7 +405,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
     var callType = provisionalCallType
     var durationSeconds = 0
     var callTimestamp = fallbackTimestamp
-    var finalRecordingPath = appFilePath
+    var finalRecordingPath: String? = null
 
     // 1. Get Call Log
     try {
@@ -431,35 +431,44 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
       Log.w("CallTracker", "CallLog query failed", error)
     }
 
-    // 2. Check if App Recording is silent/empty
+    // 2. App File Check
     val appFile = appFilePath?.let { File(it) }
-    val isAppSilent = appFile?.exists() == true && appFile.length() < 20000
 
-    // 3. Try Native Fallback
-    if (finalRecordingPath == null || isAppSilent) {
-        Log.i("NativeSearch", "Attempt $attempt: Searching for native recording...")
-        val callEndTimeSec = (callTimestamp / 1000) + durationSeconds
-        val nativePath = findAndCopyNativeRecording(number, durationSeconds, callEndTimeSec)
+    // 3. ALWAYS TRY NATIVE FALLBACK FIRST (Because Android 10+ Internal Recording is often silent)
+    Log.i("NativeSearch", "Attempt $attempt: Searching for native recording (ignoring internal file for now)...")
+    val callEndTimeSec = (callTimestamp / 1000) + durationSeconds
+    val nativePath = findAndCopyNativeRecording(number, durationSeconds, callEndTimeSec)
+    
+    if (nativePath != null) {
+        // Native recording found! This will have the actual audio.
+        finalRecordingPath = nativePath
         
-        if (nativePath != null) {
-            finalRecordingPath = nativePath
-            if (appFilePath != null) {
-                try { File(appFilePath).delete() } catch(_: Exception) {}
-            }
+        // Delete the silent internal app file to save space
+        if (appFilePath != null) {
+            try { File(appFilePath).delete() } catch(_: Exception) {}
+        }
+    } else {
+        // Retry logic if native file not found yet
+        if (attempt < 5) {
+            // Progressive backoff: 2s, 3s, 4s, 5s
+            val nextDelay = (1000L + (attempt * 1000L))
+            Log.w("NativeSearch", "Attempt $attempt failed. Retrying in ${nextDelay}ms...")
+            Handler(Looper.getMainLooper()).postDelayed({
+               processCallData(appFilePath, deviceCallId, provisionalCallType, fallbackTimestamp, attempt + 1)
+            }, nextDelay)
+            return
         } else {
-            if (attempt < 5) {
-                // Progressive backoff: 2s, 3s, 4s, 5s
-                val nextDelay = (1000L + (attempt * 1000L))
-                Log.w("NativeSearch", "Attempt $attempt failed. Retrying in ${nextDelay}ms...")
-                Handler(Looper.getMainLooper()).postDelayed({
-                   processCallData(appFilePath, deviceCallId, provisionalCallType, fallbackTimestamp, attempt + 1)
-                }, nextDelay)
-                return
-            } else {
-                Log.w("NativeSearch", "Max attempts (5) reached. No native file found.")
-                if (isAppSilent) {
+            Log.w("NativeSearch", "Max attempts (5) reached. No native file found.")
+            
+            // Only if ALL native fallback attempts fail, we consider the internal recording
+            if (appFile?.exists() == true) {
+                if (appFile.length() < 20000) {
+                    Log.w("NativeSearch", "Internal file is too small/silent (<20KB). Discarding.")
                     finalRecordingPath = null
-                    if (appFilePath != null) { try { File(appFilePath).delete() } catch(_: Exception) {} }
+                    try { appFile.delete() } catch(_: Exception) {}
+                } else {
+                    Log.w("NativeSearch", "Using internal app file as last resort.")
+                    finalRecordingPath = appFilePath
                 }
             }
         }
@@ -475,7 +484,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
       putDouble("callTimestamp", callTimestamp.toDouble())
       putString("deviceCallId", deviceCallId)
     }
-
+    
     sendEvent("CallRecordingCompleted", payload)
   }
 
@@ -486,6 +495,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
       else context.startService(serviceIntent)
     } catch (e: Exception) { Log.w("CallTracker", "StartService error", e) }
   }
+
   private fun stopForegroundService(context: Context) {
     try {
       val serviceIntent = Intent(context, CallTrackerService::class.java)
