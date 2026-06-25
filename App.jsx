@@ -50,6 +50,8 @@ const AppContent = () => {
   }, [dispatch, isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     const initTracking = async () => {
       if (Platform.OS !== 'android') return;
       const granted = await requestCallPermissions();
@@ -59,7 +61,7 @@ const AppContent = () => {
     };
 
     initTracking();
-  }, []);
+  }, [isAuthenticated]);
 
   if (isInitializing) {
     return (
