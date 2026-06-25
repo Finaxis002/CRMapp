@@ -11,26 +11,10 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { getRecordingUrl } from './callLogsService.js';
 
 const TYPE_META = {
-  Incoming: {
-    iconColor: '#16a34a',
-    badgeText: '#15803d',
-    badgeBg: '#f0fdf4',
-  },
-  Outgoing: {
-    iconColor: '#2563eb',
-    badgeText: '#1d4ed8',
-    badgeBg: '#eff6ff',
-  },
-  Missed: {
-    iconColor: '#dc2626',
-    badgeText: '#b91c1c',
-    badgeBg: '#fef2f2',
-  },
-  Rejected: {
-    iconColor: '#d97706',
-    badgeText: '#b45309',
-    badgeBg: '#fffbeb',
-  },
+  Incoming: { color: '#16a34a', bg: '#dcfce7' },
+  Outgoing: { color: '#2563eb', bg: '#dbeafe' },
+  Missed: { color: '#dc2626', bg: '#fee2e2' },
+  Rejected: { color: '#d97706', bg: '#fef3c7' },
 };
 
 const formatDuration = secs => {
@@ -60,18 +44,23 @@ const CallLogCard = ({ callLog, theme = {} }) => {
   const [hasError, setHasError] = useState(false);
   const videoRef = useRef(null);
 
-  const type = callLog.callType || 'Outgoing';
+  // Flexible keys (web + old backend support)
+  const type = callLog.callDirection || callLog.callType || 'Outgoing';
   const meta = TYPE_META[type] || TYPE_META.Outgoing;
-
-  const bgSurface = theme?.bgSurface || '#ffffff';
-  const border = theme?.border || '#e5e7eb';
-  const textPrimary = theme?.textPrimary || '#1f2937';
-  const textMuted = theme?.textMuted || '#6b7280';
-  const accent = theme?.accent || '#7c3aed';
-  const inputBg = theme?.inputBg || '#f3f4f6';
 
   const recordingUrl = getRecordingUrl(callLog.recordingUrl);
   const hasRecording = Boolean(callLog.recordingUploaded && recordingUrl);
+
+  // Duration handling (flexible)
+  let displayDuration = callLog.callDuration;
+  if (!displayDuration && callLog.duration !== undefined) {
+    displayDuration = formatDuration(callLog.duration);
+  } else if (!displayDuration) {
+    displayDuration = '0s';
+  }
+
+  const displayTime =
+    callLog.createdAt || callLog.updatedAt || callLog.callTimestamp;
 
   const togglePlay = () => {
     if (!loaded || hasError) return;
@@ -84,43 +73,38 @@ const CallLogCard = ({ callLog, theme = {} }) => {
 
   const onEnd = () => {
     setPlaying(false);
-
-    if (videoRef.current) {
-      videoRef.current.seek(0);
-    }
+    if (videoRef.current) videoRef.current.seek(0);
   };
 
-  const onError = e => {
-    console.warn(`Video failed for ${cleanNumber(callLog.phoneNumber)}`);
+  const onError = () => {
     setPlaying(false);
     setHasError(true);
   };
 
   return (
     <View
-      style={[styles.card, { backgroundColor: bgSurface, borderColor: border }]}
+      style={[styles.card, { backgroundColor: '#fff', borderColor: '#e5e7eb' }]}
     >
       <View style={styles.row}>
-        {/* Type icon */}
-        <View style={[styles.iconWrap, { backgroundColor: meta.badgeBg }]}>
-          <Icon name="call" size={18} color={meta.iconColor} />
+        <View style={[styles.iconWrap, { backgroundColor: meta.bg }]}>
+          <Icon name="call" size={18} color={meta.color} />
         </View>
 
         <View style={styles.info}>
           <View style={styles.badgeRow}>
-            <View style={[styles.typeBadge, { backgroundColor: meta.badgeBg }]}>
-              <Text style={[styles.typeBadgeText, { color: meta.badgeText }]}>
+            <View style={[styles.typeBadge, { backgroundColor: meta.bg }]}>
+              <Text style={[styles.typeText, { color: meta.color }]}>
                 {type}
               </Text>
             </View>
             {hasRecording && !hasError && (
               <View style={styles.recBadge}>
-                <Text style={styles.recBadgeText}>🎙 Recorded</Text>
+                <Text style={styles.recText}>🎙 Recorded</Text>
               </View>
             )}
             {hasError && (
               <View style={[styles.recBadge, { backgroundColor: '#fef2f2' }]}>
-                <Text style={[styles.recBadgeText, { color: '#b91c1c' }]}>
+                <Text style={[styles.recText, { color: '#b91c1c' }]}>
                   ⚠ Unavailable
                 </Text>
               </View>
@@ -130,59 +114,42 @@ const CallLogCard = ({ callLog, theme = {} }) => {
           <Text style={styles.phone}>
             📞 {cleanNumber(callLog.phoneNumber)}
           </Text>
-
           <Text style={styles.meta}>
-            {formatDuration(callLog.duration)} ·{' '}
-            {formatDate(callLog.callTimestamp)}
+            {displayDuration} · {formatDate(displayTime)}
           </Text>
         </View>
 
-        {/* Actions */}
         {hasRecording && !hasError && (
           <View style={styles.actions}>
-            <TouchableOpacity
-              style={[styles.playBtn, { backgroundColor: inputBg }]}
-              onPress={togglePlay}
-            >
+            <TouchableOpacity onPress={togglePlay} style={styles.actionBtn}>
               <Icon
                 name={playing ? 'pause' : 'play'}
                 size={16}
-                color={accent}
+                color="#7c3aed"
               />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.downloadBtn, { backgroundColor: inputBg }]}
-              onPress={handleDownload}
-            >
-              <Icon name="download-outline" size={16} color="#6b7280" />
+            <TouchableOpacity onPress={handleDownload} style={styles.actionBtn}>
+              <Icon name="download-outline" size={16} color="#64748b" />
             </TouchableOpacity>
           </View>
         )}
       </View>
 
-      {/* react-native-video in audio-only mode */}
       {hasRecording && !hasError && (
         <Video
-          key={`video-${callLog._id || callLog.deviceCallId}`}
           ref={videoRef}
           source={{ uri: recordingUrl }}
-          audioOnly={true}
+          audioOnly
           paused={!playing}
-          repeat={false}
-          playInBackground={false}
-          ignoreSilentSwitch="ignore"
-          style={styles.hiddenPlayer}
           onLoad={() => setLoaded(true)}
           onEnd={onEnd}
           onError={onError}
-          resizeMode="contain"
+          style={styles.hiddenPlayer}
         />
       )}
 
       {!hasRecording && (
-        <Text style={[styles.noRec, { color: textMuted }]}>
-          No recording for this call
-        </Text>
+        <Text style={styles.noRec}>No recording for this call</Text>
       )}
     </View>
   );
@@ -192,21 +159,10 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
     padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
     marginBottom: 10,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   iconWrap: {
     width: 40,
     height: 40,
@@ -214,62 +170,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  info: {
-    flex: 1,
-    minWidth: 0,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  typeBadge: {
-    borderRadius: 99,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  typeBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
+  info: { flex: 1 },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  typeBadge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  typeText: { fontSize: 11, fontWeight: '700' },
   recBadge: {
-    borderRadius: 99,
-    backgroundColor: '#f5f3ff',
+    backgroundColor: '#f3e8ff',
+    borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
-  recBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#7c3aed',
-  },
-  phone: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginTop: 4,
-  },
-  meta: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexShrink: 0,
-  },
-  playBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#ede9fe',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  downloadBtn: {
+  recText: { fontSize: 10, fontWeight: '700', color: '#7c3aed' },
+  phone: { fontSize: 14, fontWeight: '600', marginTop: 4 },
+  meta: { fontSize: 12, color: '#6b7280', marginTop: 4 },
+  actions: { flexDirection: 'row', gap: 8 },
+  actionBtn: {
     width: 34,
     height: 34,
     borderRadius: 17,
@@ -277,15 +192,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hiddenPlayer: {
-    height: 0,
-    width: 0,
-  },
-  noRec: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 12,
-  },
+  hiddenPlayer: { height: 0, width: 0 },
+  noRec: { fontSize: 12, color: '#9ca3af', marginTop: 12 },
 });
 
 export default CallLogCard;
