@@ -14,6 +14,7 @@ import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../../services/api.js';
+import CallLogCard from "../../../services/callLogCard.js";
 
 const TYPE_LABEL = {
   Note: 'Note',
@@ -317,6 +318,29 @@ const ActivityTypeTab = ({
     const isRecent = index === 0;
     const createdAt = new Date(item.updatedAt || item.createdAt || Date.now());
     const typeMeta = getItemTypeMeta(item);
+    if (item.isAutoTracked) {
+      return (
+        <View style={{ position: 'relative', marginBottom: 14 }}>
+          <CallLogCard callLog={item} theme={theme} />
+          <TouchableOpacity
+            onPress={() => handleDelete(item)}
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: 10,
+              backgroundColor: 'rgba(255,255,255,0.9)',
+              borderRadius: 20,
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+            }}
+          >
+            <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '600' }}>
+              Delete
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
 
     return (
       <View
