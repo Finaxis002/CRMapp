@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import Video from 'react-native-video';
 import Icon from 'react-native-vector-icons/Ionicons';
+import Slider from '@react-native-community/slider';
 import { getRecordingUrl } from './callLogsService.js';
 
 const TYPE_META = {
@@ -22,6 +23,12 @@ const formatDuration = secs => {
   if (!s) return '0s';
   const m = Math.floor(s / 60);
   return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
+};
+
+const formatTimeDisplay = seconds => {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 };
 
 const formatDate = ts =>
@@ -42,16 +49,20 @@ const CallLogCard = ({ callLog, theme = {} }) => {
   const [playing, setPlaying] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [wasPlayingBeforeSeek, setWasPlayingBeforeSeek] = useState(false);
+
   const videoRef = useRef(null);
 
-  // Flexible keys (web + old backend support)
   const type = callLog.callDirection || callLog.callType || 'Outgoing';
   const meta = TYPE_META[type] || TYPE_META.Outgoing;
 
   const recordingUrl = getRecordingUrl(callLog.recordingUrl);
   const hasRecording = Boolean(callLog.recordingUploaded && recordingUrl);
 
-  // Duration handling (flexible)
   let displayDuration = callLog.callDuration;
   if (!displayDuration && callLog.duration !== undefined) {
     displayDuration = formatDuration(callLog.duration);
@@ -71,14 +82,46 @@ const CallLogCard = ({ callLog, theme = {} }) => {
     if (recordingUrl) Linking.openURL(recordingUrl);
   };
 
+  const onLoad = data => {
+    setLoaded(true);
+    setDuration(data.duration);
+  };
+
+  const onProgress = data => {
+    if (!isSeeking) {
+      setCurrentTime(data.currentTime);
+    }
+  };
+
   const onEnd = () => {
     setPlaying(false);
+    setCurrentTime(0);
     if (videoRef.current) videoRef.current.seek(0);
   };
 
   const onError = () => {
     setPlaying(false);
     setHasError(true);
+  };
+
+  const onSlidingStart = () => {
+    setIsSeeking(true);
+    setWasPlayingBeforeSeek(playing);
+    if (playing) setPlaying(false);
+  };
+
+  const onSlidingChange = value => {
+    setCurrentTime(value);
+  };
+
+  const onSlidingComplete = value => {
+    if (videoRef.current) {
+      videoRef.current.seek(value);
+    }
+    setIsSeeking(false);
+    if (wasPlayingBeforeSeek) {
+      setPlaying(true);
+    }
   };
 
   return (
@@ -112,7 +155,7 @@ const CallLogCard = ({ callLog, theme = {} }) => {
           </View>
 
           <Text style={styles.phone}>
-            📞 {cleanNumber(callLog.phoneNumber)}
+            📞 {cleanNumber(callLog.phoneNumber || callLog.phone)}
           </Text>
           <Text style={styles.meta}>
             {displayDuration} · {formatDate(displayTime)}
@@ -135,13 +178,33 @@ const CallLogCard = ({ callLog, theme = {} }) => {
         )}
       </View>
 
+      {hasRecording && loaded && !hasError && (
+        <View style={styles.playerContainer}>
+          <Text style={styles.timerText}>{formatTimeDisplay(currentTime)}</Text>
+          <Slider
+            style={styles.slider}
+            value={currentTime}
+            minimumValue={0}
+            maximumValue={duration}
+            minimumTrackTintColor="#7c3aed"
+            maximumTrackTintColor="#e2e8f0"
+            thumbTintColor="#7c3aed"
+            onSlidingStart={onSlidingStart}
+            onValueChange={onSlidingChange}
+            onSlidingComplete={onSlidingComplete}
+          />
+          <Text style={styles.timerText}>{formatTimeDisplay(duration)}</Text>
+        </View>
+      )}
+
       {hasRecording && !hasError && (
         <Video
           ref={videoRef}
           source={{ uri: recordingUrl }}
           audioOnly
           paused={!playing}
-          onLoad={() => setLoaded(true)}
+          onLoad={onLoad}
+          onProgress={onProgress}
           onEnd={onEnd}
           onError={onError}
           style={styles.hiddenPlayer}
@@ -162,7 +225,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 10,
   },
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconWrap: {
     width: 40,
     height: 40,
@@ -183,7 +246,7 @@ const styles = StyleSheet.create({
   recText: { fontSize: 10, fontWeight: '700', color: '#7c3aed' },
   phone: { fontSize: 14, fontWeight: '600', marginTop: 4 },
   meta: { fontSize: 12, color: '#6b7280', marginTop: 4 },
-  actions: { flexDirection: 'row', gap: 8 },
+  actions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   actionBtn: {
     width: 34,
     height: 34,
@@ -191,6 +254,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#f3f4f6',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  playerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    backgroundColor: '#f8fafc',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    gap: 4,
+  },
+  slider: {
+    flex: 1,
+    height: 30,
+  },
+  timerText: {
+    fontSize: 11,
+    color: '#64748b',
+    width: 32,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
   hiddenPlayer: { height: 0, width: 0 },
   noRec: { fontSize: 12, color: '#9ca3af', marginTop: 12 },
