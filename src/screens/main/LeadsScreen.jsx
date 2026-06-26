@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
-import { Picker } from '@react-native-picker/picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { leadsService } from '../../services/leadsService.js';
 import { userService } from '../../services/userService.js';
@@ -45,12 +45,20 @@ const SOURCE_OPTIONS = [
 const PRIORITY_OPTIONS = ['Urgent', 'High', 'Normal'];
 
 const SORT_OPTIONS = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'active', label: 'Active (Recently Contacted)' },
-  { value: 'stale', label: 'Stale (Not Recently Contacted)' },
-  { value: 'hottest', label: 'Hottest (High Priority)' },
-  { value: 'largest', label: 'Largest (Deal Value)' },
-  { value: 'upcoming', label: 'Upcoming (No Activity Yet)' },
+  { value: 'newest', label: 'Newest', icon: 'clock-outline' },
+  {
+    value: 'active',
+    label: 'Active (Recently Contacted)',
+    icon: 'lightning-bolt',
+  },
+  { value: 'stale', label: 'Stale (Not Recently Contacted)', icon: 'sleep' },
+  { value: 'hottest', label: 'Hottest (High Priority)', icon: 'fire' },
+  { value: 'largest', label: 'Largest (Deal Value)', icon: 'cash' },
+  {
+    value: 'upcoming',
+    label: 'Upcoming (No Activity Yet)',
+    icon: 'calendar-clock',
+  },
 ];
 
 const DEFAULT_STATUS_OPTIONS = [
@@ -62,7 +70,7 @@ const DEFAULT_STATUS_OPTIONS = [
   'Repeat',
 ];
 
-// ─── Helper: toast via Alert ──────────────────────────────────
+// ─── toast ────────────────────────────────────────────────────
 const toast = {
   success: msg => Alert.alert('Success', msg),
   error: msg => Alert.alert('Error', msg),
@@ -99,54 +107,6 @@ const DeleteModal = ({ isOpen, onClose, onConfirm, title, message }) => (
   </Modal>
 );
 
-// ─── PickerModal (replaces <select>) ─────────────────────────
-const PickerModal = ({ visible, onClose, title, value, onChange, options }) => (
-  <Modal
-    visible={visible}
-    transparent
-    animationType="slide"
-    onRequestClose={onClose}
-  >
-    <View style={styles.modalOverlay}>
-      <View style={styles.pickerModalCard}>
-        <Text style={styles.pickerModalTitle}>{title}</Text>
-        <ScrollView style={styles.pickerModalScroll}>
-          {options.map(opt => {
-            const val = opt.value ?? opt;
-            const lbl = opt.label ?? opt;
-            const active = val === value;
-            return (
-              <TouchableOpacity
-                key={val}
-                onPress={() => {
-                  onChange(val);
-                  onClose();
-                }}
-                style={[
-                  styles.pickerOption,
-                  active && styles.pickerOptionActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.pickerOptionText,
-                    active && styles.pickerOptionTextActive,
-                  ]}
-                >
-                  {lbl}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-        <TouchableOpacity style={styles.pickerModalClose} onPress={onClose}>
-          <Text style={styles.pickerModalCloseText}>Cancel</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  </Modal>
-);
-
 // ─────────────────────────────────────────────────────────────
 //  MAIN SCREEN
 // ─────────────────────────────────────────────────────────────
@@ -174,13 +134,13 @@ const LeadsScreen = () => {
     'change_lead_owner',
   );
 
-  // ── Data state ──
+  // ── Data ──
   const [leads, setLeads] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // ── Modals ──
+  // ── Lead modals ──
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingLead, setEditingLead] = useState(null);
   const [previewLead, setPreviewLead] = useState(null);
@@ -188,26 +148,25 @@ const LeadsScreen = () => {
   const [activeTabOverride, setActiveTabOverride] = useState(null);
   const [activityRefreshTrigger, setActivityRefreshTrigger] = useState(0);
 
+  // ── Delete modals ──
   const [deleteLeadModal, setDeleteLeadModal] = useState(null);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  // ── Bulk action modals ──
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
+
+  // ── Filter / Sort sheets ──
   const [showFiltersSheet, setShowFiltersSheet] = useState(false);
   const [showSortSheet, setShowSortSheet] = useState(false);
-  const [showDateModal, setShowDateModal] = useState(false);
 
-  // ── Bulk action state ──
+  // ── Bulk state ──
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkAssignUserId, setBulkAssignUserId] = useState('');
   const [bulkStatusValue, setBulkStatusValue] = useState('');
   const [bulkPriorityValue, setBulkPriorityValue] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
-
-  // ── Picker modal for bulk assign/status/priority ──
-  const [showAssignPicker, setShowAssignPicker] = useState(false);
-  const [showStatusPicker, setShowStatusPicker] = useState(false);
-  const [showPriorityPicker, setShowPriorityPicker] = useState(false);
 
   // ── Filters ──
   const [filters, setFilters] = useState({
@@ -221,8 +180,16 @@ const LeadsScreen = () => {
     sortBy: '',
   });
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [tempDateFrom, setTempDateFrom] = useState('');
-  const [tempDateTo, setTempDateTo] = useState('');
+
+  // ── Native date picker state ──
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
+  const [tempFromDate, setTempFromDate] = useState(new Date());
+  const [tempToDate, setTempToDate] = useState(new Date());
+
+  // ── User search (inside filter sheet) ──
+  const [userSearch, setUserSearch] = useState('');
+  const [coUserSearch, setCoUserSearch] = useState('');
 
   // ── Pagination ──
   const [pagination, setPagination] = useState({
@@ -234,11 +201,24 @@ const LeadsScreen = () => {
 
   const skipLoadAfterSearchRef = useRef(false);
 
-  // ── Settings-derived ──
+  // ── Status options from settings ──
   const statusOptions = useMemo(
     () => settings?.pipelineStages?.map(s => s.name) || DEFAULT_STATUS_OPTIONS,
     [settings],
   );
+
+  // ── Filtered user lists ──
+  const filteredUsers = useMemo(() => {
+    if (!userSearch.trim()) return users;
+    const q = userSearch.toLowerCase();
+    return users.filter(u => (u.name || '').toLowerCase().includes(q));
+  }, [users, userSearch]);
+
+  const filteredCoUsers = useMemo(() => {
+    if (!coUserSearch.trim()) return users;
+    const q = coUserSearch.toLowerCase();
+    return users.filter(u => (u.name || '').toLowerCase().includes(q));
+  }, [users, coUserSearch]);
 
   // ── Init ──
   useEffect(() => {
@@ -321,7 +301,6 @@ const LeadsScreen = () => {
       }
       const activeSearch = filters.search || debouncedSearch;
       if (activeSearch) fp.search = activeSearch;
-
       if (isManager && (canViewTeamLeads || canViewAllLeads)) {
         if (filters.assignedTo) fp.assignedTo = filters.assignedTo;
       } else if (canViewAllLeads) {
@@ -330,7 +309,6 @@ const LeadsScreen = () => {
       } else if (currentUser?._id) {
         fp.assignedTo = currentUser._id;
       }
-
       const result = await leadsService.getLeads(
         fp,
         activePage,
@@ -350,7 +328,6 @@ const LeadsScreen = () => {
     }
   };
 
-  // ── Pull-to-refresh handler ──
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -398,44 +375,27 @@ const LeadsScreen = () => {
     filters.coAssignedTo,
   ].filter(Boolean).length;
 
-  // ── Date modal ──
-  const openDateModal = () => {
-    setTempDateFrom(filters.dateFrom);
-    setTempDateTo(filters.dateTo);
-    setShowDateModal(true);
+  // ── Date helpers ──
+  const dateToString = d => {
+    if (!d) return '';
+    const date = d instanceof Date ? d : new Date(d);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   };
 
-  const applyDateFilter = () => {
-    if (tempDateFrom && tempDateTo && tempDateFrom > tempDateTo) {
-      toast.error('From Date cannot be after To Date');
-      return;
-    }
-    setFilters(prev => ({
-      ...prev,
-      dateFrom: tempDateFrom,
-      dateTo: tempDateTo,
-    }));
-    setPagination(prev => ({ ...prev, page: 1 }));
-    setShowDateModal(false);
+  const formatDateDisplay = str => {
+    if (!str) return '';
+    const d = new Date(str + 'T00:00:00');
+    return d.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
   };
 
-  const clearDateFilter = () => {
-    setTempDateFrom('');
-    setTempDateTo('');
-    setFilters(prev => ({ ...prev, dateFrom: '', dateTo: '' }));
-    setPagination(prev => ({ ...prev, page: 1 }));
-    setShowDateModal(false);
-  };
-
-  const getDateLabel = () => {
-    if (!filters.dateFrom && !filters.dateTo) return 'Date';
-    if (filters.dateFrom && filters.dateTo)
-      return `${filters.dateFrom} → ${filters.dateTo}`;
-    if (filters.dateFrom) return `From ${filters.dateFrom}`;
-    return `Till ${filters.dateTo}`;
-  };
-
-  // ── Formatting helpers ──
+  // ── Format helpers ──
   const formatCurrency = value => {
     if (!value && value !== 0) return '—';
     return new Intl.NumberFormat('en-IN', {
@@ -484,7 +444,18 @@ const LeadsScreen = () => {
     return { bg: '#dbeafe', text: '#2563eb' };
   };
 
-  // ── Selection helpers ──
+  const getInitials = name =>
+    (name || 'U')
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+
+  const getSelectedUserName = id =>
+    id ? users.find(u => u._id === id)?.name || null : null;
+
+  // ── Selection ──
   const allPageIds = leads.map(l => l._id);
   const isAllSelected =
     allPageIds.length > 0 && allPageIds.every(id => selectedIds.has(id));
@@ -631,7 +602,7 @@ const LeadsScreen = () => {
     }
   };
 
-  const handleOpenPreview = (lead, _e) => {
+  const handleOpenPreview = lead => {
     setPreviewLead(lead);
     setShowPreviewDrawer(true);
   };
@@ -640,8 +611,8 @@ const LeadsScreen = () => {
     await loadLeads();
     if (previewLead?._id) {
       try {
-        const fresh = await leadsService.getLead(previewLead._id);
-        setPreviewLead(fresh);
+        const f = await leadsService.getLead(previewLead._id);
+        setPreviewLead(f);
       } catch (_) {}
     }
   };
@@ -656,8 +627,8 @@ const LeadsScreen = () => {
     setEditingLead(null);
     setActiveTabOverride(null);
     try {
-      const loaded = await leadsService.getLead(previewLead._id);
-      setEditingLead(loaded);
+      const l = await leadsService.getLead(previewLead._id);
+      setEditingLead(l);
     } catch {
       setEditingLead(previewLead);
     }
@@ -706,8 +677,8 @@ const LeadsScreen = () => {
         await loadLeads();
         if (previewLead?._id === leadId) {
           try {
-            const fresh = await leadsService.getLead(leadId);
-            setPreviewLead(fresh);
+            const f = await leadsService.getLead(leadId);
+            setPreviewLead(f);
           } catch (_) {}
         }
       } else {
@@ -722,11 +693,11 @@ const LeadsScreen = () => {
     }
   };
 
-  // ── Render ──
+  // ── RENDER ──────────────────────────────────────────────────
   return (
     <SafeAreaView edges={['bottom']} style={styles.safeArea}>
       <View style={styles.container}>
-        {/* ══ HEADER ══════════════════════════════════════════ */}
+        {/* ══ HEADER ══ */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View>
@@ -736,39 +707,29 @@ const LeadsScreen = () => {
               </Text>
             </View>
             <View style={styles.headerActions}>
-              {/* Sort */}
               <TouchableOpacity
                 onPress={() => setShowSortSheet(true)}
                 style={[styles.iconBtn, filters.sortBy && styles.iconBtnActive]}
               >
-                <Text
-                  style={[
-                    styles.iconBtnText,
-                    filters.sortBy && { color: '#fff' },
-                  ]}
-                >
-                  ≡
-                </Text>
+                <Icon
+                  name="sort-variant"
+                  size={20}
+                  color={filters.sortBy ? '#fff' : '#374151'}
+                />
               </TouchableOpacity>
-
-              {/* Add Lead */}
               {canCreateLead && (
                 <TouchableOpacity onPress={openNewLead} style={styles.addBtn}>
-                  <Text style={styles.addBtnText}>+ Add</Text>
+                  <Icon name="plus" size={16} color="#fff" />
+                  <Text style={styles.addBtnText}>Add</Text>
                 </TouchableOpacity>
               )}
             </View>
           </View>
 
-          {/* Search + Filter row */}
+          {/* Search + Filter button */}
           <View style={styles.searchRow}>
             <View style={styles.searchBox}>
-              <Icon
-                name="magnify"
-                size={20}
-                color="#9ca3af"
-                style={styles.searchIcon}
-              />
+              <Icon name="magnify" size={20} color="#9ca3af" />
               <TextInput
                 value={filters.search}
                 onChangeText={v => handleFilterChange('search', v)}
@@ -780,48 +741,138 @@ const LeadsScreen = () => {
                 <TouchableOpacity
                   onPress={() => handleFilterChange('search', '')}
                 >
-                  <Icon name="close" size={18} color="#9ca3af" />
+                  <Icon name="close-circle" size={18} color="#9ca3af" />
                 </TouchableOpacity>
               ) : null}
             </View>
 
-            {/* Date */}
-            <TouchableOpacity
-              onPress={openDateModal}
-              style={[
-                styles.filterChip,
-                (filters.dateFrom || filters.dateTo) && styles.filterChipActive,
-              ]}
-            >
-              <Icon
-                name="calendar-month-outline"
-                size={18}
-                color={filters.dateFrom || filters.dateTo ? ACCENT : '#374151'}
-              />
-            </TouchableOpacity>
-
-            {/* Filters */}
             <TouchableOpacity
               onPress={() => setShowFiltersSheet(true)}
               style={[
-                styles.filterChip,
-                hasActiveFilters && styles.filterChipActive,
+                styles.filterIconBtn,
+                hasActiveFilters && styles.filterIconBtnActive,
               ]}
             >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  hasActiveFilters && styles.filterChipTextActive,
-                ]}
-              >
-                ⚙ Filters
-                {activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
-              </Text>
+              <Icon
+                name="tune-variant"
+                size={20}
+                color={hasActiveFilters ? '#fff' : '#374151'}
+              />
+              {activeFilterCount > 0 && (
+                <View style={styles.filterBadge}>
+                  <Text style={styles.filterBadgeText}>
+                    {activeFilterCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
+
+          {/* ── Active filter badges ── */}
+          {hasActiveFilters && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.activeBadgesRow}
+            >
+              {filters.status ? (
+                <TouchableOpacity
+                  style={styles.activeBadge}
+                  onPress={() => handleFilterChange('status', '')}
+                >
+                  <View
+                    style={[
+                      styles.badgeDot,
+                      { backgroundColor: getStageColor(filters.status) },
+                    ]}
+                  />
+                  <Text style={styles.activeBadgeText}>{filters.status}</Text>
+                  <Icon name="close" size={13} color={ACCENT} />
+                </TouchableOpacity>
+              ) : null}
+
+              {filters.priority ? (
+                <TouchableOpacity
+                  style={styles.activeBadge}
+                  onPress={() => handleFilterChange('priority', '')}
+                >
+                  <Icon name="flag" size={13} color={ACCENT} />
+                  <Text style={styles.activeBadgeText}>{filters.priority}</Text>
+                  <Icon name="close" size={13} color={ACCENT} />
+                </TouchableOpacity>
+              ) : null}
+
+              {filters.dateFrom || filters.dateTo ? (
+                <TouchableOpacity
+                  style={styles.activeBadge}
+                  onPress={() => {
+                    setFilters(prev => ({ ...prev, dateFrom: '', dateTo: '' }));
+                    setPagination(prev => ({ ...prev, page: 1 }));
+                  }}
+                >
+                  <Icon name="calendar-range" size={13} color={ACCENT} />
+                  <Text style={styles.activeBadgeText}>
+                    {filters.dateFrom
+                      ? formatDateDisplay(filters.dateFrom)
+                      : '...'}
+                    {' → '}
+                    {filters.dateTo ? formatDateDisplay(filters.dateTo) : '...'}
+                  </Text>
+                  <Icon name="close" size={13} color={ACCENT} />
+                </TouchableOpacity>
+              ) : null}
+
+              {filters.assignedTo ? (
+                <TouchableOpacity
+                  style={styles.activeBadge}
+                  onPress={() => handleFilterChange('assignedTo', '')}
+                >
+                  <Icon name="account" size={13} color={ACCENT} />
+                  <Text style={styles.activeBadgeText}>
+                    {getSelectedUserName(filters.assignedTo) || 'Assigned'}
+                  </Text>
+                  <Icon name="close" size={13} color={ACCENT} />
+                </TouchableOpacity>
+              ) : null}
+
+              {filters.coAssignedTo ? (
+                <TouchableOpacity
+                  style={styles.activeBadge}
+                  onPress={() => handleFilterChange('coAssignedTo', '')}
+                >
+                  <Icon name="account-multiple" size={13} color={ACCENT} />
+                  <Text style={styles.activeBadgeText}>
+                    {getSelectedUserName(filters.coAssignedTo) || 'Co-assigned'}
+                  </Text>
+                  <Icon name="close" size={13} color={ACCENT} />
+                </TouchableOpacity>
+              ) : null}
+
+              {filters.sortBy ? (
+                <TouchableOpacity
+                  style={styles.activeBadge}
+                  onPress={() => handleFilterChange('sortBy', '')}
+                >
+                  <Icon name="sort-variant" size={13} color={ACCENT} />
+                  <Text style={styles.activeBadgeText}>
+                    {SORT_OPTIONS.find(o => o.value === filters.sortBy)
+                      ?.label || filters.sortBy}
+                  </Text>
+                  <Icon name="close" size={13} color={ACCENT} />
+                </TouchableOpacity>
+              ) : null}
+
+              <TouchableOpacity
+                onPress={clearAllFilters}
+                style={styles.clearAllBadge}
+              >
+                <Text style={styles.clearAllBadgeText}>Clear all</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          )}
         </View>
 
-        {/* ══ TOOLBAR (selected / total) ════════════════════════ */}
+        {/* ══ TOOLBAR ══ */}
         <View style={styles.toolbar}>
           {selectedIds.size > 0 ? (
             <ScrollView
@@ -829,7 +880,6 @@ const LeadsScreen = () => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.bulkBar}
             >
-              {/* Select count */}
               <TouchableOpacity onPress={clearSelection}>
                 <View style={styles.selectedBadge}>
                   <Text style={styles.selectedBadgeText}>
@@ -837,7 +887,6 @@ const LeadsScreen = () => {
                   </Text>
                 </View>
               </TouchableOpacity>
-
               {canAssignLead && (
                 <TouchableOpacity
                   disabled={bulkLoading}
@@ -847,7 +896,6 @@ const LeadsScreen = () => {
                   <Text style={styles.bulkBtnBlueText}>👤 Assign</Text>
                 </TouchableOpacity>
               )}
-
               {canDeleteLead && (
                 <TouchableOpacity
                   disabled={bulkLoading}
@@ -857,7 +905,6 @@ const LeadsScreen = () => {
                   <Text style={styles.bulkBtnRedText}>🗑 Delete</Text>
                 </TouchableOpacity>
               )}
-
               <TouchableOpacity
                 disabled={bulkLoading}
                 onPress={() => setShowStatusModal(true)}
@@ -865,7 +912,6 @@ const LeadsScreen = () => {
               >
                 <Text style={styles.bulkBtnGreenText}>✏ Status</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 disabled={bulkLoading}
                 onPress={() => setShowPriorityModal(true)}
@@ -876,7 +922,6 @@ const LeadsScreen = () => {
             </ScrollView>
           ) : (
             <View style={styles.toolbarNormal}>
-              {/* Select all */}
               <TouchableOpacity
                 onPress={toggleSelectAll}
                 style={styles.selectAllBtn}
@@ -891,9 +936,7 @@ const LeadsScreen = () => {
                 </View>
                 <Text style={styles.selectAllText}>Select all</Text>
               </TouchableOpacity>
-
               <Text style={styles.totalText}>{pagination.total} leads</Text>
-
               {hasActiveFilters && (
                 <TouchableOpacity onPress={clearAllFilters}>
                   <Text style={styles.clearFiltersText}>✕ Clear</Text>
@@ -903,7 +946,7 @@ const LeadsScreen = () => {
           )}
         </View>
 
-        {/* ══ LEAD CARDS ════════════════════════════════════════ */}
+        {/* ══ LIST ══ */}
         <View style={styles.listContainer}>
           <LeadsListMobile
             leads={leads}
@@ -925,7 +968,7 @@ const LeadsScreen = () => {
           />
         </View>
 
-        {/* ══ PAGINATION ════════════════════════════════════════ */}
+        {/* ══ PAGINATION ══ */}
         <Pagination
           page={pagination.page}
           totalPages={pagination.totalPages}
@@ -939,11 +982,9 @@ const LeadsScreen = () => {
         />
       </View>
 
-      {/* ══════════════════════════════════════════════════════════
-          MODALS
-      ══════════════════════════════════════════════════════════ */}
-
-      {/* ── Filters Bottom Sheet ── */}
+      {/* ════════════════════════════════════════════════════════
+          FILTER BOTTOM SHEET
+      ════════════════════════════════════════════════════════ */}
       <Modal
         visible={showFiltersSheet}
         transparent
@@ -958,6 +999,8 @@ const LeadsScreen = () => {
           />
           <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
+
+            {/* Header */}
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Filters</Text>
               <View style={styles.sheetHeaderRight}>
@@ -967,96 +1010,665 @@ const LeadsScreen = () => {
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity onPress={() => setShowFiltersSheet(false)}>
-                  <Text style={styles.sheetClose}>✕</Text>
+                  <Icon name="close" size={22} color="#6b7280" />
                 </TouchableOpacity>
               </View>
             </View>
 
-            <ScrollView style={styles.sheetBody}>
-              {/* Status */}
+            <ScrollView
+              style={styles.sheetBody}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* ── STATUS ── */}
               <Text style={styles.filterLabel}>STATUS</Text>
-              <View style={styles.pickerWrap}>
-                <Picker
-                  selectedValue={filters.status}
-                  onValueChange={v => handleFilterChange('status', v)}
-                  style={styles.sheetPicker}
+              <View style={styles.chipsWrap}>
+                {/* All */}
+                <TouchableOpacity
+                  style={[styles.chip, !filters.status && styles.chipActive]}
+                  onPress={() => handleFilterChange('status', '')}
                 >
-                  <Picker.Item label="All Status" value="" />
-                  <Picker.Item label="Active Leads" value="active" />
-                  <Picker.Item label="Repeat" value="Repeat" />
-                  {statusOptions.map(s => (
-                    <Picker.Item key={s} label={s} value={s} />
-                  ))}
-                </Picker>
+                  <Text
+                    style={[
+                      styles.chipText,
+                      !filters.status && styles.chipTextActive,
+                    ]}
+                  >
+                    All
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Active */}
+                <TouchableOpacity
+                  style={[
+                    styles.chip,
+                    filters.status === 'active' && styles.chipActive,
+                  ]}
+                  onPress={() => handleFilterChange('status', 'active')}
+                >
+                  <View
+                    style={[styles.chipDot, { backgroundColor: '#22c55e' }]}
+                  />
+                  <Text
+                    style={[
+                      styles.chipText,
+                      filters.status === 'active' && styles.chipTextActive,
+                    ]}
+                  >
+                    Active
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Repeat */}
+                <TouchableOpacity
+                  style={[
+                    styles.chip,
+                    filters.status === 'Repeat' && styles.chipActive,
+                  ]}
+                  onPress={() => handleFilterChange('status', 'Repeat')}
+                >
+                  <View
+                    style={[styles.chipDot, { backgroundColor: '#9333ea' }]}
+                  />
+                  <Text
+                    style={[
+                      styles.chipText,
+                      filters.status === 'Repeat' && styles.chipTextActive,
+                    ]}
+                  >
+                    Repeat
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Dynamic stages */}
+                {statusOptions.map(st => {
+                  const active = filters.status === st;
+                  const color = getStageColor(st);
+                  return (
+                    <TouchableOpacity
+                      key={st}
+                      style={[
+                        styles.chip,
+                        active && {
+                          backgroundColor: color + '18',
+                          borderColor: color,
+                        },
+                      ]}
+                      onPress={() => handleFilterChange('status', st)}
+                    >
+                      <View
+                        style={[styles.chipDot, { backgroundColor: color }]}
+                      />
+                      <Text
+                        style={[
+                          styles.chipText,
+                          active && { color, fontWeight: '600' },
+                        ]}
+                      >
+                        {st}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
-              {/* Priority */}
+              {/* ── PRIORITY ── */}
               <Text style={styles.filterLabel}>PRIORITY</Text>
-              <View style={styles.pickerWrap}>
-                <Picker
-                  selectedValue={filters.priority}
-                  onValueChange={v => handleFilterChange('priority', v)}
-                  style={styles.sheetPicker}
+              <View style={styles.chipsWrap}>
+                <TouchableOpacity
+                  style={[styles.chip, !filters.priority && styles.chipActive]}
+                  onPress={() => handleFilterChange('priority', '')}
                 >
-                  <Picker.Item label="All Priorities" value="" />
-                  {PRIORITY_OPTIONS.map(p => (
-                    <Picker.Item key={p} label={p} value={p} />
-                  ))}
-                </Picker>
+                  <Text
+                    style={[
+                      styles.chipText,
+                      !filters.priority && styles.chipTextActive,
+                    ]}
+                  >
+                    All
+                  </Text>
+                </TouchableOpacity>
+                {PRIORITY_OPTIONS.map(p => {
+                  const active = filters.priority === p;
+                  const pc = getPriorityColor(p);
+                  return (
+                    <TouchableOpacity
+                      key={p}
+                      style={[
+                        styles.chip,
+                        active && {
+                          backgroundColor: pc.bg,
+                          borderColor: pc.text,
+                        },
+                      ]}
+                      onPress={() => handleFilterChange('priority', p)}
+                    >
+                      <Icon
+                        name={
+                          p === 'Urgent'
+                            ? 'alert-circle'
+                            : p === 'High'
+                            ? 'arrow-up-circle'
+                            : 'minus-circle'
+                        }
+                        size={14}
+                        color={active ? pc.text : '#9ca3af'}
+                      />
+                      <Text
+                        style={[
+                          styles.chipText,
+                          active && { color: pc.text, fontWeight: '600' },
+                        ]}
+                      >
+                        {p}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
-              {/* Assigned To */}
+              {/* ── DATE RANGE ── */}
+              <Text style={styles.filterLabel}>DATE RANGE</Text>
+
+              {/* Two calendar buttons */}
+              <View style={styles.dateRow}>
+                {/* From */}
+                <TouchableOpacity
+                  style={[
+                    styles.dateBtn,
+                    filters.dateFrom && styles.dateBtnActive,
+                  ]}
+                  onPress={() => {
+                    setTempFromDate(
+                      filters.dateFrom
+                        ? new Date(filters.dateFrom + 'T00:00:00')
+                        : new Date(),
+                    );
+                    setShowFromPicker(true);
+                  }}
+                >
+                  <Icon
+                    name="calendar-start"
+                    size={16}
+                    color={filters.dateFrom ? ACCENT : '#9ca3af'}
+                  />
+                  <Text
+                    style={[
+                      styles.dateBtnText,
+                      filters.dateFrom && styles.dateBtnTextActive,
+                    ]}
+                  >
+                    {filters.dateFrom
+                      ? formatDateDisplay(filters.dateFrom)
+                      : 'From date'}
+                  </Text>
+                </TouchableOpacity>
+
+                <Icon name="arrow-right" size={16} color="#d1d5db" />
+
+                {/* To */}
+                <TouchableOpacity
+                  style={[
+                    styles.dateBtn,
+                    filters.dateTo && styles.dateBtnActive,
+                  ]}
+                  onPress={() => {
+                    setTempToDate(
+                      filters.dateTo
+                        ? new Date(filters.dateTo + 'T00:00:00')
+                        : new Date(),
+                    );
+                    setShowToPicker(true);
+                  }}
+                >
+                  <Icon
+                    name="calendar-end"
+                    size={16}
+                    color={filters.dateTo ? ACCENT : '#9ca3af'}
+                  />
+                  <Text
+                    style={[
+                      styles.dateBtnText,
+                      filters.dateTo && styles.dateBtnTextActive,
+                    ]}
+                  >
+                    {filters.dateTo
+                      ? formatDateDisplay(filters.dateTo)
+                      : 'To date'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Selected range display + clear */}
+              {(filters.dateFrom || filters.dateTo) && (
+                <View style={styles.dateRangeInfo}>
+                  <View style={styles.dateRangeDisplay}>
+                    <Icon name="calendar-range" size={14} color={ACCENT} />
+                    <Text style={styles.dateRangeText}>
+                      {filters.dateFrom
+                        ? formatDateDisplay(filters.dateFrom)
+                        : '...'}
+                      {'  →  '}
+                      {filters.dateTo
+                        ? formatDateDisplay(filters.dateTo)
+                        : '...'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.clearDateBtn}
+                    onPress={() => {
+                      setFilters(prev => ({
+                        ...prev,
+                        dateFrom: '',
+                        dateTo: '',
+                      }));
+                      setPagination(prev => ({ ...prev, page: 1 }));
+                    }}
+                  >
+                    <Icon name="close-circle" size={16} color="#ef4444" />
+                    <Text style={styles.clearDateText}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* ── ASSIGNED TO ── */}
               {(canViewAllLeads || (isManager && canViewTeamLeads)) && (
                 <>
                   <Text style={styles.filterLabel}>ASSIGNED TO</Text>
-                  <View style={styles.pickerWrap}>
-                    <Picker
-                      selectedValue={filters.assignedTo}
-                      onValueChange={v => handleFilterChange('assignedTo', v)}
-                      style={styles.sheetPicker}
+                  <View style={styles.userSearchBox}>
+                    <Icon name="magnify" size={16} color="#9ca3af" />
+                    <TextInput
+                      value={userSearch}
+                      onChangeText={setUserSearch}
+                      placeholder="Search team member..."
+                      placeholderTextColor="#9ca3af"
+                      style={styles.userSearchInput}
+                    />
+                    {userSearch ? (
+                      <TouchableOpacity onPress={() => setUserSearch('')}>
+                        <Icon name="close" size={16} color="#9ca3af" />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                  <View style={styles.userList}>
+                    {/* All users */}
+                    <TouchableOpacity
+                      style={[
+                        styles.userItem,
+                        !filters.assignedTo && styles.userItemActive,
+                      ]}
+                      onPress={() => handleFilterChange('assignedTo', '')}
                     >
-                      <Picker.Item label="All Users" value="" />
-                      {users.map(u => (
-                        <Picker.Item key={u._id} label={u.name} value={u._id} />
-                      ))}
-                    </Picker>
+                      <View
+                        style={[
+                          styles.userAvatar,
+                          !filters.assignedTo && { backgroundColor: ACCENT },
+                        ]}
+                      >
+                        <Icon
+                          name="account-group"
+                          size={14}
+                          color={!filters.assignedTo ? '#fff' : '#6b7280'}
+                        />
+                      </View>
+                      <Text
+                        style={[
+                          styles.userItemText,
+                          !filters.assignedTo && styles.userItemTextActive,
+                        ]}
+                      >
+                        All Users
+                      </Text>
+                      {!filters.assignedTo && (
+                        <Icon
+                          name="check-circle"
+                          size={18}
+                          color={ACCENT}
+                          style={{ marginLeft: 'auto' }}
+                        />
+                      )}
+                    </TouchableOpacity>
+                    {filteredUsers.map(u => {
+                      const active = filters.assignedTo === u._id;
+                      return (
+                        <TouchableOpacity
+                          key={u._id}
+                          style={[
+                            styles.userItem,
+                            active && styles.userItemActive,
+                          ]}
+                          onPress={() =>
+                            handleFilterChange('assignedTo', u._id)
+                          }
+                        >
+                          <View
+                            style={[
+                              styles.userAvatar,
+                              active && { backgroundColor: ACCENT },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.userAvatarText,
+                                active && { color: '#fff' },
+                              ]}
+                            >
+                              {getInitials(u.name)}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={[
+                                styles.userItemText,
+                                active && styles.userItemTextActive,
+                              ]}
+                            >
+                              {u.name}
+                            </Text>
+                            {u.email ? (
+                              <Text style={styles.userItemEmail}>
+                                {u.email}
+                              </Text>
+                            ) : null}
+                          </View>
+                          {active && (
+                            <Icon
+                              name="check-circle"
+                              size={18}
+                              color={ACCENT}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                    {filteredUsers.length === 0 && userSearch ? (
+                      <View style={styles.emptySearch}>
+                        <Text style={styles.emptySearchText}>
+                          No users found
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
                 </>
               )}
 
-              {/* Co-Assignee */}
+              {/* ── CO-ASSIGNEE ── */}
               {(canViewAllLeads || (isManager && canViewTeamLeads)) && (
                 <>
                   <Text style={styles.filterLabel}>CO-ASSIGNEE</Text>
-                  <View style={styles.pickerWrap}>
-                    <Picker
-                      selectedValue={filters.coAssignedTo}
-                      onValueChange={v => handleFilterChange('coAssignedTo', v)}
-                      style={styles.sheetPicker}
+                  <View style={styles.userSearchBox}>
+                    <Icon name="magnify" size={16} color="#9ca3af" />
+                    <TextInput
+                      value={coUserSearch}
+                      onChangeText={setCoUserSearch}
+                      placeholder="Search co-assignee..."
+                      placeholderTextColor="#9ca3af"
+                      style={styles.userSearchInput}
+                    />
+                    {coUserSearch ? (
+                      <TouchableOpacity onPress={() => setCoUserSearch('')}>
+                        <Icon name="close" size={16} color="#9ca3af" />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                  <View style={styles.userList}>
+                    <TouchableOpacity
+                      style={[
+                        styles.userItem,
+                        !filters.coAssignedTo && styles.userItemActive,
+                      ]}
+                      onPress={() => handleFilterChange('coAssignedTo', '')}
                     >
-                      <Picker.Item label="All Co-assignees" value="" />
-                      {users.map(u => (
-                        <Picker.Item key={u._id} label={u.name} value={u._id} />
-                      ))}
-                    </Picker>
+                      <View
+                        style={[
+                          styles.userAvatar,
+                          !filters.coAssignedTo && { backgroundColor: ACCENT },
+                        ]}
+                      >
+                        <Icon
+                          name="account-group"
+                          size={14}
+                          color={!filters.coAssignedTo ? '#fff' : '#6b7280'}
+                        />
+                      </View>
+                      <Text
+                        style={[
+                          styles.userItemText,
+                          !filters.coAssignedTo && styles.userItemTextActive,
+                        ]}
+                      >
+                        All Co-assignees
+                      </Text>
+                      {!filters.coAssignedTo && (
+                        <Icon
+                          name="check-circle"
+                          size={18}
+                          color={ACCENT}
+                          style={{ marginLeft: 'auto' }}
+                        />
+                      )}
+                    </TouchableOpacity>
+                    {filteredCoUsers.map(u => {
+                      const active = filters.coAssignedTo === u._id;
+                      return (
+                        <TouchableOpacity
+                          key={u._id}
+                          style={[
+                            styles.userItem,
+                            active && styles.userItemActive,
+                          ]}
+                          onPress={() =>
+                            handleFilterChange('coAssignedTo', u._id)
+                          }
+                        >
+                          <View
+                            style={[
+                              styles.userAvatar,
+                              active && { backgroundColor: ACCENT },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.userAvatarText,
+                                active && { color: '#fff' },
+                              ]}
+                            >
+                              {getInitials(u.name)}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={[
+                                styles.userItemText,
+                                active && styles.userItemTextActive,
+                              ]}
+                            >
+                              {u.name}
+                            </Text>
+                            {u.email ? (
+                              <Text style={styles.userItemEmail}>
+                                {u.email}
+                              </Text>
+                            ) : null}
+                          </View>
+                          {active && (
+                            <Icon
+                              name="check-circle"
+                              size={18}
+                              color={ACCENT}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                    {filteredCoUsers.length === 0 && coUserSearch ? (
+                      <View style={styles.emptySearch}>
+                        <Text style={styles.emptySearchText}>
+                          No users found
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
                 </>
               )}
+
+              <View style={{ height: 24 }} />
             </ScrollView>
 
+            {/* Footer */}
             <View style={styles.sheetFooter}>
               <TouchableOpacity
                 style={styles.applyBtn}
                 onPress={() => setShowFiltersSheet(false)}
               >
-                <Text style={styles.applyBtnText}>Apply Filters</Text>
+                <Text style={styles.applyBtnText}>
+                  Apply Filters
+                  {activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* ── Sort Bottom Sheet ── */}
+      {/* ════════════════════════════════════════════════════════
+          NATIVE DATE PICKERS
+      ════════════════════════════════════════════════════════ */}
+
+      {/* FROM DATE — Android */}
+      {showFromPicker && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={tempFromDate}
+          mode="date"
+          display="default"
+          maximumDate={
+            filters.dateTo ? new Date(filters.dateTo + 'T00:00:00') : undefined
+          }
+          onChange={(e, date) => {
+            setShowFromPicker(false);
+            if (e.type === 'set' && date) {
+              handleFilterChange('dateFrom', dateToString(date));
+            }
+          }}
+        />
+      )}
+
+      {/* FROM DATE — iOS (modal wrapper) */}
+      {showFromPicker && Platform.OS === 'ios' && (
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowFromPicker(false)}
+        >
+          <View style={styles.dateModalOverlay}>
+            <View style={styles.dateModalCard}>
+              <Text style={styles.dateModalTitle}>From Date</Text>
+              <DateTimePicker
+                value={tempFromDate}
+                mode="date"
+                display="spinner"
+                maximumDate={
+                  filters.dateTo
+                    ? new Date(filters.dateTo + 'T00:00:00')
+                    : undefined
+                }
+                onChange={(e, date) => {
+                  if (date) setTempFromDate(date);
+                }}
+                style={{ height: 180 }}
+              />
+              <View style={styles.dateModalActions}>
+                <TouchableOpacity
+                  style={styles.dateModalBtnCancel}
+                  onPress={() => setShowFromPicker(false)}
+                >
+                  <Text style={styles.dateModalBtnCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dateModalBtnDone}
+                  onPress={() => {
+                    handleFilterChange('dateFrom', dateToString(tempFromDate));
+                    setShowFromPicker(false);
+                  }}
+                >
+                  <Text style={styles.dateModalBtnDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* TO DATE — Android */}
+      {showToPicker && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={tempToDate}
+          mode="date"
+          display="default"
+          minimumDate={
+            filters.dateFrom
+              ? new Date(filters.dateFrom + 'T00:00:00')
+              : undefined
+          }
+          onChange={(e, date) => {
+            setShowToPicker(false);
+            if (e.type === 'set' && date) {
+              handleFilterChange('dateTo', dateToString(date));
+            }
+          }}
+        />
+      )}
+
+      {/* TO DATE — iOS (modal wrapper) */}
+      {showToPicker && Platform.OS === 'ios' && (
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowToPicker(false)}
+        >
+          <View style={styles.dateModalOverlay}>
+            <View style={styles.dateModalCard}>
+              <Text style={styles.dateModalTitle}>To Date</Text>
+              <DateTimePicker
+                value={tempToDate}
+                mode="date"
+                display="spinner"
+                minimumDate={
+                  filters.dateFrom
+                    ? new Date(filters.dateFrom + 'T00:00:00')
+                    : undefined
+                }
+                onChange={(e, date) => {
+                  if (date) setTempToDate(date);
+                }}
+                style={{ height: 180 }}
+              />
+              <View style={styles.dateModalActions}>
+                <TouchableOpacity
+                  style={styles.dateModalBtnCancel}
+                  onPress={() => setShowToPicker(false)}
+                >
+                  <Text style={styles.dateModalBtnCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dateModalBtnDone}
+                  onPress={() => {
+                    handleFilterChange('dateTo', dateToString(tempToDate));
+                    setShowToPicker(false);
+                  }}
+                >
+                  <Text style={styles.dateModalBtnDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* ════════════════════════════════════════════════════════
+          SORT BOTTOM SHEET
+      ════════════════════════════════════════════════════════ */}
       <Modal
         visible={showSortSheet}
         transparent
@@ -1069,12 +1681,12 @@ const LeadsScreen = () => {
             activeOpacity={1}
             onPress={() => setShowSortSheet(false)}
           />
-          <View style={[styles.sheet, { maxHeight: 420 }]}>
+          <View style={[styles.sheet, { maxHeight: 440 }]}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Sort By</Text>
               <TouchableOpacity onPress={() => setShowSortSheet(false)}>
-                <Text style={styles.sheetClose}>✕</Text>
+                <Icon name="close" size={22} color="#6b7280" />
               </TouchableOpacity>
             </View>
             <ScrollView>
@@ -1092,15 +1704,28 @@ const LeadsScreen = () => {
                       active && styles.sortOptionActive,
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.sortOptionText,
-                        active && styles.sortOptionTextActive,
-                      ]}
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 12,
+                      }}
                     >
-                      {opt.label}
-                    </Text>
-                    {active && <Text style={{ color: ACCENT }}>✓</Text>}
+                      <Icon
+                        name={opt.icon}
+                        size={20}
+                        color={active ? ACCENT : '#6b7280'}
+                      />
+                      <Text
+                        style={[
+                          styles.sortOptionText,
+                          active && styles.sortOptionTextActive,
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </View>
+                    {active && <Icon name="check" size={20} color={ACCENT} />}
                   </TouchableOpacity>
                 );
               })}
@@ -1109,57 +1734,9 @@ const LeadsScreen = () => {
         </View>
       </Modal>
 
-      {/* ── Date Filter Modal ── */}
-      <Modal
-        visible={showDateModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowDateModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Filter by Date</Text>
-            <Text style={styles.filterLabel}>FROM DATE</Text>
-            <TextInput
-              value={tempDateFrom}
-              onChangeText={setTempDateFrom}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#9ca3af"
-              style={styles.dateInput}
-            />
-            <Text style={[styles.filterLabel, { marginTop: 12 }]}>TO DATE</Text>
-            <TextInput
-              value={tempDateTo}
-              onChangeText={setTempDateTo}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#9ca3af"
-              style={styles.dateInput}
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalBtnCancel}
-                onPress={() => setShowDateModal(false)}
-              >
-                <Text style={styles.modalBtnCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalBtnCancel}
-                onPress={clearDateFilter}
-              >
-                <Text style={styles.modalBtnCancelText}>Clear</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalBtnPrimary}
-                onPress={applyDateFilter}
-              >
-                <Text style={styles.modalBtnPrimaryText}>Apply</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Bulk Assign Modal ── */}
+      {/* ════════════════════════════════════════════════════════
+          BULK ASSIGN MODAL
+      ════════════════════════════════════════════════════════ */}
       <Modal
         visible={showAssignModal}
         transparent
@@ -1171,18 +1748,53 @@ const LeadsScreen = () => {
             <Text style={styles.modalTitle}>
               Assign {selectedIds.size} Lead{selectedIds.size > 1 ? 's' : ''}
             </Text>
-            <View style={styles.pickerWrap}>
-              <Picker
-                selectedValue={bulkAssignUserId}
-                onValueChange={setBulkAssignUserId}
-                style={styles.sheetPicker}
-              >
-                <Picker.Item label="— Select team member —" value="" />
-                {users.map(u => (
-                  <Picker.Item key={u._id} label={u.name} value={u._id} />
-                ))}
-              </Picker>
-            </View>
+            <ScrollView
+              style={{ maxHeight: 280 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {users.map(u => {
+                const active = bulkAssignUserId === u._id;
+                return (
+                  <TouchableOpacity
+                    key={u._id}
+                    style={[styles.userItem, active && styles.userItemActive]}
+                    onPress={() => setBulkAssignUserId(u._id)}
+                  >
+                    <View
+                      style={[
+                        styles.userAvatar,
+                        active && { backgroundColor: ACCENT },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.userAvatarText,
+                          active && { color: '#fff' },
+                        ]}
+                      >
+                        {getInitials(u.name)}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.userItemText,
+                        active && styles.userItemTextActive,
+                      ]}
+                    >
+                      {u.name}
+                    </Text>
+                    {active && (
+                      <Icon
+                        name="check-circle"
+                        size={18}
+                        color={ACCENT}
+                        style={{ marginLeft: 'auto' }}
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={styles.modalBtnCancel}
@@ -1212,7 +1824,9 @@ const LeadsScreen = () => {
         </View>
       </Modal>
 
-      {/* ── Bulk Status Modal ── */}
+      {/* ════════════════════════════════════════════════════════
+          BULK STATUS MODAL
+      ════════════════════════════════════════════════════════ */}
       <Modal
         visible={showStatusModal}
         transparent
@@ -1225,17 +1839,36 @@ const LeadsScreen = () => {
               Change Status — {selectedIds.size} Lead
               {selectedIds.size > 1 ? 's' : ''}
             </Text>
-            <View style={styles.pickerWrap}>
-              <Picker
-                selectedValue={bulkStatusValue}
-                onValueChange={setBulkStatusValue}
-                style={styles.sheetPicker}
-              >
-                <Picker.Item label="— Select status —" value="" />
-                {statusOptions.map(s => (
-                  <Picker.Item key={s} label={s} value={s} />
-                ))}
-              </Picker>
+            <View style={[styles.chipsWrap, { marginTop: 4 }]}>
+              {statusOptions.map(st => {
+                const active = bulkStatusValue === st;
+                const color = getStageColor(st);
+                return (
+                  <TouchableOpacity
+                    key={st}
+                    style={[
+                      styles.chip,
+                      active && {
+                        backgroundColor: color + '18',
+                        borderColor: color,
+                      },
+                    ]}
+                    onPress={() => setBulkStatusValue(st)}
+                  >
+                    <View
+                      style={[styles.chipDot, { backgroundColor: color }]}
+                    />
+                    <Text
+                      style={[
+                        styles.chipText,
+                        active && { color, fontWeight: '600' },
+                      ]}
+                    >
+                      {st}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -1266,7 +1899,9 @@ const LeadsScreen = () => {
         </View>
       </Modal>
 
-      {/* ── Bulk Priority Modal ── */}
+      {/* ════════════════════════════════════════════════════════
+          BULK PRIORITY MODAL
+      ════════════════════════════════════════════════════════ */}
       <Modal
         visible={showPriorityModal}
         transparent
@@ -1279,17 +1914,44 @@ const LeadsScreen = () => {
               Change Priority — {selectedIds.size} Lead
               {selectedIds.size > 1 ? 's' : ''}
             </Text>
-            <View style={styles.pickerWrap}>
-              <Picker
-                selectedValue={bulkPriorityValue}
-                onValueChange={setBulkPriorityValue}
-                style={styles.sheetPicker}
-              >
-                <Picker.Item label="— Select priority —" value="" />
-                {PRIORITY_OPTIONS.map(p => (
-                  <Picker.Item key={p} label={p} value={p} />
-                ))}
-              </Picker>
+            <View style={[styles.chipsWrap, { marginTop: 4 }]}>
+              {PRIORITY_OPTIONS.map(p => {
+                const active = bulkPriorityValue === p;
+                const pc = getPriorityColor(p);
+                return (
+                  <TouchableOpacity
+                    key={p}
+                    style={[
+                      styles.chip,
+                      active && {
+                        backgroundColor: pc.bg,
+                        borderColor: pc.text,
+                      },
+                    ]}
+                    onPress={() => setBulkPriorityValue(p)}
+                  >
+                    <Icon
+                      name={
+                        p === 'Urgent'
+                          ? 'alert-circle'
+                          : p === 'High'
+                          ? 'arrow-up-circle'
+                          : 'minus-circle'
+                      }
+                      size={14}
+                      color={active ? pc.text : '#9ca3af'}
+                    />
+                    <Text
+                      style={[
+                        styles.chipText,
+                        active && { color: pc.text, fontWeight: '600' },
+                      ]}
+                    >
+                      {p}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -1320,10 +1982,10 @@ const LeadsScreen = () => {
         </View>
       </Modal>
 
-      {/* ── Delete single lead ── */}
+      {/* ── Delete single ── */}
       {deleteLeadModal && (
         <DeleteModal
-          isOpen={!!deleteLeadModal}
+          isOpen
           onClose={() => setDeleteLeadModal(null)}
           onConfirm={confirmDeleteLead}
           title="Delete Lead"
@@ -1340,7 +2002,7 @@ const LeadsScreen = () => {
         message={`Delete ${selectedIds.size} selected lead(s)? This cannot be undone.`}
       />
 
-      {/* ── Lead Form Modal ── */}
+      {/* ── Lead Form ── */}
       <LeadFormModal
         visible={showCreateModal}
         lead={editingLead}
@@ -1358,7 +2020,7 @@ const LeadsScreen = () => {
         sourceOptions={SOURCE_OPTIONS}
       />
 
-      {/* ── Lead Preview Drawer ── */}
+      {/* ── Preview Drawer ── */}
       <LeadPreviewDrawer
         lead={previewLead}
         visible={showPreviewDrawer}
@@ -1376,9 +2038,9 @@ const LeadsScreen = () => {
 // ─────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#f9fafb' },
-  container: { flex: 1, flexDirection: 'column' },
+  container: { flex: 1 },
 
-  // Header
+  // ── Header ──
   header: {
     backgroundColor: '#fff',
     paddingHorizontal: 14,
@@ -1393,84 +2055,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: '#111827' },
+  headerSubtitle: { fontSize: 12, color: '#6b7280', marginTop: 2 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e5e7eb',
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconBtnActive: {
-    backgroundColor: ACCENT,
-    borderColor: ACCENT,
-  },
-  iconBtnText: {
-    fontSize: 18,
-    color: '#374151',
-  },
+  iconBtnActive: { backgroundColor: ACCENT, borderColor: ACCENT },
   addBtn: {
-    height: 36,
+    height: 38,
     paddingHorizontal: 14,
-    borderRadius: 8,
+    borderRadius: 10,
     backgroundColor: ACCENT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#fff',
-  },
-
-  // Search
-  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    gap: 4,
   },
+  addBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+
+  // ── Search ──
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   searchBox: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    height: 38,
+    height: 40,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e5e7eb',
     backgroundColor: '#f9fafb',
     paddingHorizontal: 10,
+    gap: 6,
   },
-  searchIcon: {
-    marginRight: 2,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#111827',
-    paddingVertical: 0,
-    marginLeft: 4,
-  },
-  searchClear: { fontSize: 14, color: '#9ca3af' },
-  filterChip: {
-    height: 38,
-    paddingHorizontal: 12,
+  searchInput: { flex: 1, fontSize: 14, color: '#111827', paddingVertical: 0 },
+  filterIconBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e5e7eb',
@@ -1478,20 +2106,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  filterChipActive: {
-    borderColor: ACCENT,
-    backgroundColor: '#eef2ff',
+  filterIconBtnActive: { backgroundColor: ACCENT, borderColor: ACCENT },
+  filterBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  filterChipText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  filterChipTextActive: {
-    color: ACCENT,
-  },
+  filterBadgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
 
-  // Toolbar
+  // ── Active filter badges row ──
+  activeBadgesRow: { gap: 8, paddingTop: 2, alignItems: 'center' },
+  activeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    backgroundColor: '#eef2ff',
+    borderWidth: 1,
+    borderColor: '#c7d2fe',
+  },
+  badgeDot: { width: 8, height: 8, borderRadius: 4 },
+  activeBadgeText: { fontSize: 11, fontWeight: '600', color: ACCENT },
+  clearAllBadge: { paddingHorizontal: 6, paddingVertical: 5 },
+  clearAllBadgeText: { fontSize: 11, fontWeight: '600', color: '#ef4444' },
+
+  // ── Toolbar ──
   toolbar: {
     backgroundColor: '#f9fafb',
     borderBottomWidth: 1,
@@ -1519,11 +2166,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  selectedBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: ACCENT,
-  },
+  selectedBadgeText: { fontSize: 12, fontWeight: '600', color: ACCENT },
   bulkBtn: {
     paddingHorizontal: 12,
     paddingVertical: 5,
@@ -1538,12 +2181,7 @@ const styles = StyleSheet.create({
   bulkBtnRedText: { fontSize: 12, fontWeight: '500', color: '#ef4444' },
   bulkBtnGreenText: { fontSize: 12, fontWeight: '500', color: '#16a34a' },
   bulkBtnOrangeText: { fontSize: 12, fontWeight: '500', color: '#ea580c' },
-
-  selectAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
+  selectAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   checkbox: {
     width: 18,
     height: 18,
@@ -1553,19 +2191,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxSelected: {
-    backgroundColor: ACCENT,
-    borderColor: ACCENT,
-  },
+  checkboxSelected: { backgroundColor: ACCENT, borderColor: ACCENT },
   checkmark: { color: '#fff', fontSize: 11, fontWeight: '700' },
   selectAllText: { fontSize: 12, color: '#6b7280' },
   totalText: { fontSize: 12, color: '#6b7280', marginLeft: 'auto' },
   clearFiltersText: { fontSize: 12, color: '#ef4444', fontWeight: '500' },
 
-  // List
   listContainer: { flex: 1 },
 
-  // Modal shared
+  // ── Shared modal ──
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -1597,15 +2231,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     lineHeight: 20,
   },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
-  },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   modalBtnCancel: {
     flex: 1,
-    height: 40,
-    borderRadius: 8,
+    height: 42,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#d1d5db',
     alignItems: 'center',
@@ -1614,8 +2244,8 @@ const styles = StyleSheet.create({
   modalBtnCancelText: { fontSize: 13, fontWeight: '500', color: '#374151' },
   modalBtnDanger: {
     flex: 1,
-    height: 40,
-    borderRadius: 8,
+    height: 42,
+    borderRadius: 10,
     backgroundColor: '#dc2626',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1623,45 +2253,26 @@ const styles = StyleSheet.create({
   modalBtnDangerText: { fontSize: 13, fontWeight: '600', color: '#fff' },
   modalBtnPrimary: {
     flex: 1,
-    height: 40,
-    borderRadius: 8,
+    height: 42,
+    borderRadius: 10,
     backgroundColor: ACCENT,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalBtnPrimaryText: { fontSize: 13, fontWeight: '600', color: '#fff' },
 
-  // Date input
-  dateInput: {
-    height: 42,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    paddingHorizontal: 12,
-    fontSize: 13,
-    color: '#111827',
-    backgroundColor: '#f9fafb',
-    marginTop: 4,
-  },
-
-  // Bottom sheet
+  // ── Bottom sheet ──
   sheetOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  sheetBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
+  sheetBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   sheet: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '85%',
+    maxHeight: '88%',
     paddingBottom: Platform.OS === 'ios' ? 30 : 16,
   },
   sheetHandle: {
@@ -1683,13 +2294,12 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f3f4f6',
   },
   sheetHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  sheetTitle: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  sheetClose: { fontSize: 18, color: '#6b7280' },
+  sheetTitle: { fontSize: 16, fontWeight: '600', color: '#111827' },
   clearAllText: { fontSize: 12, fontWeight: '500', color: '#ef4444' },
-  sheetBody: { paddingHorizontal: 16, paddingTop: 12 },
+  sheetBody: { paddingHorizontal: 16, paddingTop: 8 },
   sheetFooter: { paddingHorizontal: 16, paddingTop: 12 },
   applyBtn: {
-    height: 44,
+    height: 46,
     borderRadius: 12,
     backgroundColor: ACCENT,
     alignItems: 'center',
@@ -1697,28 +2307,178 @@ const styles = StyleSheet.create({
   },
   applyBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
 
-  // Filter labels + pickers inside sheet
   filterLabel: {
     fontSize: 11,
     fontWeight: '700',
     color: '#9ca3af',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-    marginTop: 14,
-  },
-  pickerWrap: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 10,
-    overflow: 'hidden',
-    backgroundColor: '#f9fafb',
-  },
-  sheetPicker: {
-    height: Platform.OS === 'ios' ? 160 : 48,
-    color: '#111827',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    marginTop: 20,
   },
 
-  // Sort sheet
+  // ── Chips ──
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#fff',
+  },
+  chipActive: { borderColor: ACCENT, backgroundColor: '#eef2ff' },
+  chipText: { fontSize: 13, color: '#6b7280', fontWeight: '500' },
+  chipTextActive: { color: ACCENT, fontWeight: '600' },
+  chipDot: { width: 8, height: 8, borderRadius: 4 },
+
+  // ── Date row inside filter sheet ──
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  dateBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 44,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+  },
+  dateBtnActive: { borderColor: ACCENT, backgroundColor: '#f0f4ff' },
+  dateBtnText: { fontSize: 13, color: '#9ca3af' },
+  dateBtnTextActive: { fontSize: 13, color: '#111827', fontWeight: '500' },
+
+  dateRangeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  dateRangeDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: '#f0f4ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#c7d2fe',
+  },
+  dateRangeText: { fontSize: 12, color: ACCENT, fontWeight: '500' },
+  clearDateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 4,
+  },
+  clearDateText: { fontSize: 12, color: '#ef4444', fontWeight: '500' },
+
+  // ── Date picker modal (iOS) ──
+  dateModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  dateModalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 340,
+  },
+  dateModalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  dateModalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  dateModalBtnCancel: {
+    flex: 1,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateModalBtnCancelText: { fontSize: 14, fontWeight: '500', color: '#374151' },
+  dateModalBtnDone: {
+    flex: 1,
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateModalBtnDoneText: { fontSize: 14, fontWeight: '600', color: '#fff' },
+
+  // ── User list ──
+  userSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 38,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+    marginBottom: 6,
+  },
+  userSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#111827',
+    paddingVertical: 0,
+  },
+  userList: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    maxHeight: 220,
+  },
+  userItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f9fafb',
+  },
+  userItemActive: { backgroundColor: '#f0f4ff' },
+  userItemText: { fontSize: 13, color: '#374151' },
+  userItemTextActive: { color: ACCENT, fontWeight: '600' },
+  userItemEmail: { fontSize: 11, color: '#9ca3af', marginTop: 1 },
+  userAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userAvatarText: { fontSize: 11, fontWeight: '700', color: '#6b7280' },
+  emptySearch: { padding: 16, alignItems: 'center' },
+  emptySearchText: { fontSize: 13, color: '#9ca3af' },
+
+  // ── Sort sheet ──
   sortOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1731,41 +2491,6 @@ const styles = StyleSheet.create({
   sortOptionActive: { backgroundColor: '#f0f4ff' },
   sortOptionText: { fontSize: 14, color: '#374151' },
   sortOptionTextActive: { color: ACCENT, fontWeight: '600' },
-
-  // Picker modal (PickerModal component — not used directly but kept for reference)
-  pickerModalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 0,
-    width: '100%',
-    maxWidth: 380,
-    overflow: 'hidden',
-  },
-  pickerModalTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  pickerModalScroll: { maxHeight: 260 },
-  pickerOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f9fafb',
-  },
-  pickerOptionActive: { backgroundColor: ACCENT },
-  pickerOptionText: { fontSize: 14, color: '#374151' },
-  pickerOptionTextActive: { color: '#fff', fontWeight: '600' },
-  pickerModalClose: {
-    padding: 14,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-  },
-  pickerModalCloseText: { fontSize: 14, fontWeight: '500', color: '#6b7280' },
 });
 
 export default LeadsScreen;
