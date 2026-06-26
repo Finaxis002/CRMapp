@@ -2051,36 +2051,6 @@ const LeadFormModal = ({
                     </View>
                   ) : null}
 
-                  {trackedCallLogs.filter(log => log.recordingUploaded).length >
-                  0 ? (
-                    <View style={{ marginTop: 24 }}>
-                      <Text style={styles.sectionTitle}>
-                        Auto-tracked Call Recordings (
-                        {
-                          trackedCallLogs.filter(log => log.recordingUploaded)
-                            .length
-                        }
-                        )
-                      </Text>
-                      {trackedCallLogs
-                        .filter(log => log.recordingUploaded)
-                        .map(log => (
-                          <CallLogCard
-                            key={log._id || log.id}
-                            callLog={log}
-                            theme={{
-                              bgSurface: '#fff',
-                              border: '#e5e7eb',
-                              textPrimary: '#111827',
-                              textMuted: '#6b7280',
-                              accent: '#5a7bf6',
-                              inputBg: '#f3f4f6',
-                            }}
-                          />
-                        ))}
-                    </View>
-                  ) : null}
-
                   {savedRecordings.length === 0 &&
                   !recordingFile &&
                   !form.recordingUrl ? (
