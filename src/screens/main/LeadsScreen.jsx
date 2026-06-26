@@ -25,6 +25,7 @@ import LeadFormModal from '../../components/common/LeadFormModal.jsx';
 import LeadPreviewDrawer from '../../components/common/LeadPreviewDrawer.jsx';
 import LeadsListMobile from '../../components/common/LeadsListMobile.jsx';
 import Pagination from '../../components/common/Pagination.jsx';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // ─────────────────────────────────────────────────────────────
 const ACCENT = '#5a7bf6';
@@ -762,7 +763,12 @@ const LeadsScreen = () => {
           {/* Search + Filter row */}
           <View style={styles.searchRow}>
             <View style={styles.searchBox}>
-              <Text style={styles.searchIcon}>🔍</Text>
+              <Icon
+                name="magnify"
+                size={20}
+                color="#9ca3af"
+                style={styles.searchIcon}
+              />
               <TextInput
                 value={filters.search}
                 onChangeText={v => handleFilterChange('search', v)}
@@ -774,7 +780,7 @@ const LeadsScreen = () => {
                 <TouchableOpacity
                   onPress={() => handleFilterChange('search', '')}
                 >
-                  <Text style={styles.searchClear}>✕</Text>
+                  <Icon name="close" size={18} color="#9ca3af" />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -787,15 +793,11 @@ const LeadsScreen = () => {
                 (filters.dateFrom || filters.dateTo) && styles.filterChipActive,
               ]}
             >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  (filters.dateFrom || filters.dateTo) &&
-                    styles.filterChipTextActive,
-                ]}
-              >
-                📅
-              </Text>
+              <Icon
+                name="calendar-month-outline"
+                size={18}
+                color={filters.dateFrom || filters.dateTo ? ACCENT : '#374151'}
+              />
             </TouchableOpacity>
 
             {/* Filters */}
@@ -1454,14 +1456,16 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
     backgroundColor: '#f9fafb',
     paddingHorizontal: 10,
-    gap: 6,
   },
-  searchIcon: { fontSize: 14 },
+  searchIcon: {
+    marginRight: 2,
+  },
   searchInput: {
     flex: 1,
     fontSize: 13,
     color: '#111827',
     paddingVertical: 0,
+    marginLeft: 4,
   },
   searchClear: { fontSize: 14, color: '#9ca3af' },
   filterChip: {
