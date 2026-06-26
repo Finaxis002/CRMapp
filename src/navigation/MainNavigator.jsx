@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Topbar from '../components/layout/Topbar';
 import CustomSidebar from '../components/layout/CustomSidebar';
 import { SidebarProvider } from '../contexts/SidebarContext';
+import { ThemeProvider } from '../contexts/ThemeContext';
 
 // Screens
 import DashboardScreen from '../screens/main/DashboardScreen';
@@ -29,6 +30,7 @@ const MainNavigator = () => {
   const [currentRoute, setCurrentRoute] = useState('Dashboard');
 
   return (
+    <ThemeProvider>
     <SidebarProvider>
       {/* Custom sidebar rendered ONCE above everything */}
       <CustomSidebar currentRoute={currentRoute} />
@@ -68,6 +70,7 @@ const MainNavigator = () => {
         <Stack.Screen name="Settings" component={SettingsScreen} />
       </Stack.Navigator>
     </SidebarProvider>
+    </ThemeProvider>
   );
 };
 
