@@ -40,7 +40,6 @@ const MONTHS = [
   'December',
 ];
 const DAYS_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-const DAYS_FULL = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const pad = n => String(n).padStart(2, '0');
@@ -86,7 +85,6 @@ const getTheme = isDark => ({
   white: '#ffffff',
 });
 
-// ─── main component ───────────────────────────────────────────────────────────
 const AttendanceScreen = () => {
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
@@ -96,17 +94,14 @@ const AttendanceScreen = () => {
   const { user, accessToken: token } = useSelector(s => s.auth);
   const isAdmin = user?.role === 'admin';
 
-  // ── tab state (admin mobile) ────────────────────────────────────────────
-  const [mobileTab, setMobileTab] = useState('calendar'); // calendar | team | detail
-
-  // ── date state ─────────────────────────────────────────────────────────
+  // ── state management ───────────────────────────────────────────────────
+  const [mobileTab, setMobileTab] = useState('calendar');
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [selectedDate, setSelected] = useState(todayStr());
   const today = todayStr();
 
-  // ── data state ─────────────────────────────────────────────────────────
   const [users, setUsers] = useState([]);
   const [searchQ, setSearchQ] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
@@ -117,8 +112,8 @@ const AttendanceScreen = () => {
   const [loading, setLoading] = useState(false);
   const [markLoading, setMarkLoading] = useState(false);
 
-  // ── OTP state ──────────────────────────────────────────────────────────
-  const [otpStep, setOtpStep] = useState('idle'); // idle | pending
+  // OTP state
+  const [otpStep, setOtpStep] = useState('idle');
   const [otpType, setOtpType] = useState('checkIn');
   const [otpValue, setOtpValue] = useState('');
   const [otpError, setOtpError] = useState('');
@@ -129,13 +124,9 @@ const AttendanceScreen = () => {
   const checkedOut = !!todayRecord?.checkOut;
   const isCheckOut = otpType === 'checkOut';
 
-  // ── auth header ────────────────────────────────────────────────────────
-  const authHeader = () => {
-    const tk = token;
-    return { headers: { Authorization: `Bearer ${tk}` } };
-  };
+  const authHeader = () => ({ headers: { Authorization: `Bearer ${token}` } });
 
-  // ── OTP timer ──────────────────────────────────────────────────────────
+  // OTP Timer logic
   useEffect(() => {
     if (otpTimer <= 0) return;
     const id = setInterval(() => {
@@ -152,77 +143,92 @@ const AttendanceScreen = () => {
     return () => clearInterval(id);
   }, [otpTimer]);
 
-  // ── API calls ──────────────────────────────────────────────────────────
-  const fetchAdminMonthly = useCallback(async (m, y) => {
-    setLoading(true);
-    try {
-      const { data } = await axios.get(
-        `${API}/attendance/admin/monthly?month=${m}&year=${y}`,
-        authHeader(),
-      );
-      setMonthlySummary(data.summary || {});
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // ── API methods ────────────────────────────────────────────────────────
+  const fetchAdminMonthly = useCallback(
+    async (m, y) => {
+      setLoading(true);
+      try {
+        const { data } = await axios.get(
+          `${API}/attendance/admin/monthly?month=${m}&year=${y}`,
+          authHeader(),
+        );
+        setMonthlySummary(data.summary || {});
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [token],
+  );
 
-  const fetchDayDetail = useCallback(async date => {
-    try {
-      const { data } = await axios.get(
-        `${API}/attendance/admin/day?date=${date}`,
-        authHeader(),
-      );
-      setDayDetail(data);
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
+  const fetchDayDetail = useCallback(
+    async date => {
+      try {
+        const { data } = await axios.get(
+          `${API}/attendance/admin/day?date=${date}`,
+          authHeader(),
+        );
+        setDayDetail(data);
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    [token],
+  );
 
-  const fetchUsers = useCallback(async (q = '') => {
-    try {
-      const { data } = await axios.get(
-        `${API}/attendance/admin/users?search=${q}`,
-        authHeader(),
-      );
-      setUsers(data);
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
+  const fetchUsers = useCallback(
+    async (q = '') => {
+      try {
+        const { data } = await axios.get(
+          `${API}/attendance/admin/users?search=${q}`,
+          authHeader(),
+        );
+        setUsers(data);
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    [token],
+  );
 
-  const fetchUserMonthly = useCallback(async (uid, m, y) => {
-    setLoading(true);
-    try {
-      const { data } = await axios.get(
-        `${API}/attendance/admin/user/${uid}?month=${m}&year=${y}`,
-        authHeader(),
-      );
-      setUserMonthly(data.records || {});
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const fetchUserMonthly = useCallback(
+    async (uid, m, y) => {
+      setLoading(true);
+      try {
+        const { data } = await axios.get(
+          `${API}/attendance/admin/user/${uid}?month=${m}&year=${y}`,
+          authHeader(),
+        );
+        setUserMonthly(data.records || {});
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [token],
+  );
 
-  const fetchMyMonthly = useCallback(async (m, y) => {
-    setLoading(true);
-    try {
-      const { data } = await axios.get(
-        `${API}/attendance/my?month=${m}&year=${y}`,
-        authHeader(),
-      );
-      setMyRecords(data.records || {});
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const fetchMyMonthly = useCallback(
+    async (m, y) => {
+      setLoading(true);
+      try {
+        const { data } = await axios.get(
+          `${API}/attendance/my?month=${m}&year=${y}`,
+          authHeader(),
+        );
+        setMyRecords(data.records || {});
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [token],
+  );
 
-  // ── effects ────────────────────────────────────────────────────────────
+  // Effects
   useEffect(() => {
     if (isAdmin) {
       fetchUsers(searchQ);
@@ -252,7 +258,7 @@ const AttendanceScreen = () => {
     else fetchAdminMonthly(month, year);
   }, [selectedUser, month, year]);
 
-  // ── OTP actions ────────────────────────────────────────────────────────
+  // OTP Handlers
   const requestOtp = async type => {
     setMarkLoading(true);
     setOtpError('');
@@ -297,16 +303,16 @@ const AttendanceScreen = () => {
     }
   };
 
-  // ── calendar helpers ───────────────────────────────────────────────────
-  const buildCalendar = () => {
+  // ── Grid helper logic ───────────────────────────────────────────────────
+  const cells = (() => {
     const firstDay = new Date(year, month - 1, 1).getDay();
     const daysInMonth = new Date(year, month, 0).getDate();
-    const cells = [];
-    for (let i = 0; i < firstDay; i++) cells.push(null);
+    const arr = [];
+    for (let i = 0; i < firstDay; i++) arr.push(null);
     for (let d = 1; d <= daysInMonth; d++)
-      cells.push(`${year}-${pad(month)}-${pad(d)}`);
-    return cells;
-  };
+      arr.push(`${year}-${pad(month)}-${pad(d)}`);
+    return arr;
+  })();
 
   const prevMonth = () => {
     if (month === 1) {
@@ -331,40 +337,32 @@ const AttendanceScreen = () => {
     if (!date) return null;
     if (!isAdmin) {
       const rec = myRecords[date];
-      if (!rec) return null;
-      return {
-        present: 1,
-        absent: 0,
-        status: rec.status,
-        checkOut: rec.checkOut,
-      };
+      return rec
+        ? { present: 1, absent: 0, status: rec.status, checkOut: rec.checkOut }
+        : null;
     }
     if (selectedUser) {
       const rec = userMonthly[date];
-      const isPast = date <= today;
-      if (rec) return { present: 1, absent: 0 };
-      if (isPast) return { present: 0, absent: 1 };
-      return null;
+      return rec
+        ? { present: 1, absent: 0 }
+        : date <= today
+        ? { present: 0, absent: 1 }
+        : null;
     }
     return monthlySummary[date] || null;
   };
 
-  const cells = buildCalendar();
-
-  // ── screen width for cell sizing ───────────────────────────────────────
   const screenW = Dimensions.get('window').width;
   const cellWidth = Math.floor(screenW / 7);
   const cellHeight = 72;
 
   // ══════════════════════════════════════════════════════════════════════
-  // SUB-COMPONENTS
+  // FUNCTIONS RETURN DIRECT JSX (Focus fix update)
   // ══════════════════════════════════════════════════════════════════════
 
-  // ── Employee Bar ───────────────────────────────────────────────────────
-  const EmployeeBar = () => {
+  const renderEmployeeBar = () => {
     if (isAdmin) return null;
     const barColor = isCheckOut && otpStep === 'pending' ? '#dc2626' : T.accent;
-    const barEnd = isCheckOut && otpStep === 'pending' ? '#991b1b' : '#4f46e5';
     const dateLabel = new Date().toLocaleDateString('en-IN', {
       weekday: 'short',
       day: 'numeric',
@@ -374,7 +372,6 @@ const AttendanceScreen = () => {
 
     return (
       <View style={[s.employeeBar, { backgroundColor: barColor }]}>
-        {/* date row */}
         <View style={s.ebRow}>
           <Icon
             name="calendar-outline"
@@ -384,7 +381,6 @@ const AttendanceScreen = () => {
           <Text style={s.ebDate}>{dateLabel}</Text>
         </View>
 
-        {/* action row */}
         {otpStep === 'idle' && (
           <View style={s.ebActionRow}>
             {checkedIn && (
@@ -440,7 +436,6 @@ const AttendanceScreen = () => {
 
         {otpStep === 'pending' && (
           <View style={s.otpRow}>
-            {/* timer */}
             <View style={s.otpTimerBadge}>
               <Icon
                 name="time-outline"
@@ -453,7 +448,6 @@ const AttendanceScreen = () => {
                 {Math.floor(otpTimer / 60)}:{pad(otpTimer % 60)}
               </Text>
             </View>
-            {/* input */}
             <TextInput
               value={otpValue}
               onChangeText={v => {
@@ -466,7 +460,6 @@ const AttendanceScreen = () => {
               maxLength={6}
               style={[s.otpInput, otpError && { borderColor: '#fca5a5' }]}
             />
-            {/* verify */}
             <TouchableOpacity
               onPress={verifyOtp}
               disabled={markLoading || otpValue.length < 6}
@@ -484,7 +477,6 @@ const AttendanceScreen = () => {
                 {markLoading ? '...' : 'Verify'}
               </Text>
             </TouchableOpacity>
-            {/* resend */}
             <TouchableOpacity
               onPress={() => requestOtp(otpType)}
               disabled={markLoading}
@@ -492,7 +484,6 @@ const AttendanceScreen = () => {
             >
               <Icon name="refresh-outline" size={11} color="#fff" />
             </TouchableOpacity>
-            {/* cancel */}
             <TouchableOpacity
               onPress={() => {
                 setOtpStep('idle');
@@ -507,7 +498,6 @@ const AttendanceScreen = () => {
           </View>
         )}
 
-        {/* mail hint */}
         {otpStep === 'pending' && !otpError && (
           <View style={s.ebHintRow}>
             <Icon name="mail-outline" size={11} color="rgba(255,255,255,0.7)" />
@@ -528,8 +518,7 @@ const AttendanceScreen = () => {
     );
   };
 
-  // ── Calendar Header ────────────────────────────────────────────────────
-  const CalendarHeader = () => (
+  const renderCalendarHeader = () => (
     <View
       style={[
         s.calHeader,
@@ -561,7 +550,6 @@ const AttendanceScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
-      {/* selected user badge (admin) */}
       {isAdmin && selectedUser && (
         <View
           style={[
@@ -590,10 +578,8 @@ const AttendanceScreen = () => {
     </View>
   );
 
-  // ── Calendar Grid ──────────────────────────────────────────────────────
-  const CalendarGrid = () => (
+  const renderCalendarGrid = () => (
     <View style={{ flex: 1 }}>
-      {/* Day headers */}
       <View style={[s.dayHeaderRow, { borderBottomColor: T.border }]}>
         {DAYS_SHORT.map((d, i) => (
           <View
@@ -608,7 +594,6 @@ const AttendanceScreen = () => {
           </View>
         ))}
       </View>
-      {/* Grid body */}
       {loading ? (
         <View style={s.loadingCenter}>
           <ActivityIndicator size="small" color={T.accent} />
@@ -652,12 +637,8 @@ const AttendanceScreen = () => {
                       backgroundColor: cellBg,
                       borderBottomColor: T.borderLight,
                       borderRightColor: T.borderLight,
-                      borderWidth: isSelected ? 0 : undefined,
                     },
-                    isSelected && {
-                      borderWidth: 2,
-                      borderColor: T.accent,
-                    },
+                    isSelected && { borderWidth: 2, borderColor: T.accent },
                   ]}
                 >
                   {date && (
@@ -682,7 +663,6 @@ const AttendanceScreen = () => {
                       {data && (
                         <View style={{ marginTop: 2 }}>
                           {isAdmin && !selectedUser ? (
-                            // Admin summary
                             <View>
                               <View style={s.cellStatRow}>
                                 <Icon
@@ -710,7 +690,6 @@ const AttendanceScreen = () => {
                               </View>
                             </View>
                           ) : (
-                            // Employee / single user
                             <View>
                               <View
                                 style={[
@@ -770,12 +749,10 @@ const AttendanceScreen = () => {
     </View>
   );
 
-  // ── Right Panel / Detail Content ───────────────────────────────────────
-  const DetailContent = () => {
+  const renderDetailContent = () => {
     if (isAdmin && dayDetail) {
       return (
         <>
-          {/* present / absent summary */}
           <View style={s.detailSummaryRow}>
             <View
               style={[s.detailSummaryCard, { backgroundColor: T.presentBg }]}
@@ -799,7 +776,6 @@ const AttendanceScreen = () => {
             </View>
           </View>
 
-          {/* present list */}
           {dayDetail.present.length > 0 && (
             <>
               <Text style={[s.sectionLabel, { color: T.text3 }]}>
@@ -859,7 +835,6 @@ const AttendanceScreen = () => {
             </>
           )}
 
-          {/* absent list */}
           {dayDetail.absent.length > 0 && (
             <>
               <Text style={[s.sectionLabel, { color: T.text3, marginTop: 12 }]}>
@@ -981,14 +956,11 @@ const AttendanceScreen = () => {
         </View>
       );
     }
-
     return null;
   };
 
-  // ── Team Panel ─────────────────────────────────────────────────────────
-  const TeamPanel = () => (
+  const renderTeamPanel = () => (
     <View style={[{ flex: 1 }, { backgroundColor: T.cardBg }]}>
-      {/* header */}
       <View style={[s.teamHeader, { borderBottomColor: T.border }]}>
         <View style={s.teamHeaderTitle}>
           <Icon name="people-outline" size={14} color={T.accent} />
@@ -1020,9 +992,7 @@ const AttendanceScreen = () => {
           />
         </View>
       </View>
-      {/* list */}
       <ScrollView style={{ flex: 1 }}>
-        {/* All users row */}
         <TouchableOpacity
           onPress={() => {
             setSelectedUser(null);
@@ -1071,9 +1041,7 @@ const AttendanceScreen = () => {
               <View
                 style={[
                   s.avatar,
-                  {
-                    backgroundColor: isActive ? T.accent : T.avatarBg,
-                  },
+                  { backgroundColor: isActive ? T.accent : T.avatarBg },
                 ]}
               >
                 <Text
@@ -1103,8 +1071,7 @@ const AttendanceScreen = () => {
     </View>
   );
 
-  // ── Detail selected date header ────────────────────────────────────────
-  const DetailHeader = () => (
+  const renderDetailHeader = () => (
     <View style={s.detailDateRow}>
       <Icon name="calendar-outline" size={14} color={T.accent} />
       <Text style={[s.detailDateText, { color: T.text1 }]}>
@@ -1119,9 +1086,6 @@ const AttendanceScreen = () => {
     </View>
   );
 
-  // ══════════════════════════════════════════════════════════════════════
-  // RENDER
-  // ══════════════════════════════════════════════════════════════════════
   const TAB_HEIGHT = 56;
 
   return (
@@ -1131,39 +1095,32 @@ const AttendanceScreen = () => {
         backgroundColor={T.bg}
       />
 
-      {/* Employee check-in bar */}
-      <EmployeeBar />
+      {/* RENDER FUNCTIONS INSTEAD OF CUSTOM COMPONENTS */}
+      {renderEmployeeBar()}
+      {renderCalendarHeader()}
 
-      {/* Calendar header */}
-      <CalendarHeader />
-
-      {/* Content area */}
       <View style={{ flex: 1, paddingBottom: isAdmin ? TAB_HEIGHT : 0 }}>
         {isAdmin ? (
           <>
-            {mobileTab === 'calendar' && <CalendarGrid />}
-            {mobileTab === 'team' && <TeamPanel />}
+            {mobileTab === 'calendar' && renderCalendarGrid()}
+            {mobileTab === 'team' && renderTeamPanel()}
             {mobileTab === 'detail' && (
               <ScrollView
                 style={{ flex: 1 }}
                 contentContainerStyle={{ padding: 12 }}
               >
-                <DetailHeader />
-                <DetailContent />
+                {renderDetailHeader()}
+                {renderDetailContent()}
               </ScrollView>
             )}
           </>
         ) : (
-          /* Employee: calendar + detail stacked */
           <ScrollView style={{ flex: 1 }}>
-            <CalendarGrid />
+            {renderCalendarGrid()}
             <View
               style={[
                 s.empDetailSection,
-                {
-                  borderTopColor: T.border,
-                  backgroundColor: T.cardBg,
-                },
+                { borderTopColor: T.border, backgroundColor: T.cardBg },
               ]}
             >
               <View style={s.detailDateRow}>
@@ -1181,13 +1138,12 @@ const AttendanceScreen = () => {
                     : 'Select a date'}
                 </Text>
               </View>
-              <DetailContent />
+              {renderDetailContent()}
             </View>
           </ScrollView>
         )}
       </View>
 
-      {/* Bottom tab bar (admin only) */}
       {isAdmin && (
         <View
           style={[
@@ -1252,11 +1208,9 @@ const AttendanceScreen = () => {
   );
 };
 
-// ─── styles ───────────────────────────────────────────────────────────────────
+// ─── styles (keep intact) ───────────────────────────────────────────────────────
 const s = StyleSheet.create({
   root: { flex: 1 },
-
-  // employee bar
   employeeBar: {
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -1303,8 +1257,6 @@ const s = StyleSheet.create({
     marginTop: 6,
   },
   ebHintText: { fontSize: 11, color: 'rgba(255,255,255,0.7)' },
-
-  // OTP
   otpRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1364,8 +1316,6 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.2)',
   },
   otpCancelText: { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
-
-  // calendar header
   calHeader: {
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1392,8 +1342,6 @@ const s = StyleSheet.create({
     borderWidth: 1,
   },
   todayBtnText: { fontSize: 12, fontWeight: '500' },
-
-  // user badge
   userBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1419,8 +1367,6 @@ const s = StyleSheet.create({
     paddingVertical: 2,
   },
   userBadgeClearText: { fontSize: 10 },
-
-  // day headers
   dayHeaderRow: { flexDirection: 'row', borderBottomWidth: 1 },
   dayHeaderText: {
     fontSize: 10,
@@ -1428,8 +1374,6 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-
-  // grid
   gridWrap: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: {
     borderBottomWidth: 1,
@@ -1459,8 +1403,6 @@ const s = StyleSheet.create({
   cellStatText: { fontSize: 10 },
   cellChip: { borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1 },
   cellChipText: { fontSize: 9, fontWeight: '700' },
-
-  // loading
   loadingCenter: {
     flex: 1,
     alignItems: 'center',
@@ -1468,8 +1410,6 @@ const s = StyleSheet.create({
     paddingTop: 60,
   },
   loadingText: { fontSize: 13, marginTop: 8 },
-
-  // detail panel
   detailSummaryRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   detailSummaryCard: {
     flex: 1,
@@ -1518,8 +1458,6 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarText: { fontSize: 11, fontWeight: '700' },
-
-  // record rows (employee detail)
   recordRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1534,8 +1472,6 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
   recordTime: { fontSize: 11 },
-
-  // team panel
   teamHeader: { padding: 12, borderBottomWidth: 1 },
   teamHeaderTitle: {
     flexDirection: 'row',
@@ -1573,8 +1509,6 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-
-  // employee detail section
   empDetailSection: { borderTopWidth: 1, padding: 12 },
   detailDateRow: {
     flexDirection: 'row',
@@ -1583,8 +1517,6 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   detailDateText: { fontSize: 13, fontWeight: '500' },
-
-  // tab bar
   tabBar: {
     position: 'absolute',
     bottom: 0,
@@ -1608,8 +1540,6 @@ const s = StyleSheet.create({
     height: 2,
     borderRadius: 2,
   },
-
-  // misc
   emptyText: { textAlign: 'center', fontSize: 12, paddingVertical: 24 },
 });
 
