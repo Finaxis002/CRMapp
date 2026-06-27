@@ -20,12 +20,10 @@ import { API_BASE_URL } from '../../config';
 const authHeaders = async () => {
   let token = '';
   try {
-    // 1. Direct token check
     token =
       (await AsyncStorage.getItem('accessToken')) ||
       (await AsyncStorage.getItem('token'));
 
-    // 2. Fallback to Redux Persist 'persist:auth'
     if (!token) {
       const persistAuth = await AsyncStorage.getItem('persist:auth');
       if (persistAuth) {
@@ -123,7 +121,6 @@ const AddEventModal = ({
 
   // ── Save Event ────────────────────────────────────────────────────
   const handleSave = async () => {
-    // Validation
     if (!form.title.trim()) {
       Alert.alert('Error', 'Enter event title');
       return;
@@ -306,25 +303,31 @@ const AddEventModal = ({
               )}
             </View>
 
-            {/* ── Date & Time Row ── */}
+            {/* ── Date & Time Row with Icons ── */}
             <View style={styles.row}>
               <View style={[styles.inputGroup, { flex: 1, marginRight: 6 }]}>
                 <Text style={styles.label}>Date *</Text>
                 <TouchableOpacity
-                  style={styles.input}
+                  style={[styles.input, styles.datePickerInput]}
                   onPress={() => setShowDatePicker(true)}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.pickerText}>
                     {form.eventDate.toLocaleDateString()}
                   </Text>
+                  <Icon
+                    name="calendar"
+                    size={18}
+                    color="#6b7280"
+                    style={styles.pickerIcon}
+                  />
                 </TouchableOpacity>
               </View>
 
               <View style={[styles.inputGroup, { flex: 1, marginLeft: 6 }]}>
                 <Text style={styles.label}>Time</Text>
                 <TouchableOpacity
-                  style={styles.input}
+                  style={[styles.input, styles.datePickerInput]}
                   onPress={() => setShowTimePicker(true)}
                   activeOpacity={0.7}
                 >
@@ -334,6 +337,12 @@ const AddEventModal = ({
                       minute: '2-digit',
                     })}
                   </Text>
+                  <Icon
+                    name="clock-outline"
+                    size={18}
+                    color="#6b7280"
+                    style={styles.pickerIcon}
+                  />
                 </TouchableOpacity>
               </View>
             </View>
@@ -462,9 +471,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 44,
   },
+  // ── NEW: Date/Time Picker Styles with Icons ──
+  datePickerInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+  },
   pickerText: {
     fontSize: 14,
     color: '#0f172a',
+    flex: 1,
+  },
+  pickerIcon: {
+    marginLeft: 8,
   },
   dropdownTrigger: {
     flexDirection: 'row',
