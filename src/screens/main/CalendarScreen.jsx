@@ -23,7 +23,7 @@ import AddEventModal from '../../components/common/AddEventModal.jsx';
 import api from '../../services/api.js';
 import { API_BASE_URL } from '../../config/index.js';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -363,7 +363,7 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
                 ]}
               >
                 <Icon
-                  name={isDone ? 'refresh' : 'check-square'}
+                  name={isDone ? 'refresh' : 'checkbox-marked'}
                   size={14}
                   color={isDone ? '#f97316' : '#fff'}
                 />
@@ -584,6 +584,8 @@ const AddReminderModal = ({
                 <Text style={s.fieldLabel}>Type</Text>
                 <View style={s.pickerWrap}>
                   <Picker
+                    itemStyle={s.pickerItem}
+                    mode="dropdown"
                     selectedValue={form.type}
                     onValueChange={v => setF('type', v)}
                     style={s.picker}
@@ -599,6 +601,8 @@ const AddReminderModal = ({
                 <Text style={s.fieldLabel}>Assign To *</Text>
                 <View style={s.pickerWrap}>
                   <Picker
+                    itemStyle={s.pickerItem}
+                    mode="dropdown"
                     selectedValue={form.assignedTo}
                     onValueChange={v => setF('assignedTo', v)}
                     style={s.picker}
@@ -880,6 +884,8 @@ const AddTaskModal = ({
                 <Text style={s.fieldLabel}>Assign To *</Text>
                 <View style={s.pickerWrap}>
                   <Picker
+                    itemStyle={s.pickerItem}
+                    mode="dropdown"
                     selectedValue={form.assignedTo}
                     onValueChange={v => setF('assignedTo', v)}
                     style={s.picker}
@@ -900,6 +906,8 @@ const AddTaskModal = ({
                 selectedValue={form.notify}
                 onValueChange={v => setF('notify', v)}
                 style={s.picker}
+                itemStyle={s.pickerItem}
+                mode="dropdown"
                 dropdownIconColor="#6b7280"
               >
                 <Picker.Item label="None" value="" />
@@ -1066,10 +1074,7 @@ const DayPanelModal = ({
         activeOpacity={1}
         onPress={onClose}
       >
-        <TouchableOpacity
-          style={[s.modalCard, { maxHeight: '85%' }]}
-          activeOpacity={1}
-        >
+        <TouchableOpacity style={s.dayPanelCard} activeOpacity={1}>
           {/* Header */}
           <View style={s.modalHeader}>
             <View>
@@ -1100,7 +1105,8 @@ const DayPanelModal = ({
           </View>
 
           <ScrollView
-            style={{ flex: 1, padding: 16 }}
+            style={s.dayPanelScroll}
+            contentContainerStyle={s.dayPanelContent}
             showsVerticalScrollIndicator={false}
           >
             {empty ? (
@@ -2862,6 +2868,23 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  dayPanelCard: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: SCREEN_HEIGHT * 0.72,
+    maxHeight: SCREEN_HEIGHT * 0.85,
+    overflow: 'hidden',
+  },
+
+  dayPanelScroll: {
+    flex: 1,
+  },
+
+  dayPanelContent: {
+    padding: 16,
+    paddingBottom: 32,
+  },
   dayNumToday: { backgroundColor: PRIMARY },
   dayNumText: { fontSize: 11, fontWeight: '700', color: '#374151' },
   dayNumTextToday: { color: '#fff' },
@@ -2943,9 +2966,15 @@ const s = StyleSheet.create({
     borderColor: '#e5e7eb',
     borderRadius: 12,
     backgroundColor: '#fff',
-    overflow: 'hidden',
+    height: 54,
+    justifyContent: 'center',
+    overflow: 'visible',
   },
-  picker: { height: Platform.OS === 'ios' ? 120 : 44, color: '#111827' },
+  picker: { height: 54, width: '100%', color: '#111827', fontSize: 13 },
+  pickerItem: {
+    fontSize: 13,
+    color: '#111827',
+  },
   rowFields: { flexDirection: 'row', gap: 10 },
   halfField: { flex: 1 },
   hintText: { fontSize: 11, color: '#9ca3af', marginTop: 4 },
