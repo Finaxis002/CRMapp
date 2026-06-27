@@ -18,6 +18,7 @@ import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { googleCalendarService } from '../../services/googleCalendarService.js';
 import AddEventModal from '../../components/common/AddEventModal.jsx';
 import api from '../../services/api.js';
@@ -165,6 +166,41 @@ const toDateInputValue = date => {
     2,
     '0',
   )}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// ── Date/Time Helpers for Picker ──
+const parseDateInputValue = value => {
+  if (!value) return new Date();
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? new Date() : d;
+};
+
+const parseTimeInputValue = (time, baseDate) => {
+  const d = parseDateInputValue(baseDate);
+  if (!time) {
+    d.setHours(10, 0, 0, 0);
+    return d;
+  }
+  const [hours, minutes] = String(time).split(':').map(Number);
+  d.setHours(
+    Number.isNaN(hours) ? 10 : hours,
+    Number.isNaN(minutes) ? 0 : minutes,
+    0,
+    0,
+  );
+  return d;
+};
+
+const toTimeInputValue = date => {
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '10:00';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(
+    d.getMinutes(),
+  ).padStart(2, '0')}`;
 };
 
 const getTaskLeadName = task => {
@@ -424,6 +460,10 @@ const AddReminderModal = ({
   const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // ── Picker states ──
+  const [showReminderDatePicker, setShowReminderDatePicker] = useState(false);
+  const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
+
   const setF = (key, val) => setForm(p => ({ ...p, [key]: val }));
 
   const searchLeads = useCallback(async q => {
@@ -621,23 +661,41 @@ const AddReminderModal = ({
             <View style={s.rowFields}>
               <View style={s.halfField}>
                 <Text style={s.fieldLabel}>Date *</Text>
-                <TextInput
-                  style={s.input}
-                  value={form.reminderDate}
-                  onChangeText={v => setF('reminderDate', v)}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#9ca3af"
-                />
+                <TouchableOpacity
+                  style={[s.input, s.datePickerInput]}
+                  activeOpacity={0.8}
+                  onPress={() => setShowReminderDatePicker(true)}
+                >
+                  <Text style={s.datePickerText}>
+                    {form.reminderDate || 'Select date'}
+                  </Text>
+                  <Icon
+                    name="calendar"
+                    size={18}
+                    color="#6b7280"
+                    style={s.datePickerIcon}
+                  />
+                </TouchableOpacity>
               </View>
               <View style={s.halfField}>
                 <Text style={s.fieldLabel}>Time</Text>
-                <TextInput
-                  style={s.input}
-                  value={form.reminderTime}
-                  onChangeText={v => setF('reminderTime', v)}
-                  placeholder="HH:MM"
-                  placeholderTextColor="#9ca3af"
-                />
+                <TouchableOpacity
+                  style={[s.input, s.datePickerInput]}
+                  activeOpacity={0.8}
+                  onPress={() => setShowReminderTimePicker(true)}
+                >
+                  <Text style={s.datePickerText}>
+                    {form.reminderTime
+                      ? formatTime12(form.reminderTime)
+                      : 'Select time'}
+                  </Text>
+                  <Icon
+                    name="clock-outline"
+                    size={18}
+                    color="#6b7280"
+                    style={s.datePickerIcon}
+                  />
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -651,6 +709,43 @@ const AddReminderModal = ({
               placeholderTextColor="#9ca3af"
             />
           </ScrollView>
+
+          {/* ── Native Date Picker ── */}
+          {showReminderDatePicker && (
+            <DateTimePicker
+              value={parseDateInputValue(form.reminderDate)}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'calendar'}
+              onChange={(event, selectedDate) => {
+                if (Platform.OS === 'android') {
+                  setShowReminderDatePicker(false);
+                }
+                if (event?.type === 'dismissed') return;
+                if (selectedDate) {
+                  setF('reminderDate', toDateInputValue(selectedDate));
+                }
+              }}
+            />
+          )}
+
+          {/* ── Native Time Picker ── */}
+          {showReminderTimePicker && (
+            <DateTimePicker
+              value={parseTimeInputValue(form.reminderTime, form.reminderDate)}
+              mode="time"
+              is24Hour={false}
+              display={Platform.OS === 'ios' ? 'spinner' : 'clock'}
+              onChange={(event, selectedTime) => {
+                if (Platform.OS === 'android') {
+                  setShowReminderTimePicker(false);
+                }
+                if (event?.type === 'dismissed') return;
+                if (selectedTime) {
+                  setF('reminderTime', toTimeInputValue(selectedTime));
+                }
+              }}
+            />
+          )}
 
           {/* Footer */}
           <View style={s.modalFooter}>
@@ -699,6 +794,9 @@ const AddTaskModal = ({
   const [leads, setLeads] = useState([]);
   const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // ── Picker states ──
+  const [showTaskDatePicker, setShowTaskDatePicker] = useState(false);
 
   const setF = (key, val) => setForm(p => ({ ...p, [key]: val }));
 
@@ -872,13 +970,21 @@ const AddTaskModal = ({
             <View style={s.rowFields}>
               <View style={s.halfField}>
                 <Text style={s.fieldLabel}>Due Date *</Text>
-                <TextInput
-                  style={s.input}
-                  value={form.dueDate}
-                  onChangeText={v => setF('dueDate', v)}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#9ca3af"
-                />
+                <TouchableOpacity
+                  style={[s.input, s.datePickerInput]}
+                  activeOpacity={0.8}
+                  onPress={() => setShowTaskDatePicker(true)}
+                >
+                  <Text style={s.datePickerText}>
+                    {form.dueDate || 'Select due date'}
+                  </Text>
+                  <Icon
+                    name="calendar"
+                    size={18}
+                    color="#6b7280"
+                    style={s.datePickerIcon}
+                  />
+                </TouchableOpacity>
               </View>
               <View style={s.halfField}>
                 <Text style={s.fieldLabel}>Assign To *</Text>
@@ -920,6 +1026,24 @@ const AddTaskModal = ({
               Select a user to notify on task creation.
             </Text>
           </ScrollView>
+
+          {/* ── Native Date Picker ── */}
+          {showTaskDatePicker && (
+            <DateTimePicker
+              value={parseDateInputValue(form.dueDate)}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'calendar'}
+              onChange={(event, selectedDate) => {
+                if (Platform.OS === 'android') {
+                  setShowTaskDatePicker(false);
+                }
+                if (event?.type === 'dismissed') return;
+                if (selectedDate) {
+                  setF('dueDate', toDateInputValue(selectedDate));
+                }
+              }}
+            />
+          )}
 
           <View style={s.modalFooter}>
             <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
@@ -2960,6 +3084,21 @@ const s = StyleSheet.create({
     fontSize: 14,
     color: '#111827',
     backgroundColor: '#f9fafb',
+  },
+  datePickerInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+  },
+  datePickerText: {
+    fontSize: 14,
+    color: '#111827',
+    fontWeight: '500',
+    flex: 1,
+  },
+  datePickerIcon: {
+    marginLeft: 8,
   },
   pickerWrap: {
     borderWidth: 1,
