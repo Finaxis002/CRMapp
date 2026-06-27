@@ -15,6 +15,7 @@ import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import api from '../../../services/api';
+import CallLogCard from '../../../services/callLogCard.js';
 
 // =============================================
 // HELPERS
@@ -22,7 +23,7 @@ import api from '../../../services/api';
 const parseApiResponseArray = response => {
   const payload = response?.data?.data;
   if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.data)) return [payload.data];
+  if (Array.isArray(payload?.data)) return payload.data;
   return [];
 };
 
@@ -35,11 +36,12 @@ const EDITABLE_TYPES = new Set([
   'task',
 ]);
 
-const getActivityIcon = (type, source) => {
+const getActivityIcon = (type, source, isAutoTracked) => {
+  if (isAutoTracked) return '🎙️';
   const raw = String(type || '').toLowerCase();
 
   if (raw.includes('whatsapp') || source === 'whatsapp') {
-    return '💬'; // WhatsApp emoji for React Native
+    return '💬';
   }
   if (raw === 'call') return '📞';
   if (raw === 'task') return '📌';
@@ -56,14 +58,16 @@ const getActivityIcon = (type, source) => {
 const getCallOutcomeMeta = outcome => {
   switch (outcome) {
     case 'Spoke':
+    case 'Recorded':
       return {
-        label: 'Spoke',
+        label: outcome,
         color: '#16a34a',
         bg: 'rgba(34, 197, 94, 0.12)',
       };
     case 'No Answer':
+    case 'Unknown':
       return {
-        label: 'No Answer',
+        label: outcome,
         color: '#dc2626',
         bg: 'rgba(239, 68, 68, 0.12)',
       };
@@ -81,7 +85,7 @@ const getCallOutcomeMeta = outcome => {
 const formatDate = dateOrItem => {
   const date =
     dateOrItem && typeof dateOrItem === 'object'
-      ? dateOrItem.updatedAt || dateOrItem.createdAt
+      ? dateOrItem.updatedAt || dateOrItem.createdAt || dateOrItem.callTimestamp
       : dateOrItem;
   if (!date) return '';
   return new Date(date).toLocaleString('en-IN', {
@@ -195,6 +199,7 @@ const InteractionsTab = ({
   theme = {},
   users = [],
   activityRefreshTrigger,
+  onActivitySaved,
 }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -222,6 +227,9 @@ const InteractionsTab = ({
     textMuted: theme.textMuted || '#9ca3af',
     accent: theme.accent || '#6366f1',
     danger: theme.danger || '#ef4444',
+    phoneIcon: theme.phoneIcon || '#16a34a',
+    phoneBg: theme.phoneBg || '#dcfce7',
+    success: theme.success || '#22c55e',
   };
 
   // =============================================
@@ -234,6 +242,7 @@ const InteractionsTab = ({
     setError(null);
 
     try {
+      // FIXED: proper template strings
       const activityPromise = api.get(`/activities/lead/${leadId}`);
       const whatsappPromise = api.get(`/whatsapp/messages?leadId=${leadId}`);
 
@@ -246,7 +255,7 @@ const InteractionsTab = ({
         activityResult.status === 'fulfilled' ? activityResult.value : null,
       ).map(activity => ({
         ...activity,
-        source: 'activity',
+        source: activity.source || 'activity',
         type: activity.type || 'Note',
       }));
 
@@ -265,8 +274,12 @@ const InteractionsTab = ({
       }
 
       const merged = [...activities, ...whatsappMessages].sort((a, b) => {
-        const aDate = new Date(a.updatedAt || a.createdAt);
-        const bDate = new Date(b.updatedAt || b.createdAt);
+        const aDate = new Date(
+          a.updatedAt || a.createdAt || a.callTimestamp || 0,
+        );
+        const bDate = new Date(
+          b.updatedAt || b.createdAt || b.callTimestamp || 0,
+        );
         return bDate - aDate;
       });
 
@@ -301,6 +314,7 @@ const InteractionsTab = ({
   };
 
   const prepareEditForm = item => {
+    if (item.isAutoTracked) return;
     setEditItem(item);
     setEditForm({
       text: item.text || '',
@@ -355,9 +369,11 @@ const InteractionsTab = ({
     setSaving(true);
     try {
       const payload = buildEditPayload();
+
       await api.put(`/activities/${editItem._id}`, payload);
       await fetchInteractions();
       resetEditForm();
+      if (onActivitySaved) onActivitySaved();
     } catch (err) {
       setError(
         err?.response?.data?.message ||
@@ -386,11 +402,13 @@ const InteractionsTab = ({
                 activity.source === 'whatsapp'
                   ? `/whatsapp/messages/${activity._id}`
                   : `/activities/${activity._id}`;
+
               await api.delete(deleteUrl);
               await fetchInteractions();
               if (editItem?._id === activity._id) {
                 resetEditForm();
               }
+              if (onActivitySaved) onActivitySaved();
             } catch (err) {
               setError(
                 err?.response?.data?.message ||
@@ -407,15 +425,19 @@ const InteractionsTab = ({
   };
 
   const handleEdit = activity => {
+    if (activity.isAutoTracked) return;
     if (!EDITABLE_TYPES.has(String(activity.type || '').toLowerCase())) return;
     prepareEditForm(activity);
   };
 
-  const firstEditableActivityId = items.find(activity =>
-    EDITABLE_TYPES.has(String(activity.type || '').toLowerCase()),
+  const firstEditableActivityId = items.find(
+    activity =>
+      !activity.isAutoTracked &&
+      EDITABLE_TYPES.has(String(activity.type || '').toLowerCase()),
   )?._id;
 
   const isEditableRecent = activity => {
+    if (activity.isAutoTracked) return false;
     return (
       activity._id === firstEditableActivityId &&
       EDITABLE_TYPES.has(String(activity.type || '').toLowerCase())
@@ -475,6 +497,24 @@ const InteractionsTab = ({
                 </Text>
               )}
             </View>
+            {/* auto-track extras */}
+            {item.isAutoTracked && item.recordingUrl ? (
+              <Text
+                style={[
+                  styles.metaText,
+                  { color: defaultTheme.accent, marginTop: 4 },
+                ]}
+              >
+                🎙️ Recording available
+              </Text>
+            ) : null}
+            {item.isAutoTracked && item.phoneNumber ? (
+              <Text
+                style={[styles.metaText, { color: defaultTheme.textMuted }]}
+              >
+                {item.phoneNumber}
+              </Text>
+            ) : null}
           </>
         );
       }
@@ -638,6 +678,134 @@ const InteractionsTab = ({
   };
 
   // =============================================
+  // RENDER ITEM – with auto-tracked CallLogCard
+  // =============================================
+  const renderItem = item => {
+    // ── AUTO-TRACKED CALL ── same as ActivityTypeTab
+    if (item.isAutoTracked) {
+      return (
+        <View
+          style={{ position: 'relative', marginBottom: 14 }}
+          key={`auto-${item._id}`}
+        >
+          <CallLogCard callLog={item} theme={defaultTheme} />
+          <TouchableOpacity
+            onPress={() => handleDelete(item)}
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: 10,
+              backgroundColor: 'rgba(255,255,255,0.92)',
+              borderRadius: 20,
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderWidth: 1,
+              borderColor: 'rgba(220,38,38,0.25)',
+            }}
+          >
+            <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '600' }}>
+              Delete
+            </Text>
+          </TouchableOpacity>
+          {/* Auto badge */}
+          <View
+            style={{
+              position: 'absolute',
+              top: 10,
+              left: 10,
+              backgroundColor: '#ede9fe',
+              paddingHorizontal: 8,
+              paddingVertical: 2,
+              borderRadius: 12,
+            }}
+          >
+            <Text style={{ fontSize: 10, fontWeight: '700', color: '#6366f1' }}>
+              AUTO
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    // ── NORMAL ACTIVITY CARD ──
+    const editable = isEditableRecent(item);
+    return (
+      <View
+        key={`${item.source || 'act'}-${item._id}`}
+        style={[
+          styles.itemCard,
+          {
+            backgroundColor: defaultTheme.bgSurface,
+            borderColor: defaultTheme.border,
+          },
+        ]}
+      >
+        {/* Header Row */}
+        <View style={styles.itemHeader}>
+          <View style={styles.itemHeaderLeft}>
+            <Text style={styles.itemIcon}>
+              {getActivityIcon(item.type, item.source, item.isAutoTracked)}
+            </Text>
+            <Text
+              style={[styles.itemType, { color: defaultTheme.textPrimary }]}
+            >
+              {item.type || 'Note'}
+            </Text>
+            {editable && (
+              <View
+                style={[
+                  styles.recentBadge,
+                  { borderColor: defaultTheme.border },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.recentBadgeText,
+                    { color: defaultTheme.accent },
+                  ]}
+                >
+                  Recent
+                </Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.itemHeaderRight}>
+            {editable && (
+              <TouchableOpacity onPress={() => handleEdit(item)}>
+                <Text style={[styles.editText, { color: defaultTheme.accent }]}>
+                  Edit
+                </Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={() => handleDelete(item)}>
+              <Text style={styles.deleteText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Content */}
+        <View style={styles.itemContent}>{renderActivitySummary(item)}</View>
+
+        {/* Footer */}
+        <View
+          style={[styles.itemFooter, { borderTopColor: defaultTheme.border }]}
+        >
+          <Text style={[styles.footerText, { color: defaultTheme.textMuted }]}>
+            {item.sentBy?.name ||
+              item.createdBy?.name ||
+              item.createdByName ||
+              'You'}
+            {item.isAutoTracked ? ' · Auto' : ''}
+          </Text>
+          <Text style={[styles.footerText, { color: defaultTheme.textMuted }]}>
+            {formatDate(item)}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  // =============================================
   // RENDER
   // =============================================
   const userOptions = users.map(u => ({ value: u._id, label: u.name }));
@@ -653,6 +821,12 @@ const InteractionsTab = ({
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: defaultTheme.textPrimary }]}>
           {items.length} Interaction{items.length !== 1 ? 's' : ''}
+          {items.filter(i => i.isAutoTracked).length > 0 && (
+            <Text style={{ color: defaultTheme.accent, fontSize: 11 }}>
+              {'  • '}
+              {items.filter(i => i.isAutoTracked).length} auto
+            </Text>
+          )}
         </Text>
         <TouchableOpacity
           onPress={fetchInteractions}
@@ -665,7 +839,9 @@ const InteractionsTab = ({
             },
           ]}
         >
-          <Text style={styles.refreshButtonText}>Refresh</Text>
+          <Text style={styles.refreshButtonText}>
+            {loading ? '...' : 'Refresh'}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -915,93 +1091,7 @@ const InteractionsTab = ({
             </Text>
           </View>
         ) : (
-          items.map(item => (
-            <View
-              key={`${item.source}-${item._id}`}
-              style={[
-                styles.itemCard,
-                {
-                  backgroundColor: defaultTheme.bgSurface,
-                  borderColor: defaultTheme.border,
-                },
-              ]}
-            >
-              {/* Header Row */}
-              <View style={styles.itemHeader}>
-                <View style={styles.itemHeaderLeft}>
-                  <Text style={styles.itemIcon}>
-                    {getActivityIcon(item.type, item.source)}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.itemType,
-                      { color: defaultTheme.textPrimary },
-                    ]}
-                  >
-                    {item.type || 'Note'}
-                  </Text>
-                  {isEditableRecent(item) && (
-                    <View
-                      style={[
-                        styles.recentBadge,
-                        { borderColor: defaultTheme.border },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.recentBadgeText,
-                          { color: defaultTheme.accent },
-                        ]}
-                      >
-                        Recent
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.itemHeaderRight}>
-                  {isEditableRecent(item) && (
-                    <TouchableOpacity onPress={() => handleEdit(item)}>
-                      <Text
-                        style={[
-                          styles.editText,
-                          { color: defaultTheme.accent },
-                        ]}
-                      >
-                        Edit
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity onPress={() => handleDelete(item)}>
-                    <Text style={styles.deleteText}>Delete</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Content */}
-              <View style={styles.itemContent}>
-                {renderActivitySummary(item)}
-              </View>
-
-              {/* Footer */}
-              <View
-                style={[
-                  styles.itemFooter,
-                  { borderTopColor: defaultTheme.border },
-                ]}
-              >
-                <Text
-                  style={[styles.footerText, { color: defaultTheme.textMuted }]}
-                >
-                  {item.sentBy?.name || item.createdBy?.name || 'You'}
-                </Text>
-                <Text
-                  style={[styles.footerText, { color: defaultTheme.textMuted }]}
-                >
-                  {formatDate(item)}
-                </Text>
-              </View>
-            </View>
-          ))
+          items.map(item => renderItem(item))
         )}
       </ScrollView>
     </KeyboardAvoidingView>
