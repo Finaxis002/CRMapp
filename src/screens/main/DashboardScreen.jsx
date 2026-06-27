@@ -6,14 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  useColorScheme,
   FlatList,
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Feather from 'react-native-vector-icons/Feather';
-
+import { useTheme } from '../../contexts/ThemeContext';
 import { dashboardService } from '../../services/dashboardService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -275,8 +274,7 @@ const DashboardScreen = ({ navigation }) => {
   const [activeFilter, setActiveFilter] = useState('All');
   const [user, setUser] = useState(null);
 
-  const scheme = useColorScheme();
-  const isDark = scheme === 'dark';
+const { isDark } = useTheme();
 
   const colors = {
     accent: '#5a7bf6',
@@ -321,10 +319,11 @@ const DashboardScreen = ({ navigation }) => {
     };
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
-    setLoading(true);
-    (async () => {
+ useEffect(() => {
+  let mounted = true;
+  setLoading(true);
+  setOverview(null); // ← ye line add karo
+  (async () => {
       try {
         const data = await dashboardService.getOverview({
           filter: filterMap[activeFilter],
@@ -343,11 +342,17 @@ const DashboardScreen = ({ navigation }) => {
     };
   }, [activeFilter]);
 
-  const handleNavigate = (path, params = {}) => {
-    if (navigation && typeof navigation.navigate === 'function') {
-      navigation.navigate(path.replace(/^\//, ''), params);
-    }
-  };
+const handleNavigate = (path, params = {}) => {
+  if (navigation && typeof navigation.navigate === 'function') {
+    const screenMap = {
+      leads: 'Leads',
+      payments: 'Payments',
+      reports: 'Reports',
+    };
+    const key = path.replace(/^\//, '');
+    navigation.navigate(screenMap[key] || key, params);
+  }
+};
 
   const buildLeadParams = filterValue => {
     const dateParams = getDateParams(activeFilter);
@@ -361,9 +366,9 @@ const DashboardScreen = ({ navigation }) => {
   if (loading) {
     return (
       <SafeAreaView
-        edges={['bottom']}
-        style={[styles.root, { backgroundColor: colors.cardBg }]}
-      >
+  edges={['bottom']}
+  style={[styles.root, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}  // ← same as main return
+>
         <ScrollView contentContainerStyle={styles.container}>
           <View style={styles.header}>
             <View>

@@ -20,6 +20,7 @@ import { canUser } from '../../utils/permissions';
 import api from '../../services/api';
 import OtpLogoutModal from './OtpLogoutModal';
 import { useSidebar } from '../../contexts/SidebarContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const BRAND = '#5a7bf6';
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -77,7 +78,8 @@ const CustomSidebar = ({ currentRoute }) => {
   const navigation = useNavigation();
   const { user } = useSelector(state => state.auth);
   const settings = useSelector(state => state.settings.data);
-  const { isOpen, openSidebar, closeSidebar } = useSidebar();
+const { isOpen, openSidebar, closeSidebar } = useSidebar();
+const { isDark } = useTheme();
   const [otpModalOpen, setOtpModalOpen] = useState(false);
 
   // Slide-in animation
@@ -186,9 +188,9 @@ const CustomSidebar = ({ currentRoute }) => {
           color={isActive ? BRAND : '#64748b'}
           style={styles.navIcon}
         />
-        <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
-          {item.label}
-        </Text>
+        <Text style={[styles.navLabel, isActive && styles.navLabelActive, !isActive && { color: isDark ? '#94A3B8' : '#64748b' }]}>
+  {item.label}
+</Text>
       </TouchableOpacity>
     );
   };
@@ -223,36 +225,37 @@ const CustomSidebar = ({ currentRoute }) => {
       <Animated.View
         pointerEvents={isOpen ? 'auto' : 'none'}
         style={[
-          styles.container,
-          {
-            width: SIDEBAR_WIDTH,
-            paddingTop: insets.top,
-            paddingBottom: insets.bottom,
-            transform: [{ translateX: slideAnim }],
-          },
-        ]}
+  styles.container,
+  {
+    width: SIDEBAR_WIDTH,
+    paddingTop: insets.top,
+    paddingBottom: insets.bottom,
+    transform: [{ translateX: slideAnim }],
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+  },
+]}
       >
         {/* Logo Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { borderBottomColor: isDark ? '#334155' : 'rgba(90,123,246,0.12)' }]}>
           <View style={styles.logoBox}>
             <Text style={styles.logoText}>SC</Text>
           </View>
           <View>
-            <Text style={styles.brandName}>Sharda CRM</Text>
-            <Text style={styles.brandSub}>Sales Platform</Text>
+            <Text style={[styles.brandName, { color: isDark ? '#F9FAFB' : '#0f172a' }]}>Sharda CRM</Text>
+<Text style={styles.brandSub}>Sales Platform</Text>
           </View>
         </View>
 
         {/* User Info */}
-        <View style={styles.userInfo}>
+        <View style={[styles.userInfo, { borderBottomColor: isDark ? '#334155' : '#f1f5f9' }]}>
           <View style={styles.userAvatar}>
             <Text style={styles.userAvatarText}>{initials(user?.name)}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.userName} numberOfLines={1}>
-              {user?.name}
-            </Text>
-            <Text style={styles.userRole}>{user?.role}</Text>
+            <Text style={[styles.userName, { color: isDark ? '#F9FAFB' : '#1e293b' }]} numberOfLines={1}>
+  {user?.name}
+</Text>
+<Text style={styles.userRole}>{user?.role}</Text>
           </View>
         </View>
 
@@ -276,11 +279,11 @@ const CustomSidebar = ({ currentRoute }) => {
         </ScrollView>
 
         {/* Logout */}
-        <View style={styles.logoutSection}>
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={handleLogoutClick}
-          >
+       <View style={[styles.logoutSection, { borderTopColor: isDark ? '#334155' : 'rgba(90,123,246,0.12)' }]}>
+  <TouchableOpacity
+    style={styles.logoutButton}
+    onPress={handleLogoutClick}
+  >
             <Icon name="logout" size={20} color="#ef4444" />
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
@@ -308,12 +311,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     zIndex: 999,
   },
-  container: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: '#ffffff',
+ container: {
+  position: 'absolute',
+  top: 0,
+  bottom: 0,
+  left: 0,
+  backgroundColor: '#ffffff',
     zIndex: 1000,
     // iOS shadow
     shadowColor: '#000',
@@ -347,11 +350,11 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     letterSpacing: 1,
   },
-  brandName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
+brandName: {
+  fontSize: 15,
+  fontWeight: '700',
+  color: '#0f172a',
+},
   brandSub: {
     fontSize: 10,
     fontWeight: '500',

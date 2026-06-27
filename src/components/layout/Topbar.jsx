@@ -120,7 +120,7 @@ const { isDark, toggleTheme } = useTheme();
           {/* Bell */}
           <TouchableOpacity
             style={styles.iconButton}
-            onPress={() => isNotificationsPage ? navigation.navigate('Notifications') : setNotifOpen(true)}
+            onPress={() => isNotificationsPage ? null : navigation.navigate('Notifications')}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Icon name="bell-outline" size={22} color={iconColor} />

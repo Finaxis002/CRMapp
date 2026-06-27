@@ -9,6 +9,7 @@ import Icon from 'react-native-vector-icons/Feather';
 import api from '../../services/api';
 import { userService } from '../../services/userService';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CrossSellTab from '../../components/common/Crossselltab';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -402,7 +403,9 @@ const AnalyticsTab = ({ currentUserId, isAdmin, isTL, isManager, t }) => {
 /* ══════════════════════════════════════════════
    CROSS SELL DRAWER
 ══════════════════════════════════════════════ */
-const CrossSellDrawer = ({ visible, lead, onClose, onSaved, t }) => (
+const CrossSellDrawer = ({ visible, lead, onClose, onSaved, t }) => {
+  const insets = useSafeAreaInsets();
+  return (
   <Modal
     visible={visible}
     animationType="slide"
@@ -418,7 +421,7 @@ const CrossSellDrawer = ({ visible, lead, onClose, onSaved, t }) => (
       />
 
       {/* Drawer Panel */}
-      <View style={[sh.drawerPanel, { backgroundColor: t.drawerBg, borderLeftColor: t.cardBorder }]}>
+      <View style={[sh.drawerPanel, { backgroundColor: t.drawerBg, borderLeftColor: t.cardBorder, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         {/* Header */}
         <View style={[sh.drawerHeader, { borderBottomColor: t.cardBorder }]}>
           <View style={{ flex: 1 }}>
@@ -453,7 +456,8 @@ const CrossSellDrawer = ({ visible, lead, onClose, onSaved, t }) => (
       </View>
     </View>
   </Modal>
-);
+  );
+};
 
 /* ══════════════════════════════════════════════
    LEADS OVERVIEW TAB
@@ -626,7 +630,7 @@ const LeadsOverviewTab = ({ isAdmin, isTL, isManager, users, currentUserId, t })
         t={t}
       />
     </ScrollView>
-  );
+);
 };
 
 /* ══════════════════════════════════════════════

@@ -19,7 +19,17 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../services/api';
-
+import { useTheme } from '../../contexts/ThemeContext';
+const getDarkT = (dark) => ({
+  bg:          dark ? '#1E293B' : '#ffffff',
+  card:        dark ? '#0F172A' : '#f9fafb',
+  border:      dark ? '#334155' : '#e5e7eb',
+  divider:     dark ? '#334155' : '#f3f4f6',
+  textPrimary: dark ? '#F9FAFB' : '#111827',
+  textMuted:   dark ? '#9CA3AF' : '#6b7280',
+  inputBg:     dark ? '#1E293B' : '#ffffff',
+  expandedBg:  dark ? '#0F172A' : '#f9fafb',
+});
 const SERVICE_META = {
   MSME: { bg: '#E6F1FB', border: '#B5D4F4', badge: '#185FA5', icon: 'factory' },
   'GST Registration': {
@@ -156,7 +166,8 @@ const toTimeString = date => {
 };
 
 const CrossSellTab = ({ lead, onSaved }) => {
-  const dark = false;
+  const { isDark: dark } = useTheme();
+  const t = getDarkT(dark);
   const [loading, setLoading] = useState(false);
   const [responding, setResponding] = useState(null);
   const [automating, setAutomating] = useState(false);
@@ -419,7 +430,7 @@ const CrossSellTab = ({ lead, onSaved }) => {
             </Text>
           </View>
           <View>
-            <Text style={styles.leadName}>{lead.name}</Text>
+            <Text style={[styles.leadName, { color: t.textPrimary }]}>{lead.name}</Text>
             <View style={styles.originalRow}>
               <Icon name={originalStyle.icon} size={12} color="#6b7280" />
               <Text style={styles.originalText}>{data.originalService}</Text>
@@ -463,7 +474,7 @@ const CrossSellTab = ({ lead, onSaved }) => {
             <TouchableOpacity
               key={tab.key}
               onPress={() => setActiveSubTab(tab.key)}
-              style={[styles.subTabBtn, active && styles.subTabActive]}
+              style={[styles.subTabBtn, active && { backgroundColor: t.bg }]}
             >
               <Text
                 style={[styles.subTabText, active && styles.subTabTextActive]}
@@ -486,27 +497,29 @@ const CrossSellTab = ({ lead, onSaved }) => {
       </View>
 
       {activeSubTab === 'recommendations' ? (
-        <View style={styles.cardBlock}>
-          <BlockHeader icon="sparkles" title="Recommendations" />
+        <View style={[styles.cardBlock, { backgroundColor: t.bg, borderColor: t.border }]}>
+          <BlockHeader icon="sparkles" title="Recommendations" t={t} />
           {mergedRecommendations.map((rec, idx) => (
             <RecommendationRow
-              key={rec.service}
-              rec={rec}
-              isLast={idx === mergedRecommendations.length - 1}
-              isOpen={expandedRow === rec.service}
-              toggleRow={toggleRow}
-              noteInput={noteInput}
-              setNoteInput={setNoteInput}
-              responding={responding}
-              handleRespond={handleRespond}
-            />
+            key={rec.service}
+            rec={rec}
+            isLast={idx === mergedRecommendations.length - 1}
+            isOpen={expandedRow === rec.service}
+            toggleRow={toggleRow}
+            noteInput={noteInput}
+            setNoteInput={setNoteInput}
+            responding={responding}
+            handleRespond={handleRespond}
+            dark={dark}
+            t={t}
+          />
           ))}
         </View>
       ) : null}
 
       {activeSubTab === 'automation' ? (
-        <View style={styles.cardBlock}>
-          <BlockHeader icon="send" title="Automation" />
+        <View style={[styles.cardBlock, { backgroundColor: t.bg, borderColor: t.border }]}>
+          <BlockHeader icon="send" title="Automation" t={t} />
           <View style={styles.automationBody}>
             <TouchableOpacity
               disabled={automating || !lead?.email || data?.automationSent}
@@ -542,6 +555,7 @@ const CrossSellTab = ({ lead, onSaved }) => {
                   key={rec.service}
                   style={[
                     styles.scheduleCard,
+                    { backgroundColor: t.card, borderColor: t.border },
                     isOpen && styles.scheduleCardOpen,
                   ]}
                 >
@@ -558,7 +572,7 @@ const CrossSellTab = ({ lead, onSaved }) => {
                       <Icon name={style.icon} size={14} color={style.badge} />
                     </View>
                     <View style={styles.flex1}>
-                      <Text style={styles.serviceName}>{rec.service}</Text>
+                      <Text style={[styles.serviceName, { color: t.textPrimary || '#111827' }]}>{rec.service}</Text>
                       <Text
                         style={[styles.serviceStatus, { color: style.badge }]}
                       >
@@ -585,6 +599,7 @@ const CrossSellTab = ({ lead, onSaved }) => {
                           onPress={() =>
                             setPickerTarget({ svc: rec.service, field: 'date' })
                           }
+                          t={t}
                         />
                         <DateTimeButton
                           label="Time"
@@ -592,6 +607,7 @@ const CrossSellTab = ({ lead, onSaved }) => {
                           onPress={() =>
                             setPickerTarget({ svc: rec.service, field: 'time' })
                           }
+                          t={t}
                         />
                       </View>
                       <Text style={styles.fieldLabel}>
@@ -606,7 +622,7 @@ const CrossSellTab = ({ lead, onSaved }) => {
                         }
                         placeholder="Special message for the client..."
                         placeholderTextColor="#9ca3af"
-                        style={styles.messageInput}
+                        style={[styles.messageInput, { backgroundColor: t.inputBg, borderColor: t.border, color: t.textPrimary }]}
                       />
                       <TouchableOpacity
                         disabled={
@@ -642,10 +658,11 @@ const CrossSellTab = ({ lead, onSaved }) => {
       ) : null}
 
       {activeSubTab === 'scheduled' ? (
-        <View style={styles.cardBlock}>
+        <View style={[styles.cardBlock, { backgroundColor: t.bg, borderColor: t.border }]}>
           <BlockHeader
             icon="inbox-outline"
             title={`Scheduled (${scheduledEmails.length})`}
+            t={t}
           />
           <View style={styles.scheduledBody}>
             {scheduledEmails.length === 0 ? (
@@ -655,9 +672,9 @@ const CrossSellTab = ({ lead, onSaved }) => {
               </View>
             ) : (
               scheduledEmails.map(mail => (
-                <View key={mail._id} style={styles.mailRow}>
+                <View key={mail._id} style={[styles.mailRow, { backgroundColor: t.card, borderColor: t.border }]}>
                   <View style={styles.flex1}>
-                    <Text style={styles.mailDate}>
+                    <Text style={[styles.mailDate, { color: t.textPrimary }]}>
                       {new Date(mail.scheduledAt).toLocaleString('en-IN', {
                         day: '2-digit',
                         month: 'short',
@@ -725,21 +742,23 @@ const RecommendationRow = ({
   setNoteInput,
   responding,
   handleRespond,
+  dark = false,
+  t = {},
 }) => {
   const style = getServiceStyle(rec.service);
   const statusCfg = STATUS_CFG[rec.status] || STATUS_CFG.Pending;
   const isRespondingThis = responding?.startsWith(rec.service);
   return (
-    <View style={!isLast ? styles.borderBottom : null}>
+    <View style={[!isLast ? styles.borderBottom : null, { borderBottomColor: t.divider || '#f3f4f6' }]}>
       <TouchableOpacity
         onPress={() => toggleRow(rec.service)}
-        style={styles.recRow}
+        style={[styles.recRow, { backgroundColor: t.bg || '#fff' }]}
       >
         <View style={[styles.serviceIcon, { backgroundColor: style.bg }]}>
           <Icon name={style.icon} size={15} color={style.badge} />
         </View>
         <View style={styles.flex1}>
-          <Text style={styles.serviceName}>{rec.service}</Text>
+          <Text style={[styles.serviceName, { color: t.textPrimary || '#111827' }]}>{rec.service}</Text>
           <View style={styles.statusLine}>
             <View
               style={[styles.statusDot, { backgroundColor: statusCfg.dot }]}
@@ -758,7 +777,7 @@ const RecommendationRow = ({
       </TouchableOpacity>
 
       {isOpen ? (
-        <View style={styles.expandedPanel}>
+        <View style={[styles.expandedPanel, { backgroundColor: dark ? '#0F172A' : '#f9fafb', borderTopColor: dark ? '#334155' : '#f3f4f6' }]}>
           {rec.pitch ? (
             <View>
               <Text style={styles.pitchTitle}>Sales pitch</Text>
@@ -892,10 +911,10 @@ const Badge = ({ bg, text, label }) => (
   </View>
 );
 
-const BlockHeader = ({ icon, title }) => (
-  <View style={styles.blockHeader}>
-    <Icon name={icon} size={13} color="#9ca3af" />
-    <Text style={styles.blockHeaderText}>{title}</Text>
+const BlockHeader = ({ icon, title, t = {} }) => (
+  <View style={[styles.blockHeader, { borderBottomColor: t.divider || '#f3f4f6', backgroundColor: t.bg || '#fff' }]}>
+    <Icon name={icon} size={13} color={t.textMuted || '#9ca3af'} />
+    <Text style={[styles.blockHeaderText, { color: t.textMuted || '#9ca3af' }]}>{title}</Text>
   </View>
 );
 
@@ -906,10 +925,10 @@ const WarningText = ({ text }) => (
   </View>
 );
 
-const DateTimeButton = ({ label, value, onPress }) => (
+const DateTimeButton = ({ label, value, onPress, t = {} }) => (
   <View style={styles.flex1}>
     <Text style={styles.fieldLabel}>{label}</Text>
-    <TouchableOpacity onPress={onPress} style={styles.dateTimeBtn}>
+    <TouchableOpacity onPress={onPress} style={[styles.dateTimeBtn, { backgroundColor: t?.inputBg || '#fff', borderColor: t?.border || '#e5e7eb' }]}>
       <Text style={styles.dateTimeText}>
         {value || `Select ${label.toLowerCase()}`}
       </Text>
@@ -989,11 +1008,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
   },
-  subTabActive: { backgroundColor: '#fff' },
+  subTabActive: { backgroundColor: 'transparent' },
   subTabText: { fontSize: 12, fontWeight: '600', color: '#6b7280' },
-  subTabTextActive: { color: '#0f172a' },
+  subTabTextActive: { color: '#2563eb' },
   subTabCount: { fontSize: 10, fontWeight: '700' },
-  cardBlock: {
+ cardBlock: {
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb',
