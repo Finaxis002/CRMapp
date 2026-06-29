@@ -11,11 +11,11 @@ import {
   useColorScheme,
   Dimensions,
   Platform,
-  PermissionsAndroid,
-} from 'react-native';
+  } from 'react-native';
 import { WebView } from 'react-native-webview';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../config';
+import { useLocationTracker } from '../hooks/useLocationTracker';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -125,6 +125,7 @@ const AgentListItem = ({ agent, index, isSelected, onPress, isDark }) => {
 export default function AgentMap() {
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
+  useLocationTracker();
 
   const mapRef = useRef(null);
   const [agents, setAgents] = useState([]);
@@ -134,19 +135,7 @@ export default function AgentMap() {
   const [showSidebar, setShowSidebar] = useState(false);
   const [bearing, setBearing] = useState(0);
 
-  // ── Request Location Permission ──────────────────────────────────────────
-useEffect(() => {
-    PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      {
-        title: 'Location Permission',
-        message: 'ShardaCRM needs your location to track field agents.',
-        buttonNeutral: 'Ask Me Later',
-        buttonNegative: 'Cancel',
-        buttonPositive: 'Allow',
-      }
-    );
-  }, []);
+  // location tracking → useLocationTracker hook me handle ho raha hai
 
   // Sidebar slide animation
   const sidebarAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -198,7 +187,9 @@ useEffect(() => {
     };
 
 fetchAgents();
-  }, []);
+      const refreshInterval = setInterval(fetchAgents, 30000);
+      return () => clearInterval(refreshInterval);
+    }, []);
 
   // ── Focus on agent ──────────────────────────────────────────────────────────
   const focusAgent = useCallback(
