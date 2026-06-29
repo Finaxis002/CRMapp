@@ -9,7 +9,6 @@ import {
   FlatList,
   ActivityIndicator,
   Dimensions,
-  useColorScheme,
   Platform,
   StatusBar,
 } from 'react-native';
@@ -21,6 +20,7 @@ import { useSelector } from 'react-redux';
 import axios from 'axios';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { API_BASE_URL } from '../../config';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 const API = API_BASE_URL;
@@ -86,8 +86,7 @@ const getTheme = isDark => ({
 });
 
 const AttendanceScreen = () => {
-  const scheme = useColorScheme();
-  const isDark = scheme === 'dark';
+  const { isDark } = useTheme();
   const T = getTheme(isDark);
   const insets = useSafeAreaInsets();
 
