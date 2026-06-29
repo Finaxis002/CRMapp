@@ -1,7 +1,19 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Animated, ScrollView, StyleSheet } from 'react-native';
 
-const KanbanSkeleton = () => {
+const KanbanSkeleton = ({ colors }) => {
+  // Fallback to light theme if colors not provided
+  const theme = colors || {
+    screenBg: '#f9fafb',
+    headerBg: '#ffffff',
+    headerBorder: '#e5e7eb',
+    cardBg: '#ffffff',
+    cardBorder: '#f1f5f9',
+    tabBg: '#ffffff',
+    tabBorder: '#e5e7eb',
+    textColor: '#e5e7eb',      // for placeholder lines
+  };
+
   const fadeAnim = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
@@ -27,7 +39,7 @@ const KanbanSkeleton = () => {
         {
           width,
           height,
-          backgroundColor: '#e5e7eb',
+          backgroundColor: theme.textColor,  
           borderRadius: 6,
           opacity: fadeAnim,
         },
@@ -36,9 +48,16 @@ const KanbanSkeleton = () => {
     />
   );
 
-  // Stage tab skeleton
   const StageTabSkeleton = () => (
-    <View style={styles.tabSkeleton}>
+    <View
+      style={[
+        styles.tabSkeleton,
+        {
+          backgroundColor: theme.tabBg,
+          borderColor: theme.tabBorder,
+        },
+      ]}
+    >
       <SkeletonBox width={70} height={14} />
       <SkeletonBox
         width={22}
@@ -48,9 +67,16 @@ const KanbanSkeleton = () => {
     </View>
   );
 
-  // Lead card skeleton
   const LeadCardSkeleton = () => (
-    <View style={styles.cardSkeleton}>
+    <View
+      style={[
+        styles.cardSkeleton,
+        {
+          backgroundColor: theme.cardBg,
+          borderColor: theme.cardBorder,
+        },
+      ]}
+    >
       <View style={styles.cardTopRow}>
         <SkeletonBox width="65%" height={16} />
         <SkeletonBox width={60} height={14} />
@@ -66,9 +92,17 @@ const KanbanSkeleton = () => {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.screenBg }]}>
       {/* Header Skeleton */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.headerBg,
+            borderBottomColor: theme.headerBorder,
+          },
+        ]}
+      >
         <View style={styles.headerTop}>
           <View>
             <SkeletonBox width={90} height={20} />
@@ -112,14 +146,15 @@ const KanbanSkeleton = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
   header: {
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    marginHorizontal: -16, // to align with screen edges
   },
   headerTop: {
     flexDirection: 'row',
@@ -127,8 +162,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabsScroll: {
-    paddingHorizontal: 16,
     marginTop: 12,
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
   },
   tabSkeleton: {
     flexDirection: 'row',
@@ -137,21 +173,16 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#fff',
     marginRight: 8,
   },
   cardsContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    marginTop: 12,
     gap: 10,
   },
   cardSkeleton: {
-    backgroundColor: '#fff',
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
     marginBottom: 8,
   },
   cardTopRow: {
