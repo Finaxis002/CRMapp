@@ -12,6 +12,7 @@ import {
   Pressable,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTheme } from '../../contexts/ThemeContext';   // <-- import theme hook
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -47,10 +48,31 @@ const CustomDropdown = ({
   searchPlaceholder = 'Search...',
   showSelectedCount = true,
 }) => {
+  const { isDark } = useTheme();                       // <-- get dark mode flag
+
+  // ─── Theme colors ─────────────────────────────────────────────
+  const theme = useMemo(() => ({
+    bg:           isDark ? '#1e293b' : '#ffffff',
+    surface:      isDark ? '#0f172a' : '#f9fafb',
+    border:       isDark ? '#334155' : '#d1d5db',
+    text:         isDark ? '#f1f5f9' : '#111827',
+    subText:      isDark ? '#94a3b8' : '#6b7280',
+    placeholder:  isDark ? '#64748b' : '#9ca3af',
+    inputBg:      isDark ? '#1e293b' : '#f3f4f6',
+    selectedBg:   isDark ? 'rgba(90,123,246,0.25)' : 'rgba(90,123,246,0.06)',
+    selectedText: '#5a7bf6',  // keep brand colour
+    checkboxBorder: isDark ? '#475569' : '#d1d5db',
+    checkboxChecked: '#5a7bf6',
+    headerBorder: isDark ? '#334155' : '#f3f4f6',
+    closeBtnBg:   isDark ? '#334155' : '#f3f4f6',
+    emptyIcon:    isDark ? '#475569' : '#d1d5db',
+    clearText:    '#ef4444',  // keep red
+  }), [isDark]);
+
+  // ─── State ────────────────────────────────────────────────────
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Normalize options - support both ['a','b'] and [{value, label}]
   const normalizedOptions = useMemo(() => {
     return options.map(opt => {
       if (typeof opt === 'object' && opt !== null) {
@@ -63,7 +85,6 @@ const CustomDropdown = ({
     });
   }, [options]);
 
-  // Filter options based on search
   const filteredOptions = useMemo(() => {
     if (!searchable || !searchQuery.trim()) return normalizedOptions;
     return normalizedOptions.filter(opt =>
@@ -71,7 +92,6 @@ const CustomDropdown = ({
     );
   }, [normalizedOptions, searchQuery, searchable]);
 
-  // Get display text for trigger button
   const displayText = useMemo(() => {
     if (multiSelect) {
       const selectedValues = Array.isArray(value) ? value : [];
@@ -134,36 +154,55 @@ const CustomDropdown = ({
     }
   };
 
+  // ─── Render functions ─────────────────────────────────────────
   const renderItem = ({ item }) => {
     const selected = isSelected(item.value);
     return (
       <TouchableOpacity
         onPress={() => handleSelect(item.value)}
-        style={[styles.optionItem, selected && styles.optionItemSelected]}
+        style={[
+          styles.optionItem,
+          { borderBottomColor: theme.border },
+          selected && { backgroundColor: theme.selectedBg },
+        ]}
         activeOpacity={0.7}
       >
         {multiSelect ? (
-          <View style={[styles.checkbox, selected && styles.checkboxChecked]}>
+          <View
+            style={[
+              styles.checkbox,
+              { borderColor: theme.checkboxBorder },
+              selected && {
+                borderColor: theme.checkboxChecked,
+                backgroundColor: theme.checkboxChecked,
+              },
+            ]}
+          >
             {selected ? <Icon name="check" size={14} color="#fff" /> : null}
           </View>
         ) : null}
         <Text
-          style={[styles.optionText, selected && styles.optionTextSelected]}
+          style={[
+            styles.optionText,
+            { color: selected ? theme.selectedText : theme.text },
+            selected && styles.optionTextSelected,
+          ]}
           numberOfLines={2}
         >
           {item.label}
         </Text>
         {!multiSelect && selected ? (
-          <Icon name="check" size={18} color="#5a7bf6" />
+          <Icon name="check" size={18} color={theme.selectedText} />
         ) : null}
       </TouchableOpacity>
     );
   };
 
+  // ─── Component ─────────────────────────────────────────────────
   return (
     <View style={style}>
       {label ? (
-        <Text style={styles.label}>
+        <Text style={[styles.label, { color: theme.text }]}>
           {label} {required ? <Text style={styles.required}>*</Text> : null}
         </Text>
       ) : null}
@@ -172,11 +211,21 @@ const CustomDropdown = ({
       <TouchableOpacity
         disabled={disabled}
         onPress={() => setIsOpen(true)}
-        style={[styles.trigger, disabled && styles.triggerDisabled]}
+        style={[
+          styles.trigger,
+          {
+            borderColor: theme.border,
+            backgroundColor: disabled ? theme.surface : theme.bg,
+          },
+          disabled && styles.triggerDisabled,
+        ]}
         activeOpacity={0.7}
       >
         <Text
-          style={[styles.triggerText, isPlaceholder && styles.placeholderText]}
+          style={[
+            styles.triggerText,
+            { color: isPlaceholder ? theme.placeholder : theme.text },
+          ]}
           numberOfLines={1}
         >
           {displayText}
@@ -184,7 +233,7 @@ const CustomDropdown = ({
         <Icon
           name={isOpen ? 'chevron-up' : 'chevron-down'}
           size={20}
-          color="#64748b"
+          color={theme.subText}
         />
       </TouchableOpacity>
 
@@ -197,31 +246,42 @@ const CustomDropdown = ({
         onRequestClose={handleClose}
       >
         <Pressable style={styles.overlay} onPress={handleClose}>
-          <Pressable style={styles.dropdownContainer} onPress={() => {}}>
+          <Pressable
+            style={[
+              styles.dropdownContainer,
+              { backgroundColor: theme.bg },
+            ]}
+            onPress={() => {}}
+          >
             {/* Header */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{label || placeholder}</Text>
-              <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
-                <Icon name="close" size={20} color="#6b7280" />
+            <View style={[styles.modalHeader, { borderBottomColor: theme.headerBorder }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>
+                {label || placeholder}
+              </Text>
+              <TouchableOpacity
+                onPress={handleClose}
+                style={[styles.closeBtn, { backgroundColor: theme.closeBtnBg }]}
+              >
+                <Icon name="close" size={20} color={theme.subText} />
               </TouchableOpacity>
             </View>
 
             {/* Search bar */}
             {searchable ? (
-              <View style={styles.searchWrap}>
-                <Icon name="magnify" size={18} color="#9ca3af" />
+              <View style={[styles.searchWrap, { backgroundColor: theme.inputBg }]}>
+                <Icon name="magnify" size={18} color={theme.placeholder} />
                 <TextInput
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   placeholder={searchPlaceholder}
-                  placeholderTextColor="#9ca3af"
-                  style={styles.searchInput}
+                  placeholderTextColor={theme.placeholder}
+                  style={[styles.searchInput, { color: theme.text }]}
                   autoCorrect={false}
                   autoCapitalize="none"
                 />
                 {searchQuery ? (
                   <TouchableOpacity onPress={() => setSearchQuery('')}>
-                    <Icon name="close-circle" size={18} color="#9ca3af" />
+                    <Icon name="close-circle" size={18} color={theme.placeholder} />
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -230,7 +290,9 @@ const CustomDropdown = ({
             {/* Multi-select actions */}
             {multiSelect && Array.isArray(value) && value.length > 0 ? (
               <View style={styles.actionsRow}>
-                <Text style={styles.countText}>{value.length} selected</Text>
+                <Text style={[styles.countText, { color: theme.subText }]}>
+                  {value.length} selected
+                </Text>
                 <TouchableOpacity onPress={handleClearAll}>
                   <Text style={styles.clearText}>Clear all</Text>
                 </TouchableOpacity>
@@ -241,8 +303,8 @@ const CustomDropdown = ({
             <View style={{ maxHeight }}>
               {filteredOptions.length === 0 ? (
                 <View style={styles.emptyWrap}>
-                  <Icon name="inbox-outline" size={40} color="#d1d5db" />
-                  <Text style={styles.emptyText}>
+                  <Icon name="inbox-outline" size={40} color={theme.emptyIcon} />
+                  <Text style={[styles.emptyText, { color: theme.placeholder }]}>
                     {searchQuery ? 'No results found' : emptyText}
                   </Text>
                 </View>
@@ -270,37 +332,31 @@ const CustomDropdown = ({
   );
 };
 
+// ─── Static styles ──────────────────────────────────────────────
 const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#374151',
     marginBottom: 6,
   },
   required: { color: '#ef4444' },
 
-  // Trigger
   trigger: {
     minHeight: 44,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  triggerDisabled: { opacity: 0.5, backgroundColor: '#f9fafb' },
+  triggerDisabled: { opacity: 0.5 },
   triggerText: {
     flex: 1,
     fontSize: 14,
-    color: '#111827',
     marginRight: 8,
   },
-  placeholderText: { color: '#9ca3af' },
 
-  // Modal
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -311,7 +367,6 @@ const styles = StyleSheet.create({
   dropdownContainer: {
     width: '100%',
     maxWidth: 500,
-    backgroundColor: '#fff',
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -321,7 +376,6 @@ const styles = StyleSheet.create({
     elevation: 20,
   },
 
-  // Header
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -329,24 +383,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
     flex: 1,
   },
   closeBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#f3f4f6',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  // Search
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -355,16 +405,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     margin: 12,
     borderRadius: 10,
-    backgroundColor: '#f3f4f6',
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: '#111827',
     padding: 0,
   },
 
-  // Multi-select actions
   actionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -374,7 +421,6 @@ const styles = StyleSheet.create({
   },
   countText: {
     fontSize: 12,
-    color: '#6b7280',
     fontWeight: '500',
   },
   clearText: {
@@ -383,7 +429,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Options
   optionItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -391,18 +436,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f9fafb',
-  },
-  optionItemSelected: {
-    backgroundColor: 'rgba(90,123,246,0.06)',
   },
   optionText: {
     flex: 1,
     fontSize: 14,
-    color: '#374151',
   },
   optionTextSelected: {
-    color: '#5a7bf6',
     fontWeight: '600',
   },
   checkbox: {
@@ -410,16 +449,10 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#d1d5db',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxChecked: {
-    borderColor: '#5a7bf6',
-    backgroundColor: '#5a7bf6',
-  },
 
-  // Empty
   emptyWrap: {
     paddingVertical: 40,
     alignItems: 'center',
@@ -427,10 +460,8 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
-    color: '#9ca3af',
   },
 
-  // Done button
   doneBtn: {
     marginHorizontal: 12,
     marginBottom: 12,

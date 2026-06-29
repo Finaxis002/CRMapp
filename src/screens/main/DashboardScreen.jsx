@@ -17,6 +17,7 @@ import { dashboardService } from '../../services/dashboardService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const IS_SMALL = SCREEN_WIDTH < 640;
+const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 12) / 2;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -133,12 +134,13 @@ const PerfBar = ({ ratio, colors }) => (
   </View>
 );
 
-const MetricCard = ({ item, colors, onPress }) => (
+const MetricCard = ({ item, colors, onPress, fullWidth }) => (
   <TouchableOpacity
     activeOpacity={onPress ? 0.85 : 1}
     onPress={onPress}
     style={[
       styles.mCard,
+         fullWidth && styles.mCardFull, 
       {
         backgroundColor: colors.cardBg,
         borderColor: colors.border,
@@ -807,7 +809,12 @@ const handleNavigate = (path, params = {}) => {
         </View>
 
         {/* Filters */}
-        <View style={styles.filtersRow}>
+      <ScrollView 
+  horizontal 
+  showsHorizontalScrollIndicator={false}
+  style={{ marginBottom: 10 }}
+  contentContainerStyle={styles.filtersRow}
+>
           {['All', 'Today', 'This Week', 'This Month'].map(f => (
             <FilterBadge
               key={f}
@@ -817,24 +824,29 @@ const handleNavigate = (path, params = {}) => {
               onPress={() => setActiveFilter(f)}
             />
           ))}
-        </View>
+        </ScrollView>
 
-        {/* Metrics */}
-        <View style={styles.metricsGrid}>
-          {metrics.map(m => (
-            <MetricCard
-              key={m.label}
-              item={m}
-              colors={colors}
-              onPress={() => {
-                if (m.label === 'Collected') handleNavigate('/payments');
-                else if (m.filterValue !== null) {
-                  handleNavigate('/leads', buildLeadParams(m.filterValue));
-                }
-              }}
-            />
-          ))}
-        </View>
+{/* Metrics */}
+<View style={styles.metricsGrid}>
+  {metrics.slice(0, 4).map(m => (
+    <MetricCard
+      key={m.label}
+      item={m}
+      colors={colors}
+      onPress={() => {
+        if (m.filterValue !== null) {
+          handleNavigate('/leads', buildLeadParams(m.filterValue));
+        }
+      }}
+    />
+  ))}
+</View>
+<MetricCard
+  item={metrics[4]}
+  colors={colors}
+  fullWidth
+  onPress={() => handleNavigate('/payments')}
+/>
 
         {/* Recent Leads */}
         <View
@@ -844,7 +856,7 @@ const handleNavigate = (path, params = {}) => {
           ]}
         >
           <View style={styles.cardHead}>
-            <View>
+             <View style={{ flex: 1, marginRight: 12 }}> 
               <Text style={[styles.cardTitle, { color: colors.text1 }]}>
                 Recent Leads
               </Text>
@@ -896,7 +908,7 @@ const handleNavigate = (path, params = {}) => {
           ]}
         >
           <View style={styles.cardHead}>
-            <View>
+              <View style={{ flex: 1, marginRight: 12 }}>
               <Text style={[styles.cardTitle, { color: colors.text1 }]}>
                 Team Performance
               </Text>
@@ -1038,7 +1050,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: 14,
   },
   title: {
     fontSize: 26,
@@ -1057,9 +1069,9 @@ const styles = StyleSheet.create({
   },
   filtersRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    // flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 24,
+    marginBottom: 14,
   },
   badge: {
     paddingVertical: 6,
@@ -1074,18 +1086,21 @@ const styles = StyleSheet.create({
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 24,
+    gap:8 ,
+    marginBottom: 8,
   },
-  mCard: {
-    width: IS_SMALL ? '47%' : '18.5%',
-    flex: IS_SMALL ? undefined : 1,
-    minWidth: 160,
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderTopWidth: 3,
-  },
+mCard: {
+  width: CARD_WIDTH,
+  borderRadius: 14,
+  paddingTop:2,
+  padding: 8,
+  borderWidth: 1,
+  borderTopWidth: 3,
+},
+mCardFull: {
+  width: '100%',
+  marginBottom: 12,
+},
   mIcon: {
     position: 'absolute',
     top: 14,
