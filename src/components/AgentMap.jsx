@@ -11,12 +11,44 @@ import {
   useColorScheme,
   Dimensions,
   Platform,
+  PermissionsAndroid,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { WebView } from 'react-native-webview';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../config';
+
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const COLORS = ['#2563eb', '#16a34a', '#9333ea', '#ea580c', '#0891b2', '#dc2626'];
+
+function getMapHTML(agents) {
+  const markers = agents.map((a, i) => {
+    const lat = a.lat || a.latitude;
+    const lng = a.lng || a.longitude;
+    const name = (a.agent?.name || a.name || 'Agent').replace(/'/g, "\\'");
+    const colors = ['#2563eb','#16a34a','#9333ea','#ea580c','#0891b2','#dc2626'];
+    const color = colors[i % colors.length];
+    return `L.circleMarker([${lat},${lng}],{color:'${color}',fillColor:'${color}',fillOpacity:0.9,radius:14,weight:2}).addTo(map).bindPopup('<b>${name}</b>');`;
+  }).join('\n');
+
+  const center = agents.length > 0
+    ? `[${agents[0].lat || agents[0].latitude},${agents[0].lng || agents[0].longitude}]`
+    : '[23.2599,77.4126]';
+
+  return `<!DOCTYPE html><html><head>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>html,body,#map{margin:0;padding:0;height:100%;width:100%;}</style>
+  </head><body>
+    <div id="map"></div>
+    <script>
+      var map=L.map('map').setView(${center},14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+      ${markers}
+    </script>
+  </body></html>`;
+}
 
 const getInitials = (name = '') =>
   name
@@ -76,7 +108,7 @@ const AgentListItem = ({ agent, index, isSelected, onPress, isDark }) => {
           {name}
         </Text>
         <Text style={[styles.agentTime, isDark ? styles.textMutedDark : styles.textMutedLight]}>
-          {formatTime(agent.timestamp)}
+          {formatTime(agent.recorded_at || agent.timestamp)}
         </Text>
       </View>
 
@@ -101,6 +133,20 @@ export default function AgentMap() {
   const [loading, setLoading] = useState(true);
   const [showSidebar, setShowSidebar] = useState(false);
   const [bearing, setBearing] = useState(0);
+
+  // ── Request Location Permission ──────────────────────────────────────────
+useEffect(() => {
+    PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      {
+        title: 'Location Permission',
+        message: 'ShardaCRM needs your location to track field agents.',
+        buttonNeutral: 'Ask Me Later',
+        buttonNegative: 'Cancel',
+        buttonPositive: 'Allow',
+      }
+    );
+  }, []);
 
   // Sidebar slide animation
   const sidebarAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -127,17 +173,14 @@ export default function AgentMap() {
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        const token =
-          (await AsyncStorage.getItem('token')) ||
-          (await AsyncStorage.getItem('authToken')) ||
-          (await AsyncStorage.getItem('accessToken'));
-
-        const res = await fetch('/api/v1/location/all-latest', {
+        const token = await AsyncStorage.getItem('accessToken');
+        const res = await fetch(`${API_BASE_URL}/location/all-latest`, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         });
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
         const data = await res.json();
         const list = Array.isArray(data)
           ? data
@@ -153,7 +196,8 @@ export default function AgentMap() {
         setLoading(false);
       }
     };
-    fetchAgents();
+
+fetchAgents();
   }, []);
 
   // ── Focus on agent ──────────────────────────────────────────────────────────
@@ -169,7 +213,7 @@ export default function AgentMap() {
         { latitude: lat, longitude: lng, latitudeDelta: 0.01, longitudeDelta: 0.01 },
         500
       );
-      if (showSidebar) closeSidebar();
+      closeSidebar();
     },
     [showSidebar]
   );
@@ -196,8 +240,8 @@ export default function AgentMap() {
       ? {
           latitude: agentsWithLocation[0].lat || agentsWithLocation[0].latitude,
           longitude: agentsWithLocation[0].lng || agentsWithLocation[0].longitude,
-          latitudeDelta: 0.15,
-          longitudeDelta: 0.15,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
         }
       : {
           latitude: 23.2599,
@@ -239,47 +283,12 @@ export default function AgentMap() {
             </Text>
           </View>
         ) : (
-          <MapView
-            ref={mapRef}
-            provider={PROVIDER_GOOGLE}
+         <WebView
             style={styles.map}
-            initialRegion={initialRegion}
-            showsUserLocation
-            showsMyLocationButton={false}
-            showsCompass={false}
-            rotateEnabled
-            onRegionChange={(r, { isGesture }) => {
-              // heading is not exposed directly in RN maps region, use camera
-            }}
-            onTouchEnd={async () => {
-              // sync bearing from camera after gesture
-              try {
-                const cam = await mapRef.current?.getCamera();
-                if (cam?.heading !== undefined) setBearing(Math.round(cam.heading));
-              } catch (_) {}
-            }}
-          >
-            {agentsWithLocation.map((agent, i) => {
-              const id = agent.agent?._id || agent.agent_id || agent._id;
-              const lat = agent.lat || agent.latitude;
-              const lng = agent.lng || agent.longitude;
-              const color = COLORS[i % COLORS.length];
-              return (
-                <Marker
-                  key={id || i}
-                  coordinate={{ latitude: lat, longitude: lng }}
-                  onPress={() => focusAgent(agent)}
-                  tracksViewChanges={false}
-                >
-                  <AgentMarker
-                    agent={agent}
-                    color={color}
-                    isSelected={selected === id}
-                  />
-                </Marker>
-              );
-            })}
-          </MapView>
+            originWhitelist={['*']}
+            source={{ html: getMapHTML(agentsWithLocation) }}
+            javaScriptEnabled
+          />
         )}
 
         {/* ── Rotate controls (floating) ─────────────────────────────────── */}
