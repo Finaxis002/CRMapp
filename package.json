@@ -34,6 +34,7 @@
     "react-native-toast-message": "^2.3.3",
     "react-native-vector-icons": "^10.3.0",
     "react-native-video": "^6.19.2",
+    "react-native-webview": "^14.0.1",
     "react-redux": "^9.3.0"
   },
   "devDependencies": {
