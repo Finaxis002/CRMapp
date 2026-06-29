@@ -16,6 +16,7 @@ import {
   requestCallPermissions,
   startCallTracker,
 } from './src/services/callTrackerService';
+import { useLocationTracker } from './src/hooks/useLocationTracker';
 
 import AppNavigator from './src/navigation/AppNavigator';
 import { ToastContainer } from './src/hooks/useToast';
@@ -48,6 +49,8 @@ const AppContent = () => {
     if (!isAuthenticated) return;
     dispatch(fetchSettings());
   }, [dispatch, isAuthenticated]);
+
+  useLocationTracker(isAuthenticated);
 
   useEffect(() => {
     if (!isAuthenticated) return;
