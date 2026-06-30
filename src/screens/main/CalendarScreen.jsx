@@ -2236,7 +2236,7 @@ const CalendarScreen = () => {
     return String(r.assignedTo?._id || r.assignedTo || '') === filterUser;
   });
 
-  const DAY_CELL_W = Math.floor(SCREEN_WIDTH / 7);
+  const DAY_CELL_W = Math.floor((SCREEN_WIDTH - 16) / 7);
 
   if (loading)
     return (
