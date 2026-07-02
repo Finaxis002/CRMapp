@@ -15,6 +15,7 @@ import PaymentsScreen from '../screens/main/PaymentsScreen';
 import AttendanceScreen from '../screens/main/AttendanceScreen';
 import ImportScreen from '../screens/main/ImportScreen';
 import CrossSellDashboardScreen from '../screens/main/CrossSellDashboardScreen';
+import CallTracingScreen from '../screens/main/CallTracingScreen';
 import TeamScreen from '../screens/main/TeamScreen';
 import AdminPanelScreen from '../screens/main/AdminPanelScreen';
 import IntegrationScreen from '../screens/main/IntegrationScreen';
@@ -58,6 +59,7 @@ const MainNavigator = () => {
         <Stack.Screen name="Attendance" component={AttendanceScreen} />
         <Stack.Screen name="Import" component={ImportScreen} />
         <Stack.Screen name="CrossSell" component={CrossSellDashboardScreen} />
+        <Stack.Screen name="CallTracing" component={CallTracingScreen} />
 
         {/* Admin section */}
         <Stack.Screen name="Team" component={TeamScreen} />

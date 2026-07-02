@@ -46,6 +46,12 @@ const menuItems = [
     permission: 'import_leads',
   },
   { label: 'Cross-Sell', icon: 'trending-up', name: 'CrossSell' },
+  {
+    label: 'Call Tracing',
+    icon: 'phone-in-talk',
+    name: 'CallTracing',
+    permission: 'view_team',
+  },
 ];
 
 const adminItems = [

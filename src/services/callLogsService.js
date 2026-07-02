@@ -1,18 +1,5 @@
 // callLogsService.js  — React Native port (no browser APIs)
 import api from './api.js';
-
-/**
- * callLogsService.js  (React Native)
- * Client for the ShardaCRM call-logs backend (/api/v1/call-logs).
- *
- * IMPORTANT: backend stores recordingUrl as a RELATIVE path like
- * "/uploads/call-recordings/9876543210-xxx.m4a". Use getRecordingUrl()
- * to prefix the backend origin before passing to expo-av / react-native-track-player.
- *
- * NOTE: window.location is not available in RN — falls back to api.defaults.baseURL origin.
- */
-
-// relative path -> full https URL (prefix backend origin)
 export const getRecordingUrl = recordingUrl => {
   if (!recordingUrl) return null;
   if (/^https?:\/\//i.test(recordingUrl)) return recordingUrl; // already absolute
@@ -21,11 +8,9 @@ export const getRecordingUrl = recordingUrl => {
   try {
     const base = api.defaults?.baseURL || '';
     if (base && /^https?:\/\//i.test(base)) {
-      // Extract origin manually (no URL constructor issues on older Hermes)
       const match = base.match(/^(https?:\/\/[^/]+)/i);
       origin = match ? match[1] : base;
     }
-    // No window.location fallback in React Native — origin stays "" if baseURL missing
   } catch {
     origin = '';
   }
@@ -47,12 +32,13 @@ export const getCallLogById = async id => {
   return response.data?.data;
 };
 
-// all call logs (admin/manager) — optional, for a future dashboard
+// all call logs (admin/manager)
 export const getAllCallLogs = async (opts = {}) => {
-  const { userId, startDate, endDate, page = 1, limit = 50 } = opts;
-  const response = await api.get('/call-logs/all', {
-    params: { userId, startDate, endDate, page, limit },
-  });
+  const { userId, startDate, endDate, page = 1, limit } = opts;
+  const params = { userId, startDate, endDate, page };
+  if (limit) params.limit = limit; 
+
+  const response = await api.get('/call-logs/all', { params });
   const data = response.data?.data || {};
   return {
     logs: Array.isArray(data.logs) ? data.logs : [],
@@ -61,9 +47,20 @@ export const getAllCallLogs = async (opts = {}) => {
   };
 };
 
+// per-user call tracing stats (calls made, answered, missed, recorded)
+// Backend route: GET /call-logs/stats
+export const getCallStats = async (opts = {}) => {
+  const { startDate, endDate } = opts;
+  const response = await api.get('/call-logs/stats', {
+    params: { startDate, endDate },
+  });
+  return response.data?.data || [];
+};
+
 export default {
   getRecordingUrl,
   getCallLogsForLead,
   getCallLogById,
   getAllCallLogs,
+  getCallStats,
 };
