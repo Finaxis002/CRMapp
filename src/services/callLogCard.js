@@ -16,6 +16,7 @@ const TYPE_META = {
   Outgoing: { color: '#2563eb', bg: '#dbeafe' },
   Missed: { color: '#dc2626', bg: '#fee2e2' },
   Rejected: { color: '#d97706', bg: '#fef3c7' },
+  'No Answer': { color: '#d97706', bg: '#fef3c7' },
 };
 
 const formatDuration = secs => {
