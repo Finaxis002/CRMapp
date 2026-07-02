@@ -46,7 +46,13 @@ const formatDate = ts =>
 
 const cleanNumber = n => (n ? String(n).replace(/\D/g, '').slice(-10) : '—');
 
-const CallLogCard = ({ callLog, theme = {} }) => {
+const CallLogCard = ({
+  callLog,
+  theme = {},
+  showDelete = false,
+  onDelete,
+  showMeta = false,
+}) => {
   const [playing, setPlaying] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -73,6 +79,7 @@ const CallLogCard = ({ callLog, theme = {} }) => {
 
   const displayTime =
     callLog.createdAt || callLog.updatedAt || callLog.callTimestamp;
+  const senderName = callLog.sentBy?.name || callLog.createdBy?.name || 'You';
 
   const togglePlay = () => {
     if (!loaded || hasError) return;
@@ -153,6 +160,11 @@ const CallLogCard = ({ callLog, theme = {} }) => {
                 </Text>
               </View>
             )}
+            {/* {callLog.isAutoTracked && (
+              <View style={styles.autoBadge}>
+                <Text style={styles.autoText}>AUTO</Text>
+              </View>
+            )} */}
           </View>
 
           <Text style={styles.phone}>
@@ -163,20 +175,30 @@ const CallLogCard = ({ callLog, theme = {} }) => {
           </Text>
         </View>
 
-        {hasRecording && !hasError && (
-          <View style={styles.actions}>
-            <TouchableOpacity onPress={togglePlay} style={styles.actionBtn}>
-              <Icon
-                name={playing ? 'pause' : 'play'}
-                size={16}
-                color="#7c3aed"
-              />
+        <View style={styles.actions}>
+          {hasRecording && !hasError && (
+            <>
+              <TouchableOpacity onPress={togglePlay} style={styles.actionBtn}>
+                <Icon
+                  name={playing ? 'pause' : 'play'}
+                  size={16}
+                  color="#7c3aed"
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleDownload}
+                style={styles.actionBtn}
+              >
+                <Icon name="download-outline" size={16} color="#64748b" />
+              </TouchableOpacity>
+            </>
+          )}
+          {showDelete && onDelete ? (
+            <TouchableOpacity onPress={onDelete} style={styles.deleteBtn}>
+              <Text style={styles.deleteBtnText}>Delete</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleDownload} style={styles.actionBtn}>
-              <Icon name="download-outline" size={16} color="#64748b" />
-            </TouchableOpacity>
-          </View>
-        )}
+          ) : null}
+        </View>
       </View>
 
       {hasRecording && loaded && !hasError && (
@@ -227,6 +249,13 @@ const CallLogCard = ({ callLog, theme = {} }) => {
           ) : null}
         </View>
       ) : null}
+
+      {showMeta ? (
+        <View style={styles.metaFooter}>
+          <Text style={styles.metaFooterText}>{senderName}</Text>
+          <Text style={styles.metaFooterText}>{formatDate(displayTime)}</Text>
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -247,7 +276,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   info: { flex: 1 },
-  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
   typeBadge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   typeText: { fontSize: 11, fontWeight: '700' },
   recBadge: {
@@ -257,6 +291,13 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   recText: { fontSize: 10, fontWeight: '700', color: '#7c3aed' },
+  autoBadge: {
+    backgroundColor: '#ede9fe',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  autoText: { fontSize: 10, fontWeight: '700', color: '#6366f1' },
   phone: { fontSize: 14, fontWeight: '600', marginTop: 4 },
   meta: { fontSize: 12, color: '#6b7280', marginTop: 4 },
   actions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
@@ -268,6 +309,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  deleteBtn: {
+    borderRadius: 17,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(220,38,38,0.25)',
+    backgroundColor: '#fff',
+  },
+  deleteBtnText: { color: '#dc2626', fontSize: 11, fontWeight: '600' },
   playerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -316,6 +366,15 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontStyle: 'italic',
   },
+  metaFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  metaFooterText: { fontSize: 11, color: '#9ca3af' },
 });
 
 export default CallLogCard;
