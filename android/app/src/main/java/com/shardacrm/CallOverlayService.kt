@@ -1,0 +1,149 @@
+package com.shardacrm
+
+import android.app.Service
+import android.content.Intent
+import android.graphics.PixelFormat
+import android.os.Build
+import android.os.IBinder
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.view.WindowManager
+import android.widget.Button
+import android.widget.EditText
+import android.widget.TextView
+import com.facebook.react.bridge.Arguments
+import com.facebook.react.modules.core.DeviceEventManagerModule
+import com.facebook.react.ReactApplication
+
+class CallOverlayService : Service() {
+
+  private var windowManager: WindowManager? = null
+  private var overlayView: View? = null
+
+  override fun onBind(intent: Intent?): IBinder? = null
+
+override fun onCreate() {
+    super.onCreate()
+    try {
+      android.util.Log.i("CallOverlayService", "onCreate() called — attempting showOverlay")
+      showOverlay()
+    } catch (e: Exception) {
+      android.util.Log.e("CallOverlayService", "onCreate crashed", e)
+    }
+}
+
+private fun showOverlay() {
+    if (overlayView != null) return
+
+    try {
+      windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+      val inflater = LayoutInflater.from(this)
+      val view = inflater.inflate(R.layout.call_overlay_bar, null)
+      overlayView = view
+
+      val overlayType =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+          WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else
+          @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+
+      val params = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.MATCH_PARENT,
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        overlayType,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+          WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+        PixelFormat.TRANSLUCENT
+      )
+      params.gravity = Gravity.TOP
+
+      val collapsedRow = view.findViewById<View>(R.id.collapsedRow)
+      val expandedForm = view.findViewById<View>(R.id.expandedForm)
+      val inputText = view.findViewById<EditText>(R.id.inputText)
+      val btnNote = view.findViewById<Button>(R.id.btnNote)
+      val btnTask = view.findViewById<Button>(R.id.btnTask)
+      val btnCancel = view.findViewById<Button>(R.id.btnCancel)
+      val btnSave = view.findViewById<Button>(R.id.btnSave)
+
+      var currentType = "Note"
+
+      fun setFocusable(focusable: Boolean) {
+        if (focusable) {
+          params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+        } else {
+          params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        }
+        try { windowManager?.updateViewLayout(overlayView, params) } catch (_: Exception) {}
+      }
+
+      fun expand(type: String) {
+        currentType = type
+        collapsedRow.visibility = View.GONE
+        expandedForm.visibility = View.VISIBLE
+        inputText.hint = if (type == "Note") "Enter call notes..." else "Enter follow-up task..."
+        inputText.setText("")
+        setFocusable(true)
+        inputText.requestFocus()
+      }
+
+      fun collapse() {
+        expandedForm.visibility = View.GONE
+        collapsedRow.visibility = View.VISIBLE
+        setFocusable(false)
+      }
+
+      btnNote.setOnClickListener { expand("Note") }
+      btnTask.setOnClickListener { expand("Task") }
+      btnCancel.setOnClickListener { collapse() }
+
+      btnSave.setOnClickListener {
+        val text = inputText.text.toString().trim()
+        if (text.isNotEmpty()) {
+          emitOverlaySubmit(currentType, text)
+        }
+        collapse()
+      }
+
+      windowManager?.addView(view, params)
+      android.util.Log.i("CallOverlayService", "✅ Overlay view added successfully")
+
+    } catch (e: Exception) {
+      android.util.Log.e("CallOverlayService", "❌ showOverlay failed", e)
+      overlayView = null
+    }
+}
+
+private fun emitOverlaySubmit(type: String, text: String) {
+    try {
+      val app = application as ReactApplication
+      val reactContext = app.reactHost?.currentReactContext
+
+      if (reactContext == null) {
+        android.util.Log.w("CallOverlayService", "reactContext is null, cannot emit event")
+        return
+      }
+
+      val payload = Arguments.createMap().apply {
+        putString("type", type)
+        putString("text", text)
+        putDouble("timestamp", System.currentTimeMillis().toDouble())
+      }
+      reactContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("OverlayNoteSubmitted", payload)
+
+      android.util.Log.i("CallOverlayService", "✅ Event emitted successfully: $type")
+    } catch (e: Exception) {
+      android.util.Log.w("CallOverlayService", "emit failed", e)
+    }
+}
+
+  override fun onDestroy() {
+    super.onDestroy()
+    try {
+      overlayView?.let { windowManager?.removeView(it) }
+    } catch (_: Exception) {}
+    overlayView = null
+  }
+}

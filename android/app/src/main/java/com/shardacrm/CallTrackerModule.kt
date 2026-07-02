@@ -1,29 +1,30 @@
-package com.shardacrm;
+package com.shardacrm
 
-import android.content.Context;
-import android.content.Intent;
-import android.net.Uri;
-import android.os.Build;
-import android.os.Handler;
-import android.os.Looper;
-import android.provider.CallLog;
-import android.provider.MediaStore;
-import android.media.MediaRecorder;
-import android.telephony.PhoneStateListener;
-import android.telephony.TelephonyCallback;
-import android.telephony.TelephonyManager;
-import android.util.Log;
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.provider.CallLog
+import android.provider.MediaStore
+import android.provider.Settings
+import android.media.MediaRecorder
+import android.telephony.PhoneStateListener
+import android.telephony.TelephonyCallback
+import android.telephony.TelephonyManager
+import android.util.Log
 
-import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.Promise;
-import com.facebook.react.bridge.ReactApplicationContext;
-import com.facebook.react.bridge.ReactContextBaseJavaModule;
-import com.facebook.react.bridge.ReactMethod;
-import com.facebook.react.modules.core.DeviceEventManagerModule;
+import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.modules.core.DeviceEventManagerModule
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.util.UUID;
+import java.io.File
+import java.io.FileOutputStream
+import java.util.UUID
 
 class CallTrackerModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -44,7 +45,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
     private var currentAudioSource: Int = MediaRecorder.AudioSource.MIC
 
     private var wasRinging = false
-    private val MIN_VALID_FILE_SIZE = 10000L 
+    private val MIN_VALID_FILE_SIZE = 10000L
 
     override fun getName(): String = "CallTrackerModule"
 
@@ -57,6 +58,72 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
             .emit(eventName, params)
     }
 
+    // ══════════════════════════════════════════════
+    // OVERLAY (Note/Task popup during calls)
+    // ══════════════════════════════════════════════
+    private fun startOverlayIfPermitted() {
+        try {
+            val context = reactContext.applicationContext
+            val canDraw =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context)
+                else true
+
+            Log.i("CallTracker", "canDraw = $canDraw")
+
+            if (canDraw) {
+                val name = context.startService(Intent(context, CallOverlayService::class.java))
+                Log.i("CallTracker", "startService() returned: $name")
+            } else {
+                Log.w("CallTracker", "Overlay permission not granted, skipping overlay")
+            }
+        } catch (e: Exception) {
+            Log.e("CallTracker", "startOverlayIfPermitted crashed", e)
+        }
+    }
+
+    private fun stopOverlay() {
+        try {
+            val context = reactContext.applicationContext
+            context.stopService(Intent(context, CallOverlayService::class.java))
+        } catch (e: Exception) {
+            Log.w("CallTracker", "stopOverlay failed", e)
+        }
+    }
+
+    @ReactMethod
+    fun hasOverlayPermission(promise: Promise) {
+        try {
+            val context = reactContext.applicationContext
+            val granted =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context)
+                else true
+            promise.resolve(granted)
+        } catch (e: Exception) {
+            promise.reject("CHECK_FAILED", e)
+        }
+    }
+
+    @ReactMethod
+    fun requestOverlayPermission(promise: Promise) {
+        try {
+            val context = reactContext.applicationContext
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${context.packageName}")
+                )
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            }
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("REQUEST_FAILED", e)
+        }
+    }
+
+    // ══════════════════════════════════════════════
+    // CALL STATE MACHINE
+    // ══════════════════════════════════════════════
     private fun handleCallStateChanged(state: Int, incomingNumber: String? = null) {
         Log.i("CallTracker", "=== STATE CHANGED ===")
         Log.i("CallTracker", "State: $state | wasRinging: $wasRinging | lastState: $lastCallState")
@@ -82,6 +149,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
                     currentDeviceCallId = UUID.randomUUID().toString()
                     callStartTimestamp = System.currentTimeMillis()
                     startRecordingInternal()
+                    startOverlayIfPermitted()
                     Log.i("CallTracker", "OFFHOOK - CallType set to: $callType")
                 }
             }
@@ -100,6 +168,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
                 }
 
                 stopRecordingInternal()
+                stopOverlay()
                 wasRinging = false
                 Log.i("CallTracker", "IDLE - wasRinging reset")
             }
@@ -485,7 +554,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
         }
 
         sendEvent("CallRecordingCompleted", payload)
-        isProcessingCallData = false 
+        isProcessingCallData = false
         Log.i("CallTracker", "=== FINISHED LIFECYCLE: Event Dispatched successfully ===")
     }
 
