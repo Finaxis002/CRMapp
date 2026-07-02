@@ -245,10 +245,12 @@ const InteractionsTab = ({
       // FIXED: proper template strings
       const activityPromise = api.get(`/activities/lead/${leadId}`);
       const whatsappPromise = api.get(`/whatsapp/messages?leadId=${leadId}`);
+      const callLogPromise = api.get(`/call-logs?leadId=${leadId}&limit=50`);
 
-      const [activityResult, whatsappResult] = await Promise.allSettled([
+      const [activityResult, whatsappResult, callLogResult] = await Promise.allSettled([
         activityPromise,
         whatsappPromise,
+        callLogPromise,
       ]);
 
       const activities = parseApiResponseArray(
@@ -258,6 +260,18 @@ const InteractionsTab = ({
         source: activity.source || 'activity',
         type: activity.type || 'Note',
       }));
+
+      if (callLogResult.status === 'fulfilled') {
+        const callLogs = parseApiResponseArray(callLogResult.value);
+        const callLogMap = {};
+        callLogs.forEach(cl => { callLogMap[cl._id] = cl; });
+        activities.forEach(act => {
+          if (act.isAutoTracked && act._id && callLogMap[act._id]) {
+            act.aiAnalysis = callLogMap[act._id].aiAnalysis;
+            act.transcript = callLogMap[act._id].transcript;
+          }
+        });
+      }
 
       let whatsappMessages = [];
       if (whatsappResult.status === 'fulfilled') {

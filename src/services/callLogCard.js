@@ -214,6 +214,18 @@ const CallLogCard = ({ callLog, theme = {} }) => {
       {!hasRecording && (
         <Text style={styles.noRec}>No recording for this call</Text>
       )}
+
+      {callLog.aiAnalysis?.summary ? (
+        <View style={styles.summaryBox}>
+          <Text style={styles.summaryLabel}>🤖 AI Summary</Text>
+          <Text style={styles.summaryText}>{callLog.aiAnalysis.summary}</Text>
+          {callLog.aiAnalysis.intent ? (
+            <Text style={styles.intentText}>
+              Intent: {callLog.aiAnalysis.intent}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -278,6 +290,31 @@ const styles = StyleSheet.create({
   },
   hiddenPlayer: { height: 0, width: 0 },
   noRec: { fontSize: 12, color: '#9ca3af', marginTop: 12 },
+  summaryBox: {
+    marginTop: 12,
+    backgroundColor: '#f5f3ff',
+    borderRadius: 10,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#7c3aed',
+  },
+  summaryLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#7c3aed',
+    marginBottom: 4,
+  },
+  summaryText: {
+    fontSize: 12,
+    color: '#374151',
+    lineHeight: 18,
+  },
+  intentText: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 6,
+    fontStyle: 'italic',
+  },
 });
 
 export default CallLogCard;
