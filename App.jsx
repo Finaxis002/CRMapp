@@ -15,6 +15,7 @@ import {
   initCallTracker,
   requestCallPermissions,
   startCallTracker,
+  hasOverlayPermission, requestOverlayPermission
 } from './src/services/callTrackerService';
 import { useLocationTracker } from './src/hooks/useLocationTracker';
 
@@ -52,19 +53,26 @@ const AppContent = () => {
 
   useLocationTracker(isAuthenticated);
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
+      useEffect(() => {
+  if (!isAuthenticated) return;
 
-    const initTracking = async () => {
-      if (Platform.OS !== 'android') return;
-      const granted = await requestCallPermissions();
-      if (!granted) return;
-      await initCallTracker();
-      await startCallTracker();
-    };
+  const initTracking = async () => {
+    if (Platform.OS !== 'android') return;
+    const granted = await requestCallPermissions();
+    if (!granted) return;
+    await initCallTracker();
+    await startCallTracker();
 
-    initTracking();
-  }, [isAuthenticated]);
+    const overlayOk = await hasOverlayPermission();
+    if (!overlayOk) {
+      await requestOverlayPermission(); // Settings screen khulegi, user ek baar "Allow" karega
+    }
+  };
+
+  initTracking();
+}, [isAuthenticated]);
+
+
 
   if (isInitializing) {
     return (

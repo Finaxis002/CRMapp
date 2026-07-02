@@ -1,0 +1,10 @@
+{
+  "java.import.gradle.enabled": false,
+  "java.configuration.updateBuildConfiguration": "disabled",
+  "files.watcherExclude": {
+    "**/node_modules/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true
+  }
+}
