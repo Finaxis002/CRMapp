@@ -10,11 +10,12 @@ import {
   Alert,
   Platform,
 } from 'react-native';
+import { useSelector } from 'react-redux';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../../services/api.js';
-import CallLogCard from "../../../services/callLogCard.js";
+import CallLogCard from '../../../services/callLogCard.js';
 
 const TYPE_LABEL = {
   Note: 'Note',
@@ -86,6 +87,8 @@ const ActivityTypeTab = ({
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const { user } = useSelector(state => state.auth);
+  const isAdminUser = user?.role === 'admin';
 
   const initialForm = useMemo(() => {
     const base = DEFAULT_FORM[type] || DEFAULT_FORM.Note;
@@ -320,24 +323,13 @@ const ActivityTypeTab = ({
     const typeMeta = getItemTypeMeta(item);
     if (item.isAutoTracked) {
       return (
-        <View style={{ position: 'relative', marginBottom: 14 }}>
-          <CallLogCard callLog={item} theme={theme} />
-          <TouchableOpacity
-            onPress={() => handleDelete(item)}
-            style={{
-              position: 'absolute',
-              top: 10,
-              right: 10,
-              backgroundColor: 'rgba(255,255,255,0.9)',
-              borderRadius: 20,
-              paddingHorizontal: 10,
-              paddingVertical: 4,
-            }}
-          >
-            <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '600' }}>
-              Delete
-            </Text>
-          </TouchableOpacity>
+        <View style={{ marginBottom: 14 }}>
+          <CallLogCard
+            callLog={item}
+            theme={theme}
+            showDelete={isAdminUser}
+            onDelete={() => handleDelete(item)}
+          />
         </View>
       );
     }

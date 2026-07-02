@@ -11,6 +11,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
+import { useSelector } from 'react-redux';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -216,6 +217,8 @@ const InteractionsTab = ({
   });
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const { user } = useSelector(state => state.auth);
+  const isAdminUser = user?.role === 'admin';
 
   // Default theme
   const defaultTheme = {
@@ -242,7 +245,6 @@ const InteractionsTab = ({
     setError(null);
 
     try {
-      // FIXED: proper template strings
       const activityPromise = api.get(`/activities/lead/${leadId}`);
       const whatsappPromise = api.get(`/whatsapp/messages?leadId=${leadId}`);
       const callLogPromise = api.get(`/call-logs?leadId=${leadId}&limit=50`);
@@ -511,24 +513,6 @@ const InteractionsTab = ({
                 </Text>
               )}
             </View>
-            {/* auto-track extras */}
-            {item.isAutoTracked && item.recordingUrl ? (
-              <Text
-                style={[
-                  styles.metaText,
-                  { color: defaultTheme.accent, marginTop: 4 },
-                ]}
-              >
-                🎙️ Recording available
-              </Text>
-            ) : null}
-            {item.isAutoTracked && item.phoneNumber ? (
-              <Text
-                style={[styles.metaText, { color: defaultTheme.textMuted }]}
-              >
-                {item.phoneNumber}
-              </Text>
-            ) : null}
           </>
         );
       }
@@ -695,48 +679,17 @@ const InteractionsTab = ({
   // RENDER ITEM – with auto-tracked CallLogCard
   // =============================================
   const renderItem = item => {
-    // ── AUTO-TRACKED CALL ── same as ActivityTypeTab
+    // ── AUTO-TRACKED CALL ──
     if (item.isAutoTracked) {
       return (
-        <View
-          style={{ position: 'relative', marginBottom: 14 }}
-          key={`auto-${item._id}`}
-        >
-          <CallLogCard callLog={item} theme={defaultTheme} />
-          <TouchableOpacity
-            onPress={() => handleDelete(item)}
-            style={{
-              position: 'absolute',
-              top: 10,
-              right: 10,
-              backgroundColor: 'rgba(255,255,255,0.92)',
-              borderRadius: 20,
-              paddingHorizontal: 10,
-              paddingVertical: 4,
-              borderWidth: 1,
-              borderColor: 'rgba(220,38,38,0.25)',
-            }}
-          >
-            <Text style={{ color: '#dc2626', fontSize: 11, fontWeight: '600' }}>
-              Delete
-            </Text>
-          </TouchableOpacity>
-          {/* Auto badge */}
-          <View
-            style={{
-              position: 'absolute',
-              top: 10,
-              left: 10,
-              backgroundColor: '#ede9fe',
-              paddingHorizontal: 8,
-              paddingVertical: 2,
-              borderRadius: 12,
-            }}
-          >
-            <Text style={{ fontSize: 10, fontWeight: '700', color: '#6366f1' }}>
-              AUTO
-            </Text>
-          </View>
+        <View style={{ marginBottom: 14 }} key={`auto-${item._id}`}>
+          <CallLogCard
+            callLog={item}
+            theme={defaultTheme}
+            showDelete={isAdminUser}
+            onDelete={() => handleDelete(item)}
+            showMeta
+          />
         </View>
       );
     }
@@ -809,7 +762,6 @@ const InteractionsTab = ({
               item.createdBy?.name ||
               item.createdByName ||
               'You'}
-            {item.isAutoTracked ? ' · Auto' : ''}
           </Text>
           <Text style={[styles.footerText, { color: defaultTheme.textMuted }]}>
             {formatDate(item)}
@@ -1155,7 +1107,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
   },
-  // Edit Form
   editForm: {
     borderRadius: 16,
     borderWidth: 1,
@@ -1253,7 +1204,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
-  // Item Card
   itemCard: {
     borderRadius: 10,
     borderWidth: 1,
@@ -1354,7 +1304,6 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 11,
   },
-  // Dropdown styles
   dropdownButton: {
     height: 40,
     borderRadius: 12,
