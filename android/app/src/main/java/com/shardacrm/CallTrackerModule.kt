@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.CallLog
 import android.provider.MediaStore
+import android.provider.Settings
 import android.media.MediaRecorder
 import android.telephony.PhoneStateListener
 import android.telephony.TelephonyCallback
@@ -39,7 +40,6 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
   private var lastCallState = TelephonyManager.CALL_STATE_IDLE
   private var currentAudioSource: Int = MediaRecorder.AudioSource.MIC
 
-  // Minimum acceptable file size (5KB) to consider recording valid
   private val MIN_VALID_FILE_SIZE = 5000L
 
   override fun getName(): String = "CallTrackerModule"
@@ -66,13 +66,75 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
           currentDeviceCallId = UUID.randomUUID().toString()
           callStartTimestamp = System.currentTimeMillis()
           startRecordingInternal()
+          startOverlayIfPermitted()
         }
       }
       TelephonyManager.CALL_STATE_IDLE -> {
         stopRecordingInternal()
+        stopOverlay()
       }
     }
     lastCallState = state
+  }
+
+private fun startOverlayIfPermitted() {
+    try {
+      val context = reactContext.applicationContext
+      val canDraw =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context)
+        else true
+
+      Log.i("CallTracker", "canDraw = $canDraw")
+
+      if (canDraw) {
+        val name = context.startService(Intent(context, CallOverlayService::class.java))
+        Log.i("CallTracker", "startService() returned: $name")
+      } else {
+        Log.w("CallTracker", "Overlay permission not granted, skipping overlay")
+      }
+    } catch (e: Exception) {
+      Log.e("CallTracker", "startOverlayIfPermitted crashed", e)
+    }
+}
+
+  private fun stopOverlay() {
+    try {
+      val context = reactContext.applicationContext
+      context.stopService(Intent(context, CallOverlayService::class.java))
+    } catch (e: Exception) {
+      Log.w("CallTracker", "stopOverlay failed", e)
+    }
+  }
+
+  @ReactMethod
+  fun hasOverlayPermission(promise: Promise) {
+    try {
+      val context = reactContext.applicationContext
+      val granted =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context)
+        else true
+      promise.resolve(granted)
+    } catch (e: Exception) {
+      promise.reject("CHECK_FAILED", e)
+    }
+  }
+
+  @ReactMethod
+  fun requestOverlayPermission(promise: Promise) {
+    try {
+      val context = reactContext.applicationContext
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+        val intent = Intent(
+          Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+          Uri.parse("package:${context.packageName}")
+        )
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+      }
+      promise.resolve(true)
+    } catch (e: Exception) {
+      promise.reject("REQUEST_FAILED", e)
+    }
   }
 
   @ReactMethod
