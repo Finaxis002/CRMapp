@@ -1,5 +1,11 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Linking,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 /**
@@ -24,6 +30,21 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
  *  - getAssignedName(lead) -> string
  *  - formatCurrency(value) -> string
  */
+
+const openPhone = phoneNumber => {
+  const rawPhone = String(phoneNumber || '').trim();
+  if (!rawPhone) return;
+  const hasCountryCode =
+    rawPhone.startsWith('+') || rawPhone.replace(/\D/g, '').length > 10;
+  const cleanDigits = rawPhone.replace(/\D/g, '');
+  const telHref = hasCountryCode
+    ? rawPhone.startsWith('+')
+      ? `tel:${rawPhone}`
+      : `tel:+${rawPhone}`
+    : `tel:+91${cleanDigits}`;
+  Linking.openURL(telHref);
+};
+
 const LeadCardMobile = ({
   lead,
   selected = false,
@@ -77,7 +98,19 @@ const LeadCardMobile = ({
                 </View>
               ) : null}
             </View>
-            <Text style={styles.phoneText}>{phone || '—'}</Text>
+            {phone ? (
+              <TouchableOpacity
+                onPress={() => openPhone(lead.phone)}
+                style={styles.phoneRow}
+                activeOpacity={0.6}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Icon name="phone-outline" size={12} color="#16a34a" />
+                <Text style={styles.phoneText}>{phone}</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.phoneText}>—</Text>
+            )}
           </View>
         </View>
 
@@ -243,6 +276,13 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: '#9333ea',
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+    alignSelf: 'flex-start',
   },
   phoneText: {
     marginTop: 2,
