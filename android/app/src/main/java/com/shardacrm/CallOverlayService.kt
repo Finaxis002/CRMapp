@@ -15,6 +15,7 @@ import android.widget.TextView
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.ReactApplication
+import java.util.Calendar
 
 class CallOverlayService : Service() {
 
@@ -65,8 +66,37 @@ private fun showOverlay() {
       val btnTask = view.findViewById<Button>(R.id.btnTask)
       val btnCancel = view.findViewById<Button>(R.id.btnCancel)
       val btnSave = view.findViewById<Button>(R.id.btnSave)
+      val btnPickDate = view.findViewById<Button>(R.id.btnPickDate)
 
       var currentType = "Note"
+      var selectedDueDate = ""
+
+      fun getTodayDateString(): String {
+        val c = Calendar.getInstance()
+        return String.format("%d-%02d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH))
+      }
+      selectedDueDate = getTodayDateString()
+
+      btnPickDate.setOnClickListener {
+        val calendar = Calendar.getInstance()
+        val datePickerDialog = android.app.DatePickerDialog(
+          this,
+          { _, year, month, dayOfMonth ->
+            selectedDueDate = String.format("%d-%02d-%02d", year, month + 1, dayOfMonth)
+            btnPickDate.text = "Due Date: $selectedDueDate"
+          },
+          calendar.get(Calendar.YEAR),
+          calendar.get(Calendar.MONTH),
+          calendar.get(Calendar.DAY_OF_MONTH)
+        )
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          datePickerDialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        } else {
+          @Suppress("DEPRECATION") datePickerDialog.window?.setType(WindowManager.LayoutParams.TYPE_PHONE)
+        }
+        datePickerDialog.show()
+      }
 
       fun setFocusable(focusable: Boolean) {
         if (focusable) {
@@ -81,7 +111,17 @@ private fun showOverlay() {
         currentType = type
         collapsedRow.visibility = View.GONE
         expandedForm.visibility = View.VISIBLE
-        inputText.hint = if (type == "Note") "Enter call notes..." else "Enter follow-up task..."
+        
+        if (type == "Note") {
+          inputText.hint = "Enter call notes..."
+          btnPickDate.visibility = View.GONE
+        } else {
+          inputText.hint = "Enter task description..."
+          selectedDueDate = getTodayDateString()
+          btnPickDate.text = "Due Date: Today"
+          btnPickDate.visibility = View.VISIBLE
+        }
+        
         inputText.setText("")
         setFocusable(true)
         inputText.requestFocus()
@@ -89,6 +129,7 @@ private fun showOverlay() {
 
       fun collapse() {
         expandedForm.visibility = View.GONE
+        btnPickDate.visibility = View.GONE
         collapsedRow.visibility = View.VISIBLE
         setFocusable(false)
       }
@@ -100,7 +141,11 @@ private fun showOverlay() {
       btnSave.setOnClickListener {
         val text = inputText.text.toString().trim()
         if (text.isNotEmpty()) {
-          emitOverlaySubmit(currentType, text)
+          if (currentType == "Task") {
+            emitOverlaySubmit("Task|$selectedDueDate", text)
+          } else {
+            emitOverlaySubmit("Note", text)
+          }
         }
         collapse()
       }

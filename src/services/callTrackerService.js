@@ -4,6 +4,7 @@ import {
   PermissionsAndroid,
   Platform,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from './api.js';
 import { leadsService } from './leadsService.js';
 
@@ -108,22 +109,42 @@ const findLeadByPhoneLocal = async phoneNumber => {
 };
 
 // Task ke liye due date zaroori hai (ActivityTypeTab.jsx isko required maanta hai).
-// Overlay se call ke dauraan date pick karna practical nahi, isliye default
-// "aaj, din khatam hone tak" (23:59:59) set kar dete hain.
-const buildOverlayActivityPayload = (lead, note) => {
-  const payload = {
+const buildOverlayActivityPayload = async (lead, note) => {
+  const activity = {
     leadId: lead._id,
     type: note.type,
     text: note.text,
   };
 
   if (note.type === 'Task') {
-    const due = new Date();
-    due.setHours(23, 59, 59, 999);
-    payload.taskDueDate = due;
+    // Ensure taskDueDate is in YYYY-MM-DD format (string)
+    let dueDate = note.taskDueDate || getTodayDateString();
+
+    // If it's a Date object, convert to string
+    if (dueDate instanceof Date) {
+      dueDate = dueDate.toISOString().split('T')[0];
+    }
+
+    activity.taskDueDate = dueDate;
+
+    // Get current user ID and assign task
+    const currentUserId = await AsyncStorage.getItem('currentUserId');
+
+    if (currentUserId) {
+      activity.taskAssignedTo = currentUserId;
+    } else {
+      console.warn('⚠️ currentUserId not found in AsyncStorage');
+    }
+
+    activity.notifiedUsers = [];
   }
 
-  return payload;
+  return activity;
+};
+
+const getTodayDateString = () => {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
 };
 
 const flushPendingOverlayNotes = async phoneNumber => {
@@ -145,14 +166,8 @@ const flushPendingOverlayNotes = async phoneNumber => {
 
   for (const note of notesToFlush) {
     try {
-      const payload = buildOverlayActivityPayload(lead, note);
+      const payload = await buildOverlayActivityPayload(lead, note);
       await api.put(`/leads/${lead._id}`, { activities: [payload] });
-      console.log(
-        'flushPendingOverlayNotes: saved',
-        note.type,
-        'for lead',
-        lead._id,
-      );
     } catch (error) {
       console.warn(
         'flushPendingOverlayNotes: save failed',
@@ -169,9 +184,20 @@ const subscribeToOverlayEvents = () => {
     'OverlayNoteSubmitted',
     event => {
       if (!event?.text) return;
+
+      let finalType = event.type || 'Note';
+      let extractedDueDate = null;
+
+      if (finalType.startsWith('Task|')) {
+        const parts = finalType.split('|');
+        finalType = parts[0];
+        extractedDueDate = parts[1];
+      }
+
       pendingOverlayNotes.push({
-        type: event.type || 'Note',
+        type: finalType,
         text: event.text,
+        taskDueDate: extractedDueDate,
         timestamp: event.timestamp || Date.now(),
       });
     },
@@ -181,8 +207,6 @@ const subscribeToOverlayEvents = () => {
 const handleRecordingCompleted = async event => {
   if (!event) return;
 
-  // Call confirm ho gaya, real phone number mil gaya —
-  // overlay se queue hue notes/tasks ab flush karo.
   await flushPendingOverlayNotes(event.phoneNumber);
 
   notifyCallRecordingListeners(event);

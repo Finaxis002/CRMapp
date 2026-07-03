@@ -15,7 +15,8 @@ import {
   initCallTracker,
   requestCallPermissions,
   startCallTracker,
-  hasOverlayPermission, requestOverlayPermission
+  hasOverlayPermission,
+  requestOverlayPermission,
 } from './src/services/callTrackerService';
 import { useLocationTracker } from './src/hooks/useLocationTracker';
 
@@ -35,8 +36,13 @@ const AppContent = () => {
         try {
           const user = await authService.getCurrentUser();
           dispatch(setUser(user));
+          await AsyncStorage.setItem('currentUserId', user._id);
         } catch (error) {
-          await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
+          await AsyncStorage.multiRemove([
+            'accessToken',
+            'refreshToken',
+            'currentUserId',
+          ]);
           dispatch(logout());
         }
       } else {
@@ -53,26 +59,24 @@ const AppContent = () => {
 
   useLocationTracker(isAuthenticated);
 
-      useEffect(() => {
-  if (!isAuthenticated) return;
+  useEffect(() => {
+    if (!isAuthenticated) return;
 
-  const initTracking = async () => {
-    if (Platform.OS !== 'android') return;
-    const granted = await requestCallPermissions();
-    if (!granted) return;
-    await initCallTracker();
-    await startCallTracker();
+    const initTracking = async () => {
+      if (Platform.OS !== 'android') return;
+      const granted = await requestCallPermissions();
+      if (!granted) return;
+      await initCallTracker();
+      await startCallTracker();
 
-    const overlayOk = await hasOverlayPermission();
-    if (!overlayOk) {
-      await requestOverlayPermission(); // Settings screen khulegi, user ek baar "Allow" karega
-    }
-  };
+      const overlayOk = await hasOverlayPermission();
+      if (!overlayOk) {
+        await requestOverlayPermission(); // Settings screen khulegi, user ek baar "Allow" karega
+      }
+    };
 
-  initTracking();
-}, [isAuthenticated]);
-
-
+    initTracking();
+  }, [isAuthenticated]);
 
   if (isInitializing) {
     return (
