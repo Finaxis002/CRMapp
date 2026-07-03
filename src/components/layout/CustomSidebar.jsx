@@ -38,7 +38,7 @@ const menuItems = [
     name: 'Payments',
     permission: 'record_payments',
   },
-  { label: 'Attendance', icon: 'clipboard-check-outline', name: 'Attendance' },
+  // { label: 'Attendance', icon: 'clipboard-check-outline', name: 'Attendance' },
   {
     label: 'Import',
     icon: 'upload',
