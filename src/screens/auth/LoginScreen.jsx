@@ -20,6 +20,7 @@ import { useDispatch } from 'react-redux';
 import { setUser } from '../../store/slices/authSlice';
 import { authService } from '../../services/authService';
 import { toast } from '../../hooks/useToast';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const BRAND = '#5A7BF6';
 const { height: SCREEN_H } = Dimensions.get('window');
@@ -81,6 +82,7 @@ const LoginScreen = () => {
     try {
       const data = await authService.login(formData.email, formData.password);
       dispatch(setUser(data.user));
+      await AsyncStorage.setItem('currentUserId', data.user._id);
       toast.dismiss(loadingId);
       toast.success('Logged in successfully!');
       // Redux state change automatically switches to MainNavigator
