@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   FlatList,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -274,6 +275,7 @@ const DashboardScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
+  const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState(null);
 
 const { isDark } = useTheme();
@@ -343,6 +345,22 @@ const { isDark } = useTheme();
       mounted = false;
     };
   }, [activeFilter]);
+
+const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const data = await dashboardService.getOverview({
+        filter: filterMap[activeFilter],
+      });
+      setOverview(data);
+      setError('');
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load dashboard data. Please refresh the page.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
 const handleNavigate = (path, params = {}) => {
   if (navigation && typeof navigation.navigate === 'function') {
@@ -792,7 +810,17 @@ const handleNavigate = (path, params = {}) => {
       edges={['bottom']}
       style={[styles.root, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}
     >
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+          />
+        }
+      >
         {/* Header */}
         <View style={styles.header}>
           <View>
