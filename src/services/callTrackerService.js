@@ -3,8 +3,10 @@ import {
   NativeModules,
   PermissionsAndroid,
   Platform,
+  AppState,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import api from './api.js';
 import { leadsService } from './leadsService.js';
 
@@ -61,20 +63,173 @@ const notifyCallRecordingListeners = event => {
 };
 
 const syncCallLogMetadata = async payload => {
-  if (!payload) return null;
-  try {
-    const response = await api.post('/call-logs', { logs: [payload] });
-    return response.data?.data || null;
-  } catch (error) {
-    console.warn('syncCallLogMetadata failed', {
-      error: error?.response?.data || error?.message || error,
-      payload,
-    });
-    throw error;
-  }
+  const response = await api.post('/call-logs', { logs: [payload] });
+  return response.data?.data || null;
 };
 
 const generateRandomId = () => Math.random().toString(36).substring(2, 15);
+
+// ══════════════════════════════════════════════
+// OFFLINE-SAFE UPLOAD QUEUE
+//
+// Problem: if the device has no internet (or the upload otherwise fails)
+// right when a call ends, the recording + call metadata used to be
+// dropped silently (only a console.warn). This queue makes sure nothing
+// is lost:
+//   1. Every finished call is written to a persistent AsyncStorage queue
+//      FIRST (write-ahead), before we even attempt the network call.
+//   2. We then try to upload immediately.
+//   3. If it fails, the item just stays in the queue.
+//   4. The queue is retried automatically when:
+//        - connectivity comes back (NetInfo listener)
+//        - the app comes to the foreground (AppState listener)
+//        - the tracker/app initializes (covers "app was killed while
+//          offline" case)
+//   5. On success the item is removed from the queue and the local
+//      recording file (which lives in persistent storage, not cacheDir —
+//      see native module) is deleted to free space.
+// ══════════════════════════════════════════════
+
+const PENDING_QUEUE_KEY = 'pending_call_logs_queue_v1';
+let isProcessingQueue = false;
+let queueListenersRegistered = false;
+
+const readQueue = async () => {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_QUEUE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn('readQueue: failed to parse pending queue, resetting', error);
+    return [];
+  }
+};
+
+const writeQueue = async queue => {
+  try {
+    await AsyncStorage.setItem(PENDING_QUEUE_KEY, JSON.stringify(queue));
+  } catch (error) {
+    console.warn('writeQueue failed', error);
+  }
+};
+
+const enqueuePendingCallLog = async item => {
+  const queue = await readQueue();
+  // De-dupe by deviceCallId in case of re-entrant calls
+  const filtered = queue.filter(q => q.deviceCallId !== item.deviceCallId);
+  filtered.push({ ...item, queuedAt: Date.now(), attempts: 0 });
+  await writeQueue(filtered);
+};
+
+const removeFromQueue = async deviceCallId => {
+  const queue = await readQueue();
+  const next = queue.filter(q => q.deviceCallId !== deviceCallId);
+  await writeQueue(next);
+};
+
+const bumpAttempt = async deviceCallId => {
+  const queue = await readQueue();
+  const next = queue.map(q =>
+    q.deviceCallId === deviceCallId
+      ? { ...q, attempts: (q.attempts || 0) + 1, lastAttemptAt: Date.now() }
+      : q,
+  );
+  await writeQueue(next);
+};
+
+const deleteLocalRecordingFile = async filePath => {
+  if (!filePath || Platform.OS !== 'android' || !CallTrackerModule?.deleteRecordingFile) {
+    return;
+  }
+  try {
+    await CallTrackerModule.deleteRecordingFile(filePath);
+  } catch (error) {
+    console.warn('deleteLocalRecordingFile failed', filePath, error);
+  }
+};
+
+// Attempts to sync a single queued item. Returns true on success.
+const attemptUploadQueueItem = async item => {
+  try {
+    if (item.recordingFilePath) {
+      await uploadCallRecording(item);
+    } else {
+      await syncCallLogMetadata(item);
+    }
+    return true;
+  } catch (error) {
+    console.warn('attemptUploadQueueItem failed', {
+      deviceCallId: item.deviceCallId,
+      error: error?.response?.data || error?.message || error,
+    });
+    return false;
+  }
+};
+
+// Processes the whole persistent queue, one item at a time, so we don't
+// hammer the network/backend if many calls piled up while offline.
+export const processPendingCallLogsQueue = async () => {
+  if (isProcessingQueue) return;
+  isProcessingQueue = true;
+
+  try {
+    const netState = await NetInfo.fetch().catch(() => null);
+    if (netState && netState.isConnected === false) {
+      // Still offline — don't even try, avoid wasted attempts.
+      return;
+    }
+
+    const queue = await readQueue();
+    if (queue.length === 0) return;
+
+    console.log(`Processing pending call log queue: ${queue.length} item(s)`);
+
+    for (const item of queue) {
+      const success = await attemptUploadQueueItem(item);
+      if (success) {
+        await removeFromQueue(item.deviceCallId);
+        await deleteLocalRecordingFile(item.recordingFilePath);
+      } else {
+        await bumpAttempt(item.deviceCallId);
+        // Keep going with the rest of the queue even if one item fails —
+        // e.g. a stale/corrupt file shouldn't block newer, valid items.
+      }
+    }
+  } catch (error) {
+    console.warn('processPendingCallLogsQueue crashed', error);
+  } finally {
+    isProcessingQueue = false;
+  }
+};
+
+// Registers listeners that automatically retry the queue once, on:
+//  - network reconnect
+//  - app returning to foreground
+// Safe to call multiple times — it only registers once per app session.
+export const initCallLogOfflineSync = () => {
+  if (queueListenersRegistered) return;
+  queueListenersRegistered = true;
+
+  // Try immediately in case there's leftover data from a previous session
+  // (e.g. app was killed while offline).
+  processPendingCallLogsQueue();
+
+  let wasConnected = true;
+  NetInfo.addEventListener(state => {
+    const isConnected = Boolean(state.isConnected && state.isInternetReachable !== false);
+    if (isConnected && !wasConnected) {
+      console.log('Network restored — retrying pending call logs');
+      processPendingCallLogsQueue();
+    }
+    wasConnected = isConnected;
+  });
+
+  AppState.addEventListener('change', nextState => {
+    if (nextState === 'active') {
+      processPendingCallLogsQueue();
+    }
+  });
+};
 
 // ══════════════════════════════════════════════
 // OVERLAY NOTE/TASK QUEUE
@@ -147,6 +302,54 @@ const getTodayDateString = () => {
   return today.toISOString().split('T')[0];
 };
 
+// ══════════════════════════════════════════════
+// OFFLINE-SAFE OVERLAY NOTES QUEUE
+// Same problem applies to overlay notes/tasks: if network is down when
+// the call ends, they used to be silently dropped. Persist them too.
+// ══════════════════════════════════════════════
+const PENDING_OVERLAY_NOTES_KEY = 'pending_overlay_notes_queue_v1';
+
+const enqueuePendingOverlayNote = async (phoneNumber, note) => {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_OVERLAY_NOTES_KEY);
+    const queue = raw ? JSON.parse(raw) : [];
+    queue.push({ phoneNumber, note, queuedAt: Date.now() });
+    await AsyncStorage.setItem(PENDING_OVERLAY_NOTES_KEY, JSON.stringify(queue));
+  } catch (error) {
+    console.warn('enqueuePendingOverlayNote failed', error);
+  }
+};
+
+export const processPendingOverlayNotesQueue = async () => {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_OVERLAY_NOTES_KEY);
+    const queue = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(queue) || queue.length === 0) return;
+
+    const netState = await NetInfo.fetch().catch(() => null);
+    if (netState && netState.isConnected === false) return;
+
+    const remaining = [];
+    for (const entry of queue) {
+      try {
+        const lead = await findLeadByPhoneLocal(entry.phoneNumber);
+        if (!lead?._id) {
+          remaining.push(entry); // keep retrying later
+          continue;
+        }
+        const payload = await buildOverlayActivityPayload(lead, entry.note);
+        await api.put(`/leads/${lead._id}`, { activities: [payload] });
+      } catch (error) {
+        console.warn('processPendingOverlayNotesQueue: item failed, keeping in queue', error);
+        remaining.push(entry);
+      }
+    }
+    await AsyncStorage.setItem(PENDING_OVERLAY_NOTES_KEY, JSON.stringify(remaining));
+  } catch (error) {
+    console.warn('processPendingOverlayNotesQueue crashed', error);
+  }
+};
+
 const flushPendingOverlayNotes = async phoneNumber => {
   if (pendingOverlayNotes.length === 0) return;
   const notesToFlush = pendingOverlayNotes;
@@ -157,10 +360,15 @@ const flushPendingOverlayNotes = async phoneNumber => {
     console.warn(
       'flushPendingOverlayNotes: no matching lead found for',
       phoneNumber,
-      '- dropping',
+      '- queuing',
       notesToFlush.length,
-      'items',
+      'items for later retry',
     );
+    // Instead of dropping them, persist for later retry (e.g. once lead
+    // sync/search works again, or once network is back).
+    for (const note of notesToFlush) {
+      await enqueuePendingOverlayNote(phoneNumber, note);
+    }
     return;
   }
 
@@ -170,10 +378,11 @@ const flushPendingOverlayNotes = async phoneNumber => {
       await api.put(`/leads/${lead._id}`, { activities: [payload] });
     } catch (error) {
       console.warn(
-        'flushPendingOverlayNotes: save failed',
+        'flushPendingOverlayNotes: save failed, queuing for retry',
         note,
         error?.response?.data || error?.message || error,
       );
+      await enqueuePendingOverlayNote(phoneNumber, note);
     }
   }
 };
@@ -224,18 +433,19 @@ const handleRecordingCompleted = async event => {
     recordingFilePath: event.recordingFilePath,
   };
 
-  try {
-    if (event.recordingFilePath) {
-      await uploadCallRecording(payload);
-    } else {
-      console.log('No recording found, syncing metadata only');
-      await syncCallLogMetadata(payload);
-    }
-  } catch (error) {
-    console.warn('CallTracker sync failed', {
-      error: error?.response?.data || error?.message || error,
-      event,
-    });
+  // ── Write-ahead: persist BEFORE attempting network, so a crash/kill
+  // right after this line still leaves the data recoverable. ──
+  await enqueuePendingCallLog(payload);
+
+  const success = await attemptUploadQueueItem(payload);
+  if (success) {
+    await removeFromQueue(payload.deviceCallId);
+    await deleteLocalRecordingFile(payload.recordingFilePath);
+  } else {
+    console.log(
+      'Call log upload failed (likely offline) — queued for automatic retry',
+      payload.deviceCallId,
+    );
   }
 };
 
@@ -326,6 +536,10 @@ export async function initCallTracker() {
   try {
     await CallTrackerModule.initCallTracker();
     subscribeToRecordingEvents();
+    // Kick off offline-sync listeners + retry any leftovers from a
+    // previous session as soon as the tracker initializes.
+    initCallLogOfflineSync();
+    processPendingOverlayNotesQueue();
   } catch (error) {
     console.warn('CallTracker init failed', error);
   }
@@ -336,6 +550,7 @@ export async function startCallTracker() {
   try {
     await CallTrackerModule.startCallTracker();
     subscribeToRecordingEvents();
+    initCallLogOfflineSync();
   } catch (error) {
     console.warn('CallTracker start failed', error);
   }
