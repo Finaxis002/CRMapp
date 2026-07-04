@@ -218,6 +218,7 @@ const handleRecordingCompleted = async event => {
     phoneNumber: event.phoneNumber || '',
     callType: event.callType || 'Incoming',
     duration: Number(event.duration || 0),
+    ringDuration: Number(event.ringDuration || 0),
     callTimestamp: Number(event.callTimestamp || Date.now()),
     deviceCallId: fallbackCallId,
     recordingFilePath: event.recordingFilePath,
@@ -353,6 +354,7 @@ export async function uploadCallRecording({
   phoneNumber,
   callType,
   duration,
+  ringDuration,
   callTimestamp,
   deviceCallId,
   recordingFilePath,
@@ -375,6 +377,7 @@ export async function uploadCallRecording({
   formData.append('phoneNumber', phoneNumber);
   formData.append('callType', callType);
   formData.append('duration', String(duration));
+  formData.append('ringDuration', String(ringDuration || 0));
   formData.append('callTimestamp', String(callTimestamp));
   if (deviceCallId) {
     formData.append('deviceCallId', deviceCallId);
@@ -388,6 +391,7 @@ export async function uploadCallRecording({
       uri,
       filename,
       fileType,
+      ringDuration,
       response: error?.response?.data || error?.message || error,
     });
     throw error;
