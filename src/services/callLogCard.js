@@ -70,11 +70,17 @@ const CallLogCard = ({
   const recordingUrl = getRecordingUrl(callLog.recordingUrl);
   const hasRecording = Boolean(callLog.recordingUploaded && recordingUrl);
 
-  let displayDuration = callLog.callDuration;
-  if (!displayDuration && callLog.duration !== undefined) {
-    displayDuration = formatDuration(callLog.duration);
-  } else if (!displayDuration) {
-    displayDuration = '0s';
+  let durationLabel = '0s';
+  if (type === 'Missed' || type === 'No Answer') {
+    const ringTime = callLog.ringDuration || 0;
+    durationLabel =
+      ringTime > 0 ? `Rang for: ${formatDuration(ringTime)}` : '0s';
+  } else {
+    let displayDuration = callLog.callDuration;
+    if (!displayDuration && callLog.duration !== undefined) {
+      displayDuration = formatDuration(callLog.duration);
+    }
+    durationLabel = displayDuration || '0s';
   }
 
   const displayTime =
@@ -160,18 +166,13 @@ const CallLogCard = ({
                 </Text>
               </View>
             )}
-            {/* {callLog.isAutoTracked && (
-              <View style={styles.autoBadge}>
-                <Text style={styles.autoText}>AUTO</Text>
-              </View>
-            )} */}
           </View>
 
           <Text style={styles.phone}>
             📞 {cleanNumber(callLog.phoneNumber || callLog.phone)}
           </Text>
           <Text style={styles.meta}>
-            {displayDuration} · {formatDate(displayTime)}
+            {durationLabel} · {formatDate(displayTime)}
           </Text>
         </View>
 

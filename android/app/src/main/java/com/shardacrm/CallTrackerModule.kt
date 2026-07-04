@@ -14,14 +14,12 @@ import android.telephony.PhoneStateListener
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.util.Log
-
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.modules.core.DeviceEventManagerModule
-
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
@@ -33,6 +31,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
     private var isRecording = false
     private var isProcessingCallData = false
     private var outputFilePath: String? = null
+
     private var phoneStateListener: PhoneStateListener? = null
     private var telephonyCallback: Any? = null
     private var telephonyManager: TelephonyManager? = null
@@ -43,8 +42,14 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
     private var callStartTimestamp: Long = 0L
     private var lastCallState = TelephonyManager.CALL_STATE_IDLE
     private var currentAudioSource: Int = MediaRecorder.AudioSource.MIC
-
     private var wasRinging = false
+
+    // ── Ring duration tracking ──
+    private var ringStartTimestamp: Long = 0L
+    private var callSessionStartTimestamp: Long = 0L // OFFHOOK start (used for Outgoing ring calc)
+    private var incomingRingDurationSec: Int = 0      // resolved when Incoming call answered/missed
+    private var outgoingSessionElapsedSec: Int = 0    // resolved at IDLE for Outgoing calls
+
     private val MIN_VALID_FILE_SIZE = 10000L
 
     override fun getName(): String = "CallTrackerModule"
@@ -67,9 +72,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
             val canDraw =
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context)
                 else true
-
             Log.i("CallTracker", "canDraw = $canDraw")
-
             if (canDraw) {
                 val name = context.startService(Intent(context, CallOverlayService::class.java))
                 Log.i("CallTracker", "startService() returned: $name")
@@ -131,6 +134,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
         when (state) {
             TelephonyManager.CALL_STATE_RINGING -> {
                 wasRinging = true
+                ringStartTimestamp = System.currentTimeMillis()
                 currentPhoneNumber = incomingNumber
                 currentCallType = "Incoming"
                 currentDeviceCallId = UUID.randomUUID().toString()
@@ -144,6 +148,17 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
                         TelephonyManager.CALL_STATE_RINGING -> "Incoming"
                         else -> "Outgoing"
                     }
+
+                    // Incoming call answered -> ring duration is now known (RINGING -> OFFHOOK gap)
+                    incomingRingDurationSec = if (callType == "Incoming" && ringStartTimestamp > 0) {
+                        ((System.currentTimeMillis() - ringStartTimestamp) / 1000).toInt()
+                    } else {
+                        0
+                    }
+
+                    // Outgoing session starts now; ring duration for outgoing is resolved at IDLE
+                    callSessionStartTimestamp = System.currentTimeMillis()
+
                     currentPhoneNumber = incomingNumber ?: currentPhoneNumber
                     currentCallType = callType
                     currentDeviceCallId = UUID.randomUUID().toString()
@@ -155,6 +170,8 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
             }
 
             TelephonyManager.CALL_STATE_IDLE -> {
+                val idleTimestamp = System.currentTimeMillis()
+
                 if (wasRinging && lastCallState == TelephonyManager.CALL_STATE_RINGING && !isRecording) {
                     currentCallType = "Missed"
                     currentPhoneNumber = incomingNumber ?: currentPhoneNumber
@@ -164,15 +181,28 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
                     if (callStartTimestamp == 0L) {
                         callStartTimestamp = System.currentTimeMillis()
                     }
+                    // Missed incoming call -> full ring duration = RINGING -> IDLE gap
+                    incomingRingDurationSec = if (ringStartTimestamp > 0) {
+                        ((idleTimestamp - ringStartTimestamp) / 1000).toInt()
+                    } else {
+                        0
+                    }
                     Log.i("CallTracker", ">>> MISSED CALL DETECTED via state machine <<<")
+                } else if (lastCallState == TelephonyManager.CALL_STATE_OFFHOOK && callSessionStartTimestamp > 0) {
+                    // Session (OFFHOOK -> IDLE) length. For an answered call this equals talk time;
+                    // for an outgoing call that rang but was never answered, this is pure ring time.
+                    outgoingSessionElapsedSec = ((idleTimestamp - callSessionStartTimestamp) / 1000).toInt()
                 }
 
                 stopRecordingInternal()
                 stopOverlay()
                 wasRinging = false
+                ringStartTimestamp = 0L
+                callSessionStartTimestamp = 0L
                 Log.i("CallTracker", "IDLE - wasRinging reset")
             }
         }
+
         lastCallState = state
     }
 
@@ -195,6 +225,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
                     }
                 }
             }
+
             promise.resolve(true)
         } catch (error: Exception) {
             promise.reject("INIT_FAILED", error)
@@ -325,12 +356,12 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
 
             cursor?.use {
                 val cleanPhone = phoneNumber?.replace("\\D".toRegex(), "")?.takeLast(10)
+
                 while (it.moveToNext()) {
                     val id = it.getLong(it.getColumnIndexOrThrow(MediaStore.Audio.Media._ID))
                     val title = it.getString(it.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)) ?: ""
                     val durationMs = it.getLong(it.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION))
                     val fileSize = it.getLong(it.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE))
-
                     val uri = Uri.withAppendedPath(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id.toString())
 
                     if (fileSize < MIN_VALID_FILE_SIZE) continue
@@ -351,11 +382,12 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
             }
 
             if (bestMatchUri != null) {
-                return copyNativeFileToCache(bestMatchUri)
+                return copyNativeFileToCache(bestMatchUri!!)
             }
         } catch (e: Exception) {
             Log.e("NativeSearch", "Search failed", e)
         }
+
         return null
     }
 
@@ -379,7 +411,6 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
 
             if (actualFileSize < MIN_VALID_FILE_SIZE) return null
 
-            val mimeType = contentResolver.getType(uri)
             val extension = when {
                 title.endsWith(".amr", ignoreCase = true) -> ".amr"
                 title.endsWith(".3gp", ignoreCase = true) -> ".3gp"
@@ -389,7 +420,6 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
             }
 
             val tempFile = File(reactContext.cacheDir, "native_rec_${UUID.randomUUID()}$extension")
-
             contentResolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(tempFile).use { output ->
                     input.copyTo(output)
@@ -409,6 +439,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
 
     private fun stopRecordingInternal() {
         var appRecordingPath: String? = null
+
         try {
             if (isRecording) {
                 recorder?.stop()
@@ -426,11 +457,15 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
         val capturedDeviceCallId = currentDeviceCallId
         val capturedStartTs = callStartTimestamp
         val provisionalCallType = currentCallType ?: "Outgoing"
+        val capturedIncomingRingSec = incomingRingDurationSec
+        val capturedOutgoingSessionSec = outgoingSessionElapsedSec
 
         currentPhoneNumber = null
         currentCallType = null
         currentDeviceCallId = null
         callStartTimestamp = 0L
+        incomingRingDurationSec = 0
+        outgoingSessionElapsedSec = 0
 
         if (isProcessingCallData) {
             Log.w("CallTracker", "Already processing a call lifecycle. Skipping duplicate trigger.")
@@ -445,6 +480,8 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
                 deviceCallId = capturedDeviceCallId,
                 provisionalCallType = provisionalCallType,
                 fallbackTimestamp = capturedStartTs,
+                incomingRingDurationSec = capturedIncomingRingSec,
+                outgoingSessionElapsedSec = capturedOutgoingSessionSec,
                 attempt = 1
             )
         }, 5000L)
@@ -455,6 +492,8 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
         deviceCallId: String?,
         provisionalCallType: String,
         fallbackTimestamp: Long,
+        incomingRingDurationSec: Int,
+        outgoingSessionElapsedSec: Int,
         attempt: Int
     ) {
         var number: String? = null
@@ -498,9 +537,20 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
 
         Log.i("CallTracker", "Processing data. Attempt: $attempt | Current callType: $callType")
 
+        // ── Resolve final ring duration based on the confirmed call type ──
+        val finalRingDurationSec = when (callType) {
+            "Incoming", "Missed" -> incomingRingDurationSec
+            "Outgoing", "No Answer" -> {
+                val ring = outgoingSessionElapsedSec - durationSeconds
+                if (ring < 0) 0 else ring
+            }
+            "Rejected" -> incomingRingDurationSec
+            else -> 0
+        }
+
         if (callType == "Missed" || callType == "No Answer") {
             Log.i("CallTracker", "$callType call detected. Stopping loop and dispatching empty payload.")
-            emitFinalPayload(null, number, callType, durationSeconds, callTimestamp, deviceCallId)
+            emitFinalPayload(null, number, callType, durationSeconds, callTimestamp, deviceCallId, finalRingDurationSec)
             return
         }
 
@@ -515,13 +565,21 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
             if (appFilePath != null) {
                 try { File(appFilePath).delete() } catch (_: Exception) {}
             }
-            emitFinalPayload(finalRecordingPath, number, callType, durationSeconds, callTimestamp, deviceCallId)
+            emitFinalPayload(finalRecordingPath, number, callType, durationSeconds, callTimestamp, deviceCallId, finalRingDurationSec)
         } else {
             if (attempt < 8) {
                 val nextDelay = 2000L * attempt
                 Log.w("NativeSearch", "Recording not found yet. Rescheduling attempt ${attempt + 1} in ${nextDelay}ms")
                 Handler(Looper.getMainLooper()).postDelayed({
-                    processCallData(appFilePath, deviceCallId, provisionalCallType, fallbackTimestamp, attempt + 1)
+                    processCallData(
+                        appFilePath,
+                        deviceCallId,
+                        provisionalCallType,
+                        fallbackTimestamp,
+                        incomingRingDurationSec,
+                        outgoingSessionElapsedSec,
+                        attempt + 1
+                    )
                 }, nextDelay)
             } else {
                 Log.w("NativeSearch", "Max backoff attempts exhausted.")
@@ -530,7 +588,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
                 } else {
                     try { appFile?.delete() } catch (_: Exception) {}
                 }
-                emitFinalPayload(finalRecordingPath, number, callType, durationSeconds, callTimestamp, deviceCallId)
+                emitFinalPayload(finalRecordingPath, number, callType, durationSeconds, callTimestamp, deviceCallId, finalRingDurationSec)
             }
         }
     }
@@ -541,7 +599,8 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
         callType: String,
         duration: Int,
         timestamp: Long,
-        deviceCallId: String?
+        deviceCallId: String?,
+        ringDuration: Int
     ) {
         val payload = Arguments.createMap().apply {
             putString("recordingFilePath", filePath)
@@ -549,13 +608,14 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
             putString("phoneNumber", number ?: "")
             putString("callType", callType)
             putInt("duration", duration)
+            putInt("ringDuration", ringDuration)
             putDouble("callTimestamp", timestamp.toDouble())
             putString("deviceCallId", deviceCallId)
         }
 
         sendEvent("CallRecordingCompleted", payload)
         isProcessingCallData = false
-        Log.i("CallTracker", "=== FINISHED LIFECYCLE: Event Dispatched successfully ===")
+        Log.i("CallTracker", "=== FINISHED LIFECYCLE: Event Dispatched successfully (ringDuration=$ringDuration) ===")
     }
 
     private fun startForegroundService(context: Context) {
