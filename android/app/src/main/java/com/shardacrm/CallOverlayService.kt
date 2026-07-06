@@ -11,6 +11,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.TextView
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.modules.core.DeviceEventManagerModule
@@ -21,18 +22,35 @@ class CallOverlayService : Service() {
 
   private var windowManager: WindowManager? = null
   private var overlayView: View? = null
+  private var currentPhoneNumber: String? = null
 
   override fun onBind(intent: Intent?): IBinder? = null
 
-override fun onCreate() {
+  override fun onCreate() {
     super.onCreate()
     try {
-      android.util.Log.i("CallOverlayService", "onCreate() called — attempting showOverlay")
-      showOverlay()
+      android.util.Log.i("CallOverlayService", "onCreate() called")
     } catch (e: Exception) {
       android.util.Log.e("CallOverlayService", "onCreate crashed", e)
     }
-}
+  }
+
+  override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    currentPhoneNumber = intent?.getStringExtra("phoneNumber")
+    if (currentPhoneNumber.isNullOrBlank()) {
+      val prefs = getSharedPreferences("call_tracker_prefs", MODE_PRIVATE)
+      currentPhoneNumber = prefs.getString("current_phone_number", "")?.takeIf { it.isNotBlank() }
+    }
+    try {
+      android.util.Log.i("CallOverlayService", "onStartCommand() called — attempting showOverlay")
+      if (overlayView == null) {
+        showOverlay()
+      }
+    } catch (e: Exception) {
+      android.util.Log.e("CallOverlayService", "onStartCommand crashed", e)
+    }
+    return START_STICKY
+  }
 
 private fun showOverlay() {
     if (overlayView != null) return
@@ -59,11 +77,15 @@ private fun showOverlay() {
       )
       params.gravity = Gravity.TOP
 
+      val statusRow = view.findViewById<View>(R.id.statusRow)
+      val buttonsRow = view.findViewById<View>(R.id.buttonsRow)
       val collapsedRow = view.findViewById<View>(R.id.collapsedRow)
       val expandedForm = view.findViewById<View>(R.id.expandedForm)
       val inputText = view.findViewById<EditText>(R.id.inputText)
       val btnNote = view.findViewById<Button>(R.id.btnNote)
       val btnTask = view.findViewById<Button>(R.id.btnTask)
+      val btnNewLead = view.findViewById<Button>(R.id.btnNewLead)
+      val btnClose = view.findViewById<ImageButton>(R.id.btnClose)
       val btnCancel = view.findViewById<Button>(R.id.btnCancel)
       val btnSave = view.findViewById<Button>(R.id.btnSave)
       val btnPickDate = view.findViewById<Button>(R.id.btnPickDate)
@@ -109,11 +131,15 @@ private fun showOverlay() {
 
       fun expand(type: String) {
         currentType = type
-        collapsedRow.visibility = View.GONE
+        statusRow.visibility = View.GONE
+        buttonsRow.visibility = View.GONE
         expandedForm.visibility = View.VISIBLE
         
         if (type == "Note") {
           inputText.hint = "Enter call notes..."
+          btnPickDate.visibility = View.GONE
+        } else if (type == "Lead") {
+          inputText.hint = "Enter lead name..."
           btnPickDate.visibility = View.GONE
         } else {
           inputText.hint = "Enter task description..."
@@ -130,21 +156,27 @@ private fun showOverlay() {
       fun collapse() {
         expandedForm.visibility = View.GONE
         btnPickDate.visibility = View.GONE
-        collapsedRow.visibility = View.VISIBLE
+        statusRow.visibility = View.VISIBLE
+        buttonsRow.visibility = View.VISIBLE
+        inputText.clearFocus()
         setFocusable(false)
       }
 
       btnNote.setOnClickListener { expand("Note") }
       btnTask.setOnClickListener { expand("Task") }
+      btnNewLead.setOnClickListener { expand("Lead") }
+      btnClose.setOnClickListener { 
+        stopSelf()
+      }
       btnCancel.setOnClickListener { collapse() }
 
       btnSave.setOnClickListener {
         val text = inputText.text.toString().trim()
         if (text.isNotEmpty()) {
-          if (currentType == "Task") {
-            emitOverlaySubmit("Task|$selectedDueDate", text)
-          } else {
-            emitOverlaySubmit("Note", text)
+          when (currentType) {
+            "Task" -> emitOverlaySubmit("Task|$selectedDueDate", text)
+            "Lead" -> emitOverlayLeadSubmit(text)
+            else -> emitOverlaySubmit("Note", text)
           }
         }
         collapse()
@@ -181,6 +213,32 @@ private fun emitOverlaySubmit(type: String, text: String) {
       android.util.Log.i("CallOverlayService", "✅ Event emitted successfully: $type")
     } catch (e: Exception) {
       android.util.Log.w("CallOverlayService", "emit failed", e)
+    }
+}
+
+private fun emitOverlayLeadSubmit(name: String) {
+    try {
+      val app = application as ReactApplication
+      val reactContext = app.reactHost?.currentReactContext
+
+      if (reactContext == null) {
+        android.util.Log.w("CallOverlayService", "reactContext is null, cannot emit lead event")
+        return
+      }
+
+      val payload = Arguments.createMap().apply {
+        putString("type", "Lead")
+        putString("text", name)
+        putString("phoneNumber", currentPhoneNumber ?: "")
+        putDouble("timestamp", System.currentTimeMillis().toDouble())
+      }
+      reactContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("OverlayLeadSubmitted", payload)
+
+      android.util.Log.i("CallOverlayService", "✅ Lead event emitted")
+    } catch (e: Exception) {
+      android.util.Log.w("CallOverlayService", "lead emit failed", e)
     }
 }
 

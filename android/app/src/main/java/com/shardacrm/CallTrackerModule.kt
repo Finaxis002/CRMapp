@@ -24,6 +24,9 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 
+private const val CALL_TRACKER_PREFS = "call_tracker_prefs"
+private const val CURRENT_PHONE_PREF_KEY = "current_phone_number"
+
 class CallTrackerModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
@@ -33,7 +36,6 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
     private var outputFilePath: String? = null
 
     private var phoneStateListener: PhoneStateListener? = null
-    private var telephonyCallback: Any? = null
     private var telephonyManager: TelephonyManager? = null
 
     private var currentPhoneNumber: String? = null
@@ -63,6 +65,12 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
             .emit(eventName, params)
     }
 
+    private fun persistCurrentPhoneNumber(number: String?) {
+        val normalized = number?.trim()?.takeIf { it.isNotEmpty() }
+        val prefs = reactContext.applicationContext.getSharedPreferences(CALL_TRACKER_PREFS, Context.MODE_PRIVATE)
+        prefs.edit().putString(CURRENT_PHONE_PREF_KEY, normalized ?: "").apply()
+    }
+
     // ══════════════════════════════════════════════
     // OVERLAY (Note/Task popup during calls)
     // ══════════════════════════════════════════════
@@ -74,7 +82,10 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
                 else true
             Log.i("CallTracker", "canDraw = $canDraw")
             if (canDraw) {
-                val name = context.startService(Intent(context, CallOverlayService::class.java))
+                val intent = Intent(context, CallOverlayService::class.java).apply {
+                    putExtra("phoneNumber", currentPhoneNumber ?: "")
+                }
+                val name = context.startService(intent)
                 Log.i("CallTracker", "startService() returned: $name")
             } else {
                 Log.w("CallTracker", "Overlay permission not granted, skipping overlay")
@@ -129,13 +140,14 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
     // ══════════════════════════════════════════════
     private fun handleCallStateChanged(state: Int, incomingNumber: String? = null) {
         Log.i("CallTracker", "=== STATE CHANGED ===")
-        Log.i("CallTracker", "State: $state | wasRinging: $wasRinging | lastState: $lastCallState")
+        Log.i("CallTracker", "State: $state | wasRinging: $wasRinging | lastState: $lastCallState | phone: $incomingNumber")
 
         when (state) {
             TelephonyManager.CALL_STATE_RINGING -> {
                 wasRinging = true
                 ringStartTimestamp = System.currentTimeMillis()
                 currentPhoneNumber = incomingNumber
+                persistCurrentPhoneNumber(currentPhoneNumber)
                 currentCallType = "Incoming"
                 currentDeviceCallId = UUID.randomUUID().toString()
                 callStartTimestamp = System.currentTimeMillis()
@@ -160,6 +172,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
                     callSessionStartTimestamp = System.currentTimeMillis()
 
                     currentPhoneNumber = incomingNumber ?: currentPhoneNumber
+                    persistCurrentPhoneNumber(currentPhoneNumber)
                     currentCallType = callType
                     currentDeviceCallId = UUID.randomUUID().toString()
                     callStartTimestamp = System.currentTimeMillis()
@@ -175,6 +188,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
                 if (wasRinging && lastCallState == TelephonyManager.CALL_STATE_RINGING && !isRecording) {
                     currentCallType = "Missed"
                     currentPhoneNumber = incomingNumber ?: currentPhoneNumber
+                    persistCurrentPhoneNumber(currentPhoneNumber)
                     if (currentDeviceCallId == null) {
                         currentDeviceCallId = UUID.randomUUID().toString()
                     }
@@ -195,7 +209,8 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
                 }
 
                 stopRecordingInternal()
-                stopOverlay()
+                // Don't stop overlay here — let it persist until user closes it manually
+                persistCurrentPhoneNumber(currentPhoneNumber)
                 wasRinging = false
                 ringStartTimestamp = 0L
                 callSessionStartTimestamp = 0L
@@ -212,20 +227,13 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
             val context = reactContext.applicationContext
             telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                telephonyCallback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
-                    override fun onCallStateChanged(state: Int) {
-                        handleCallStateChanged(state)
-                    }
-                }
-            } else {
-                phoneStateListener = object : PhoneStateListener() {
-                    override fun onCallStateChanged(state: Int, phoneNumber: String?) {
-                        handleCallStateChanged(state, phoneNumber)
-                    }
+            phoneStateListener = object : PhoneStateListener() {
+                override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+                    handleCallStateChanged(state, phoneNumber)
                 }
             }
 
+            telephonyManager?.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
             promise.resolve(true)
         } catch (error: Exception) {
             promise.reject("INIT_FAILED", error)
@@ -240,14 +248,8 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
                 return
             }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                telephonyCallback?.let {
-                    telephonyManager?.registerTelephonyCallback(reactContext.mainExecutor, it as TelephonyCallback)
-                }
-            } else {
-                phoneStateListener?.let {
-                    telephonyManager?.listen(it, PhoneStateListener.LISTEN_CALL_STATE)
-                }
+            phoneStateListener?.let {
+                telephonyManager?.listen(it, PhoneStateListener.LISTEN_CALL_STATE)
             }
 
             startForegroundService(reactContext.applicationContext)
@@ -260,13 +262,7 @@ class CallTrackerModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun stopCallTracker(promise: Promise) {
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                telephonyCallback?.let {
-                    telephonyManager?.unregisterTelephonyCallback(it as TelephonyCallback)
-                }
-            } else {
-                telephonyManager?.listen(phoneStateListener, PhoneStateListener.LISTEN_NONE)
-            }
+            telephonyManager?.listen(phoneStateListener, PhoneStateListener.LISTEN_NONE)
 
             stopRecordingInternal()
             stopForegroundService(reactContext.applicationContext)
