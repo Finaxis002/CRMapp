@@ -1,9 +1,11 @@
 import {
+  Alert,
   NativeEventEmitter,
   NativeModules,
   PermissionsAndroid,
   Platform,
   AppState,
+  ToastAndroid,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
@@ -18,6 +20,7 @@ const callTrackerEmitter =
 
 let recordingSubscription = null;
 let overlaySubscription = null;
+let overlayLeadSubscription = null;
 const callRecordingListeners = new Set();
 
 const normalizeFileUri = path => {
@@ -62,12 +65,55 @@ const notifyCallRecordingListeners = event => {
   });
 };
 
+export const buildOverlayLeadPayload = (event, fallbackPhone = '') => {
+  const name = String(event?.text || '').trim();
+  const rawPhone = String(
+    event?.phoneNumber || event?.phone || fallbackPhone || '',
+  ).trim();
+  const normalizedPhone = rawPhone.replace(/[^\d+]/g, '').trim();
+
+  if (!name || !normalizedPhone) return null;
+
+  return {
+    name,
+    phone: normalizedPhone,
+    source: 'Cold Call',
+    status: 'New',
+    priority: 'Normal',
+  };
+};
+
 const syncCallLogMetadata = async payload => {
   const response = await api.post('/call-logs', { logs: [payload] });
   return response.data?.data || null;
 };
 
 const generateRandomId = () => Math.random().toString(36).substring(2, 15);
+
+const showOverlayFeedback = (title, message) => {
+  const text = message || title || 'Done';
+
+  if (Platform.OS === 'android') {
+    try {
+      ToastAndroid.showWithGravityAndOffset(
+        `${title || 'Info'}: ${text}`,
+        ToastAndroid.SHORT,
+        ToastAndroid.CENTER,
+        0,
+        180,
+      );
+      return;
+    } catch (error) {
+      console.warn('Overlay Android toast failed', error);
+    }
+  }
+
+  try {
+    Alert.alert(title || 'Info', text);
+  } catch (error) {
+    console.warn('Overlay alert failed', error);
+  }
+};
 
 // ══════════════════════════════════════════════
 // OFFLINE-SAFE UPLOAD QUEUE
@@ -138,7 +184,11 @@ const bumpAttempt = async deviceCallId => {
 };
 
 const deleteLocalRecordingFile = async filePath => {
-  if (!filePath || Platform.OS !== 'android' || !CallTrackerModule?.deleteRecordingFile) {
+  if (
+    !filePath ||
+    Platform.OS !== 'android' ||
+    !CallTrackerModule?.deleteRecordingFile
+  ) {
     return;
   }
   try {
@@ -216,7 +266,9 @@ export const initCallLogOfflineSync = () => {
 
   let wasConnected = true;
   NetInfo.addEventListener(state => {
-    const isConnected = Boolean(state.isConnected && state.isInternetReachable !== false);
+    const isConnected = Boolean(
+      state.isConnected && state.isInternetReachable !== false,
+    );
     if (isConnected && !wasConnected) {
       console.log('Network restored — retrying pending call logs');
       processPendingCallLogsQueue();
@@ -314,7 +366,10 @@ const enqueuePendingOverlayNote = async (phoneNumber, note) => {
     const raw = await AsyncStorage.getItem(PENDING_OVERLAY_NOTES_KEY);
     const queue = raw ? JSON.parse(raw) : [];
     queue.push({ phoneNumber, note, queuedAt: Date.now() });
-    await AsyncStorage.setItem(PENDING_OVERLAY_NOTES_KEY, JSON.stringify(queue));
+    await AsyncStorage.setItem(
+      PENDING_OVERLAY_NOTES_KEY,
+      JSON.stringify(queue),
+    );
   } catch (error) {
     console.warn('enqueuePendingOverlayNote failed', error);
   }
@@ -340,11 +395,17 @@ export const processPendingOverlayNotesQueue = async () => {
         const payload = await buildOverlayActivityPayload(lead, entry.note);
         await api.put(`/leads/${lead._id}`, { activities: [payload] });
       } catch (error) {
-        console.warn('processPendingOverlayNotesQueue: item failed, keeping in queue', error);
+        console.warn(
+          'processPendingOverlayNotesQueue: item failed, keeping in queue',
+          error,
+        );
         remaining.push(entry);
       }
     }
-    await AsyncStorage.setItem(PENDING_OVERLAY_NOTES_KEY, JSON.stringify(remaining));
+    await AsyncStorage.setItem(
+      PENDING_OVERLAY_NOTES_KEY,
+      JSON.stringify(remaining),
+    );
   } catch (error) {
     console.warn('processPendingOverlayNotesQueue crashed', error);
   }
@@ -388,29 +449,70 @@ const flushPendingOverlayNotes = async phoneNumber => {
 };
 
 const subscribeToOverlayEvents = () => {
-  if (!callTrackerEmitter || overlaySubscription) return;
-  overlaySubscription = callTrackerEmitter.addListener(
-    'OverlayNoteSubmitted',
-    event => {
-      if (!event?.text) return;
+  if (!callTrackerEmitter) return;
 
-      let finalType = event.type || 'Note';
-      let extractedDueDate = null;
+  if (!overlaySubscription) {
+    overlaySubscription = callTrackerEmitter.addListener(
+      'OverlayNoteSubmitted',
+      event => {
+        if (!event?.text) return;
 
-      if (finalType.startsWith('Task|')) {
-        const parts = finalType.split('|');
-        finalType = parts[0];
-        extractedDueDate = parts[1];
-      }
+        let finalType = event.type || 'Note';
+        let extractedDueDate = null;
 
-      pendingOverlayNotes.push({
-        type: finalType,
-        text: event.text,
-        taskDueDate: extractedDueDate,
-        timestamp: event.timestamp || Date.now(),
-      });
-    },
-  );
+        if (finalType.startsWith('Task|')) {
+          const parts = finalType.split('|');
+          finalType = parts[0];
+          extractedDueDate = parts[1];
+        }
+
+        pendingOverlayNotes.push({
+          type: finalType,
+          text: event.text,
+          taskDueDate: extractedDueDate,
+          timestamp: event.timestamp || Date.now(),
+        });
+      },
+    );
+  }
+
+  if (!overlayLeadSubscription) {
+    overlayLeadSubscription = callTrackerEmitter.addListener(
+      'OverlayLeadSubmitted',
+      async event => {
+        try {
+          const payload = buildOverlayLeadPayload(event);
+          if (!payload) {
+            showOverlayFeedback(
+              'Lead not created',
+              'Please enter a name and phone number.',
+            );
+            return;
+          }
+
+          await leadsService.createLead(payload);
+          console.log('Overlay lead created successfully', payload.name);
+          showOverlayFeedback(
+            'Lead created',
+            `${payload.name} was added successfully.`,
+          );
+        } catch (error) {
+          const message =
+            error?.response?.data?.message ||
+            error?.message ||
+            'Unable to create lead right now.';
+
+          console.warn('Overlay lead creation failed', message);
+
+          if (String(message).toLowerCase().includes('already exists')) {
+            showOverlayFeedback('Lead already exists', message);
+          } else {
+            showOverlayFeedback('Lead not created', message);
+          }
+        }
+      },
+    );
+  }
 };
 
 const handleRecordingCompleted = async event => {
