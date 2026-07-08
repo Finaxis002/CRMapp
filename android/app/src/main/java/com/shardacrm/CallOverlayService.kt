@@ -165,7 +165,8 @@ private fun showOverlay() {
       btnNote.setOnClickListener { expand("Note") }
       btnTask.setOnClickListener { expand("Task") }
       btnNewLead.setOnClickListener { expand("Lead") }
-      btnClose.setOnClickListener { 
+      btnClose.setOnClickListener {
+        emitOverlayCloseRequested()
         stopSelf()
       }
       btnCancel.setOnClickListener { collapse() }
@@ -239,6 +240,30 @@ private fun emitOverlayLeadSubmit(name: String) {
       android.util.Log.i("CallOverlayService", "✅ Lead event emitted")
     } catch (e: Exception) {
       android.util.Log.w("CallOverlayService", "lead emit failed", e)
+    }
+}
+
+private fun emitOverlayCloseRequested() {
+    try {
+      val app = application as ReactApplication
+      val reactContext = app.reactHost?.currentReactContext
+
+      if (reactContext == null) {
+        android.util.Log.w("CallOverlayService", "reactContext is null, cannot emit close event")
+        return
+      }
+
+      val payload = Arguments.createMap().apply {
+        putString("phoneNumber", currentPhoneNumber ?: "")
+        putDouble("timestamp", System.currentTimeMillis().toDouble())
+      }
+      reactContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("OverlayCloseRequested", payload)
+
+      android.util.Log.i("CallOverlayService", "Close event emitted")
+    } catch (e: Exception) {
+      android.util.Log.w("CallOverlayService", "close event emit failed", e)
     }
 }
 
