@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StatusBar, Platform } from 'react-native';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { NavigationContainer } from '@react-navigation/native';
@@ -17,10 +17,12 @@ import {
   startCallTracker,
   hasOverlayPermission,
   requestOverlayPermission,
+  registerOverlayCloseHandler,
 } from './src/services/callTrackerService';
 import { useLocationTracker } from './src/hooks/useLocationTracker';
 
 import AppNavigator from './src/navigation/AppNavigator';
+import OverlayCloseAlternatePhoneModal from './src/components/common/OverlayCloseAlternatePhoneModal';
 import { ToastContainer } from './src/hooks/useToast';
 
 const BRAND = '#5a7bf6';
@@ -28,6 +30,9 @@ const BRAND = '#5a7bf6';
 const AppContent = () => {
   const dispatch = useDispatch();
   const { isAuthenticated, isInitializing } = useSelector(state => state.auth);
+  const [overlayCloseModalVisible, setOverlayCloseModalVisible] =
+    useState(false);
+  const [overlayClosePhone, setOverlayClosePhone] = useState('');
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -56,6 +61,17 @@ const AppContent = () => {
     if (!isAuthenticated) return;
     dispatch(fetchSettings());
   }, [dispatch, isAuthenticated]);
+
+  useEffect(() => {
+    const handleOverlayClose = event => {
+      const phone = String(event?.phoneNumber || '').trim();
+      setOverlayClosePhone(phone);
+      setOverlayCloseModalVisible(true);
+    };
+
+    registerOverlayCloseHandler(handleOverlayClose);
+    return () => registerOverlayCloseHandler(null);
+  }, []);
 
   useLocationTracker(isAuthenticated);
 
@@ -89,6 +105,11 @@ const AppContent = () => {
   return (
     <NavigationContainer ref={navigationRef}>
       <AppNavigator isAuthenticated={isAuthenticated} />
+      <OverlayCloseAlternatePhoneModal
+        visible={overlayCloseModalVisible}
+        phoneNumber={overlayClosePhone}
+        onClose={() => setOverlayCloseModalVisible(false)}
+      />
       <ToastContainer />
     </NavigationContainer>
   );

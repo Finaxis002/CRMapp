@@ -21,7 +21,13 @@ const callTrackerEmitter =
 let recordingSubscription = null;
 let overlaySubscription = null;
 let overlayLeadSubscription = null;
+let overlayCloseSubscription = null;
+let overlayCloseHandler = null;
 const callRecordingListeners = new Set();
+
+export const registerOverlayCloseHandler = handler => {
+  overlayCloseHandler = typeof handler === 'function' ? handler : null;
+};
 
 const normalizeFileUri = path => {
   if (!path) return path;
@@ -509,6 +515,17 @@ const subscribeToOverlayEvents = () => {
           } else {
             showOverlayFeedback('Lead not created', message);
           }
+        }
+      },
+    );
+  }
+
+  if (!overlayCloseSubscription) {
+    overlayCloseSubscription = callTrackerEmitter.addListener(
+      'OverlayCloseRequested',
+      event => {
+        if (typeof overlayCloseHandler === 'function') {
+          overlayCloseHandler(event);
         }
       },
     );
