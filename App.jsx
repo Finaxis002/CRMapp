@@ -32,7 +32,7 @@ const BRAND = '#5a7bf6';
 const AppContent = () => {
   const dispatch = useDispatch();
   const { isAuthenticated, isInitializing, user  } = useSelector(state => state.auth);
-  const { isAuthenticated, isInitializing } = useSelector(state => state.auth);
+  // const { isAuthenticated, isInitializing } = useSelector(state => state.auth);
   const [overlayCloseModalVisible, setOverlayCloseModalVisible] =
     useState(false);
   const [overlayClosePhone, setOverlayClosePhone] = useState('');
