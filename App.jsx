@@ -24,11 +24,14 @@ import { useLocationTracker } from './src/hooks/useLocationTracker';
 import AppNavigator from './src/navigation/AppNavigator';
 import OverlayCloseAlternatePhoneModal from './src/components/common/OverlayCloseAlternatePhoneModal';
 import { ToastContainer } from './src/hooks/useToast';
+import { initSocket } from './src/services/socket';
+import { useIncomingCallTrigger } from './src/hooks/useIncomingCallTrigger';
 
 const BRAND = '#5a7bf6';
 
 const AppContent = () => {
   const dispatch = useDispatch();
+  const { isAuthenticated, isInitializing, user  } = useSelector(state => state.auth);
   const { isAuthenticated, isInitializing } = useSelector(state => state.auth);
   const [overlayCloseModalVisible, setOverlayCloseModalVisible] =
     useState(false);
@@ -56,7 +59,13 @@ const AppContent = () => {
     };
     initializeAuth();
   }, [dispatch]);
+  
+useEffect(() => {
+  if (!isAuthenticated || !user?._id) return;
+  initSocket(user._id);
+}, [isAuthenticated, user]);
 
+useIncomingCallTrigger();
   useEffect(() => {
     if (!isAuthenticated) return;
     dispatch(fetchSettings());
