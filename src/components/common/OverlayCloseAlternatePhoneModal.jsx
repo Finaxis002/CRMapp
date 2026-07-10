@@ -40,13 +40,9 @@ export default function OverlayCloseAlternatePhoneModal({
 
   useEffect(() => {
     if (visible) {
-      const initialQuery = normalizePhoneValue(phoneNumber || '');
-      setQuery(initialQuery);
-      if (initialQuery) {
-        performSearch(initialQuery);
-      } else {
-        setResults([]);
-      }
+      setQuery('');
+      setResults([]);
+      setSelectedLead(null);
     } else {
       setQuery('');
       setResults([]);
@@ -162,9 +158,15 @@ export default function OverlayCloseAlternatePhoneModal({
                       <Text style={styles.resultTitle}>
                         {lead.name || 'Unnamed lead'}
                       </Text>
-                      {selectedLead?._id === lead._id && (
-                        <Text style={styles.selectedLabel}>Selected</Text>
-                      )}
+                      <Text
+                        style={
+                          selectedLead?._id === lead._id
+                            ? styles.selectedLabel
+                            : styles.selectLabel
+                        }
+                      >
+                        {selectedLead?._id === lead._id ? 'Selected' : 'Select'}
+                      </Text>
                     </View>
                     <Text style={styles.resultSubtitle}>
                       {lead.phone || lead.alternatePhone || 'No phone found'}
@@ -268,6 +270,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     backgroundColor: '#DBEAFE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  selectLabel: {
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: '700',
+    backgroundColor: '#E2E8F0',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
