@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useTheme } from '../../contexts/ThemeContext';
 
 import { leadsService } from '../../services/leadsService.js';
 import { userService } from '../../services/userService.js';
@@ -76,45 +77,39 @@ const toast = {
   error: msg => Alert.alert('Error', msg),
 };
 
-// ─── DeleteModal ──────────────────────────────────────────────
-const DeleteModal = ({ isOpen, onClose, onConfirm, title, message }) => (
-  <Modal
-    visible={isOpen}
-    transparent
-    animationType="fade"
-    onRequestClose={onClose}
-  >
-    <View style={styles.modalOverlay}>
-      <View style={styles.modalCard}>
-        <Text style={styles.modalTitle}>{title}</Text>
-        <Text style={styles.modalMessage}>{message}</Text>
-        <View style={styles.modalActions}>
-          <TouchableOpacity style={styles.modalBtnCancel} onPress={onClose}>
-            <Text style={styles.modalBtnCancelText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.modalBtnDanger}
-            onPress={() => {
-              onConfirm();
-              onClose();
-            }}
-          >
-            <Text style={styles.modalBtnDangerText}>Delete</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  </Modal>
-);
+// DeleteModal is declared inside the component so it can use theme-aware styles
 
 // ─────────────────────────────────────────────────────────────
 //  MAIN SCREEN
 // ─────────────────────────────────────────────────────────────
 const LeadsScreen = () => {
+  const { isDark } = useTheme();
   const dispatch = useDispatch();
   const settings = useSelector(s => s.settings?.data || s.settings);
   const currentUser = useSelector(s => s.auth.user);
   const globalSearch = useSelector(s => s.search?.query || '');
+
+  const colors = useMemo(
+    () => ({
+      bg: isDark ? '#0F172A' : '#F9FAFB',
+      surface: isDark ? '#111827' : '#FFFFFF',
+      card: isDark ? '#1F2937' : '#FFFFFF',
+      border: isDark ? 'rgba(255,255,255,0.08)' : '#E5E7EB',
+      textPrimary: isDark ? '#F8FAFC' : '#111827',
+      textSecondary: isDark ? '#94A3B8' : '#6B7280',
+      textMuted: isDark ? '#CBD5E1' : '#9CA3AF',
+      icon: isDark ? '#CBD5E1' : '#374151',
+      inputBg: isDark ? '#0F172A' : '#FFFFFF',
+      inputBorder: isDark ? 'rgba(255,255,255,0.12)' : '#E5E7EB',
+      surfaceAlt: isDark ? '#111827' : '#F9FAFB',
+      danger: '#ef4444',
+      success: '#16a34a',
+      accent: '#5a7bf6',
+    }),
+    [isDark],
+  );
+
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   // ── Permissions ──
   const canCreateLead = canUser(currentUser, settings, 'add_leads');
@@ -635,6 +630,37 @@ const LeadsScreen = () => {
     setShowCreateModal(true);
   };
 
+  // Local DeleteModal (theme-aware)
+  const DeleteModal = ({ isOpen, onClose, onConfirm, title, message }) => (
+    <Modal
+      visible={isOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <Text style={styles.modalMessage}>{message}</Text>
+          <View style={styles.modalActions}>
+            <TouchableOpacity style={styles.modalBtnCancel} onPress={onClose}>
+              <Text style={styles.modalBtnCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalBtnDanger}
+              onPress={() => {
+                onConfirm();
+                onClose();
+              }}
+            >
+              <Text style={styles.modalBtnDangerText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   const openNewLead = () => {
     if (!canCreateLead) return;
     setEditingLead(null);
@@ -695,26 +721,48 @@ const LeadsScreen = () => {
 
   // ── RENDER ──────────────────────────────────────────────────
   return (
-    <SafeAreaView edges={['bottom']} style={styles.safeArea}>
-      <View style={styles.container}>
+    <SafeAreaView
+      edges={['bottom']}
+      style={[styles.safeArea, { backgroundColor: colors.bg }]}
+    >
+      <View style={[styles.container, { backgroundColor: colors.bg }]}>
         {/* ══ HEADER ══ */}
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: colors.surface,
+              borderBottomColor: colors.border,
+            },
+          ]}
+        >
           <View style={styles.headerTop}>
             <View>
-              <Text style={styles.headerTitle}>Leads</Text>
-              <Text style={styles.headerSubtitle}>
+              <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+                Leads
+              </Text>
+              <Text
+                style={[styles.headerSubtitle, { color: colors.textSecondary }]}
+              >
                 Manage and track your sales pipeline
               </Text>
             </View>
             <View style={styles.headerActions}>
               <TouchableOpacity
                 onPress={() => setShowSortSheet(true)}
-                style={[styles.iconBtn, filters.sortBy && styles.iconBtnActive]}
+                style={[
+                  styles.iconBtn,
+                  filters.sortBy && styles.iconBtnActive,
+                  {
+                    backgroundColor: filters.sortBy ? ACCENT : colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
               >
                 <Icon
                   name="sort-variant"
                   size={20}
-                  color={filters.sortBy ? '#fff' : '#374151'}
+                  color={filters.sortBy ? '#fff' : colors.icon}
                 />
               </TouchableOpacity>
               {canCreateLead && (
@@ -728,20 +776,32 @@ const LeadsScreen = () => {
 
           {/* Search + Filter button */}
           <View style={styles.searchRow}>
-            <View style={styles.searchBox}>
-              <Icon name="magnify" size={20} color="#9ca3af" />
+            <View
+              style={[
+                styles.searchBox,
+                {
+                  backgroundColor: colors.inputBg,
+                  borderColor: colors.inputBorder,
+                },
+              ]}
+            >
+              <Icon name="magnify" size={20} color={colors.textMuted} />
               <TextInput
                 value={filters.search}
                 onChangeText={v => handleFilterChange('search', v)}
                 placeholder="Search leads..."
-                placeholderTextColor="#9ca3af"
-                style={styles.searchInput}
+                placeholderTextColor={colors.textMuted}
+                style={[styles.searchInput, { color: colors.textPrimary }]}
               />
               {filters.search ? (
                 <TouchableOpacity
                   onPress={() => handleFilterChange('search', '')}
                 >
-                  <Icon name="close-circle" size={18} color="#9ca3af" />
+                  <Icon
+                    name="close-circle"
+                    size={18}
+                    color={colors.textMuted}
+                  />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -751,12 +811,16 @@ const LeadsScreen = () => {
               style={[
                 styles.filterIconBtn,
                 hasActiveFilters && styles.filterIconBtnActive,
+                {
+                  backgroundColor: hasActiveFilters ? ACCENT : colors.surface,
+                  borderColor: colors.border,
+                },
               ]}
             >
               <Icon
                 name="tune-variant"
                 size={20}
-                color={hasActiveFilters ? '#fff' : '#374151'}
+                color={hasActiveFilters ? '#fff' : colors.icon}
               />
               {activeFilterCount > 0 && (
                 <View style={styles.filterBadge}>
@@ -2036,461 +2100,532 @@ const LeadsScreen = () => {
 };
 
 // ─────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f9fafb' },
-  container: { flex: 1 },
+const createStyles = colors =>
+  StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: colors.bg },
+    container: { flex: 1 },
 
-  // ── Header ──
-  header: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    gap: 10,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerTitle: { fontSize: 22, fontWeight: '700', color: '#111827' },
-  headerSubtitle: { fontSize: 12, color: '#6b7280', marginTop: 2 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconBtnActive: { backgroundColor: ACCENT, borderColor: ACCENT },
-  addBtn: {
-    height: 38,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: ACCENT,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  addBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+    // Header
+    header: {
+      backgroundColor: colors.surface,
+      paddingHorizontal: 14,
+      paddingTop: 12,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      gap: 10,
+    },
+    headerTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    headerTitle: { fontSize: 22, fontWeight: '700', color: colors.textPrimary },
+    headerSubtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    iconBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconBtnActive: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    addBtn: {
+      height: 38,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+      backgroundColor: colors.accent,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+    },
+    addBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
 
-  // ── Search ──
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  searchBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 40,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
-    paddingHorizontal: 10,
-    gap: 6,
-  },
-  searchInput: { flex: 1, fontSize: 14, color: '#111827', paddingVertical: 0 },
-  filterIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  filterIconBtnActive: { backgroundColor: ACCENT, borderColor: ACCENT },
-  filterBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#ef4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  filterBadgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+    // Search
+    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    searchBox: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      height: 40,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceAlt,
+      paddingHorizontal: 10,
+      gap: 6,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: 14,
+      color: colors.textPrimary,
+      paddingVertical: 0,
+    },
+    filterIconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    filterIconBtnActive: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    filterBadge: {
+      position: 'absolute',
+      top: -4,
+      right: -4,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: colors.danger,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    filterBadgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
 
-  // ── Active filter badges row ──
-  activeBadgesRow: { gap: 8, paddingTop: 2, alignItems: 'center' },
-  activeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 16,
-    backgroundColor: '#eef2ff',
-    borderWidth: 1,
-    borderColor: '#c7d2fe',
-  },
-  badgeDot: { width: 8, height: 8, borderRadius: 4 },
-  activeBadgeText: { fontSize: 11, fontWeight: '600', color: ACCENT },
-  clearAllBadge: { paddingHorizontal: 6, paddingVertical: 5 },
-  clearAllBadgeText: { fontSize: 11, fontWeight: '600', color: '#ef4444' },
+    // Active badges
+    activeBadgesRow: { gap: 8, paddingTop: 2, alignItems: 'center' },
+    activeBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    badgeDot: { width: 8, height: 8, borderRadius: 4 },
+    activeBadgeText: { fontSize: 11, fontWeight: '600', color: colors.accent },
+    clearAllBadge: { paddingHorizontal: 6, paddingVertical: 5 },
+    clearAllBadgeText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.danger,
+    },
 
-  // ── Toolbar ──
-  toolbar: {
-    backgroundColor: '#f9fafb',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    minHeight: 40,
-    justifyContent: 'center',
-  },
-  toolbarNormal: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    gap: 10,
-  },
-  bulkBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    gap: 8,
-  },
-  selectedBadge: {
-    backgroundColor: '#eef2ff',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  selectedBadgeText: { fontSize: 12, fontWeight: '600', color: ACCENT },
-  bulkBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  bulkBtnBlue: { borderColor: '#c7d2fe', backgroundColor: '#eef2ff' },
-  bulkBtnRed: { borderColor: '#fecaca', backgroundColor: '#fef2f2' },
-  bulkBtnGreen: { borderColor: '#a7f3d0', backgroundColor: '#f0fdf4' },
-  bulkBtnOrange: { borderColor: '#fed7aa', backgroundColor: '#fff7ed' },
-  bulkBtnBlueText: { fontSize: 12, fontWeight: '500', color: ACCENT },
-  bulkBtnRedText: { fontSize: 12, fontWeight: '500', color: '#ef4444' },
-  bulkBtnGreenText: { fontSize: 12, fontWeight: '500', color: '#16a34a' },
-  bulkBtnOrangeText: { fontSize: 12, fontWeight: '500', color: '#ea580c' },
-  selectAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: '#d1d5db',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxSelected: { backgroundColor: ACCENT, borderColor: ACCENT },
-  checkmark: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  selectAllText: { fontSize: 12, color: '#6b7280' },
-  totalText: { fontSize: 12, color: '#6b7280', marginLeft: 'auto' },
-  clearFiltersText: { fontSize: 12, color: '#ef4444', fontWeight: '500' },
+    // Toolbar
+    toolbar: {
+      backgroundColor: colors.surfaceAlt,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      minHeight: 40,
+      justifyContent: 'center',
+    },
+    toolbarNormal: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      gap: 10,
+    },
+    bulkBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      gap: 8,
+    },
+    selectedBadge: {
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: 20,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    selectedBadgeText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.accent,
+    },
+    bulkBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 8,
+      borderWidth: 1,
+    },
+    bulkBtnBlue: {
+      borderColor: colors.accent,
+      backgroundColor: colors.surfaceAlt,
+    },
+    bulkBtnRed: {
+      borderColor: 'rgba(220,38,38,0.2)',
+      backgroundColor: 'rgba(255,240,240,0.7)',
+    },
+    bulkBtnGreen: {
+      borderColor: 'rgba(16,185,129,0.2)',
+      backgroundColor: 'rgba(240,255,248,0.7)',
+    },
+    bulkBtnOrange: {
+      borderColor: 'rgba(250,184,118,0.2)',
+      backgroundColor: 'rgba(255,247,237,0.7)',
+    },
+    bulkBtnBlueText: { fontSize: 12, fontWeight: '500', color: colors.accent },
+    bulkBtnRedText: { fontSize: 12, fontWeight: '500', color: colors.danger },
+    bulkBtnGreenText: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: colors.success,
+    },
+    bulkBtnOrangeText: { fontSize: 12, fontWeight: '500', color: '#ea580c' },
+    selectAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    checkbox: {
+      width: 18,
+      height: 18,
+      borderRadius: 4,
+      borderWidth: 1.5,
+      borderColor: colors.inputBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkboxSelected: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    checkmark: { color: '#fff', fontSize: 11, fontWeight: '700' },
+    selectAllText: { fontSize: 12, color: colors.textSecondary },
+    totalText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginLeft: 'auto',
+    },
+    clearFiltersText: { fontSize: 12, color: colors.danger, fontWeight: '500' },
 
-  listContainer: { flex: 1 },
+    listContainer: { flex: 1 },
 
-  // ── Shared modal ──
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    width: '100%',
-    maxWidth: 380,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 12,
-  },
-  modalMessage: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  modalBtnCancel: {
-    flex: 1,
-    height: 42,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalBtnCancelText: { fontSize: 13, fontWeight: '500', color: '#374151' },
-  modalBtnDanger: {
-    flex: 1,
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: '#dc2626',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalBtnDangerText: { fontSize: 13, fontWeight: '600', color: '#fff' },
-  modalBtnPrimary: {
-    flex: 1,
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: ACCENT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalBtnPrimaryText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+    // Shared modal
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+    },
+    modalCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 20,
+      width: '100%',
+      maxWidth: 380,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 16,
+      elevation: 8,
+    },
+    modalTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      marginBottom: 12,
+    },
+    modalMessage: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginBottom: 20,
+      lineHeight: 20,
+    },
+    modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+    modalBtnCancel: {
+      flex: 1,
+      height: 42,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalBtnCancelText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: colors.textPrimary,
+    },
+    modalBtnDanger: {
+      flex: 1,
+      height: 42,
+      borderRadius: 10,
+      backgroundColor: colors.danger,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalBtnDangerText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+    modalBtnPrimary: {
+      flex: 1,
+      height: 42,
+      borderRadius: 10,
+      backgroundColor: colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalBtnPrimaryText: { fontSize: 13, fontWeight: '600', color: '#fff' },
 
-  // ── Bottom sheet ──
-  sheetOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  sheetBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  sheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '88%',
-    paddingBottom: Platform.OS === 'ios' ? 30 : 16,
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#d1d5db',
-    alignSelf: 'center',
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  sheetHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  sheetTitle: { fontSize: 16, fontWeight: '600', color: '#111827' },
-  clearAllText: { fontSize: 12, fontWeight: '500', color: '#ef4444' },
-  sheetBody: { paddingHorizontal: 16, paddingTop: 8 },
-  sheetFooter: { paddingHorizontal: 16, paddingTop: 12 },
-  applyBtn: {
-    height: 46,
-    borderRadius: 12,
-    backgroundColor: ACCENT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  applyBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
+    // Bottom sheet
+    sheetOverlay: {
+      flex: 1,
+      justifyContent: 'flex-end',
+      backgroundColor: 'rgba(0,0,0,0.4)',
+    },
+    sheetBackdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+    },
+    sheet: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      maxHeight: '88%',
+      paddingBottom: Platform.OS === 'ios' ? 30 : 16,
+    },
+    sheetHandle: {
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.inputBorder,
+      alignSelf: 'center',
+      marginTop: 10,
+      marginBottom: 4,
+    },
+    sheetHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    sheetHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    sheetTitle: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
+    clearAllText: { fontSize: 12, fontWeight: '500', color: colors.danger },
+    sheetBody: { paddingHorizontal: 16, paddingTop: 8 },
+    sheetFooter: { paddingHorizontal: 16, paddingTop: 12 },
+    applyBtn: {
+      height: 46,
+      borderRadius: 12,
+      backgroundColor: colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    applyBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
 
-  filterLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#9ca3af',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-    marginTop: 20,
-  },
+    filterLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textMuted,
+      letterSpacing: 0.8,
+      marginBottom: 8,
+      marginTop: 20,
+    },
 
-  // ── Chips ──
-  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#fff',
-  },
-  chipActive: { borderColor: ACCENT, backgroundColor: '#eef2ff' },
-  chipText: { fontSize: 13, color: '#6b7280', fontWeight: '500' },
-  chipTextActive: { color: ACCENT, fontWeight: '600' },
-  chipDot: { width: 8, height: 8, borderRadius: 4 },
+    // Chips
+    chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    chipActive: {
+      borderColor: colors.accent,
+      backgroundColor: colors.surfaceAlt,
+    },
+    chipText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
+    chipTextActive: { color: colors.accent, fontWeight: '600' },
+    chipDot: { width: 8, height: 8, borderRadius: 4 },
 
-  // ── Date row inside filter sheet ──
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  dateBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    height: 44,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
-  },
-  dateBtnActive: { borderColor: ACCENT, backgroundColor: '#f0f4ff' },
-  dateBtnText: { fontSize: 13, color: '#9ca3af' },
-  dateBtnTextActive: { fontSize: 13, color: '#111827', fontWeight: '500' },
+    // Date row
+    dateRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 4,
+    },
+    dateBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      height: 44,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceAlt,
+    },
+    dateBtnActive: {
+      borderColor: colors.accent,
+      backgroundColor: colors.surfaceAlt,
+    },
+    dateBtnText: { fontSize: 13, color: colors.textMuted },
+    dateBtnTextActive: {
+      fontSize: 13,
+      color: colors.textPrimary,
+      fontWeight: '500',
+    },
 
-  dateRangeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  dateRangeDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    backgroundColor: '#f0f4ff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#c7d2fe',
-  },
-  dateRangeText: { fontSize: 12, color: ACCENT, fontWeight: '500' },
-  clearDateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    padding: 4,
-  },
-  clearDateText: { fontSize: 12, color: '#ef4444', fontWeight: '500' },
+    dateRangeInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 10,
+    },
+    dateRangeDisplay: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dateRangeText: { fontSize: 12, color: colors.accent, fontWeight: '500' },
+    clearDateBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      padding: 4,
+    },
+    clearDateText: { fontSize: 12, color: colors.danger, fontWeight: '500' },
 
-  // ── Date picker modal (iOS) ──
-  dateModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  dateModalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    width: '100%',
-    maxWidth: 340,
-  },
-  dateModalTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  dateModalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  dateModalBtnCancel: {
-    flex: 1,
-    height: 42,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateModalBtnCancelText: { fontSize: 14, fontWeight: '500', color: '#374151' },
-  dateModalBtnDone: {
-    flex: 1,
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: ACCENT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateModalBtnDoneText: { fontSize: 14, fontWeight: '600', color: '#fff' },
+    // Date modal
+    dateModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+    },
+    dateModalCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 20,
+      width: '100%',
+      maxWidth: 340,
+    },
+    dateModalTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      textAlign: 'center',
+      marginBottom: 8,
+    },
+    dateModalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+    dateModalBtnCancel: {
+      flex: 1,
+      height: 42,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dateModalBtnCancelText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.textPrimary,
+    },
+    dateModalBtnDone: {
+      flex: 1,
+      height: 42,
+      borderRadius: 10,
+      backgroundColor: colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dateModalBtnDoneText: { fontSize: 14, fontWeight: '600', color: '#fff' },
 
-  // ── User list ──
-  userSearchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 38,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
-    marginBottom: 6,
-  },
-  userSearchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#111827',
-    paddingVertical: 0,
-  },
-  userList: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-    maxHeight: 220,
-  },
-  userItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f9fafb',
-  },
-  userItemActive: { backgroundColor: '#f0f4ff' },
-  userItemText: { fontSize: 13, color: '#374151' },
-  userItemTextActive: { color: ACCENT, fontWeight: '600' },
-  userItemEmail: { fontSize: 11, color: '#9ca3af', marginTop: 1 },
-  userAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  userAvatarText: { fontSize: 11, fontWeight: '700', color: '#6b7280' },
-  emptySearch: { padding: 16, alignItems: 'center' },
-  emptySearchText: { fontSize: 13, color: '#9ca3af' },
+    // User list
+    userSearchBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      height: 38,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceAlt,
+      marginBottom: 6,
+    },
+    userSearchInput: {
+      flex: 1,
+      fontSize: 13,
+      color: colors.textPrimary,
+      paddingVertical: 0,
+    },
+    userList: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.closeIconBg || colors.border,
+      overflow: 'hidden',
+      backgroundColor: colors.surface,
+      maxHeight: 220,
+    },
+    userItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.surfaceAlt,
+    },
+    userItemActive: { backgroundColor: colors.surfaceAlt },
+    userItemText: { fontSize: 13, color: colors.textPrimary },
+    userItemTextActive: { color: colors.accent, fontWeight: '600' },
+    userItemEmail: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
+    userAvatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.closeIconBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    userAvatarText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    emptySearch: { padding: 16, alignItems: 'center' },
+    emptySearchText: { fontSize: 13, color: colors.textMuted },
 
-  // ── Sort sheet ──
-  sortOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f9fafb',
-  },
-  sortOptionActive: { backgroundColor: '#f0f4ff' },
-  sortOptionText: { fontSize: 14, color: '#374151' },
-  sortOptionTextActive: { color: ACCENT, fontWeight: '600' },
-});
+    // Sort sheet
+    sortOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.surfaceAlt,
+    },
+    sortOptionActive: { backgroundColor: colors.surfaceAlt },
+    sortOptionText: { fontSize: 14, color: colors.textPrimary },
+    sortOptionTextActive: { color: colors.accent, fontWeight: '600' },
+  });
 
 export default LeadsScreen;

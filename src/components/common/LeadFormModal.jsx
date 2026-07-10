@@ -23,6 +23,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTheme } from '../../contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { pick } from '@react-native-documents/picker';
 import Video from 'react-native-video';
@@ -132,21 +133,27 @@ const FormRow = React.memo(({ children, columns = 1 }) => (
   </View>
 ));
 
-const FieldBlock = React.memo(({ label, required = false, children }) => (
-  <View style={{ flex: 1 }}>
-    <Text
-      style={{
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#374151',
-        marginBottom: 6,
-      }}
-    >
-      {label} {required ? <Text style={{ color: '#ef4444' }}>*</Text> : null}
-    </Text>
-    {children}
-  </View>
-));
+const FieldBlock = React.memo(({ label, required = false, children }) => {
+  const { isDark } = useTheme();
+  const labelColor = isDark ? '#f1f5f9' : '#374151';
+  const requiredColor = '#ef4444';
+  return (
+    <View style={{ flex: 1 }}>
+      <Text
+        style={{
+          fontSize: 13,
+          fontWeight: '600',
+          color: labelColor,
+          marginBottom: 6,
+        }}
+      >
+        {label}{' '}
+        {required ? <Text style={{ color: requiredColor }}>*</Text> : null}
+      </Text>
+      {children}
+    </View>
+  );
+});
 
 // ════════════════════════════════════════════════════════════════
 //  Native FieldPicker replaced by shared CustomDropdown wrapper
@@ -203,15 +210,28 @@ const DateTimeField = React.memo(
       <View>
         <TouchableOpacity
           onPress={() => setPickerTargets(p => ({ ...p, [openKey]: mode }))}
-          style={dtfStyles.btn}
+          style={[
+            dtfStyles.btn,
+            {
+              borderColor: useTheme().isDark
+                ? 'rgba(255,255,255,0.06)'
+                : '#d1d5db',
+              backgroundColor: useTheme().isDark ? '#111827' : '#fff',
+            },
+          ]}
         >
-          <Text style={dtfStyles.text}>
+          <Text
+            style={[
+              dtfStyles.text,
+              { color: useTheme().isDark ? '#f1f5f9' : '#111827' },
+            ]}
+          >
             {value || (mode === 'time' ? 'Select time' : 'Select date')}
           </Text>
           <Icon
             name={mode === 'time' ? 'clock-outline' : 'calendar'}
             size={16}
-            color="#64748b"
+            color={useTheme().isDark ? '#94a3b8' : '#64748b'}
           />
         </TouchableOpacity>
         {open ? (
@@ -267,6 +287,9 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
   const [reactivationTime, setReactivationTime] = useState('09:00');
   const [saving, setSaving] = useState(false);
   const [pickerTarget, setPickerTarget] = useState(null);
+
+  const { isDark } = useTheme();
+  const ss = useMemo(() => createSs(isDark), [isDark]);
 
   useEffect(() => {
     if (!lead?._id) return;
@@ -451,67 +474,75 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
   );
 };
 
-const ss = StyleSheet.create({
-  container: { gap: 16 },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 10,
-  },
-  sectionHint: { fontSize: 11, color: '#6b7280', marginBottom: 8 },
-  servicesList: { gap: 8 },
-  serviceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  serviceRowChecked: {
-    borderColor: '#2563eb',
-    borderWidth: 1.5,
-    backgroundColor: 'rgba(37,99,235,0.06)',
-  },
-  checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 5,
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: { borderColor: '#2563eb', backgroundColor: '#2563eb' },
-  serviceLabel: { fontSize: 13, fontWeight: '500', color: '#0f172a' },
-  dateTimeRow: { flexDirection: 'row', gap: 8 },
-  dateTimeBtn: {
-    flex: 1,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  dateTimeText: { fontSize: 13, color: '#111827' },
-  saveBtn: {
-    borderRadius: 12,
-    backgroundColor: '#5a7bf6',
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-  },
-  saveBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  disabled: { opacity: 0.5 },
-});
+const createSs = isDark => {
+  const textPrimary = isDark ? '#f1f5f9' : '#0f172a';
+  const textSecondary = isDark ? '#94a3b8' : '#6b7280';
+  const inputBg = isDark ? '#111827' : '#fff';
+  const inputBorder = isDark ? 'rgba(255,255,255,0.06)' : '#d1d5db';
+  const closeIconBg = isDark ? '#0f172a' : '#f3f4f6';
+  const tabActive = '#5a7bf6';
+  return StyleSheet.create({
+    container: { gap: 16 },
+    sectionTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: textPrimary,
+      marginBottom: 10,
+    },
+    sectionHint: { fontSize: 11, color: textSecondary, marginBottom: 8 },
+    servicesList: { gap: 8 },
+    serviceRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: inputBorder,
+    },
+    serviceRowChecked: {
+      borderColor: tabActive,
+      borderWidth: 1.5,
+      backgroundColor: 'rgba(37,99,235,0.06)',
+    },
+    checkbox: {
+      width: 18,
+      height: 18,
+      borderRadius: 5,
+      borderWidth: 2,
+      borderColor: inputBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkboxChecked: { borderColor: tabActive, backgroundColor: tabActive },
+    serviceLabel: { fontSize: 13, fontWeight: '500', color: textPrimary },
+    dateTimeRow: { flexDirection: 'row', gap: 8 },
+    dateTimeBtn: {
+      flex: 1,
+      height: 44,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: inputBorder,
+      backgroundColor: inputBg,
+      paddingHorizontal: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    dateTimeText: { fontSize: 13, color: textPrimary },
+    saveBtn: {
+      borderRadius: 12,
+      backgroundColor: tabActive,
+      paddingVertical: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 8,
+    },
+    saveBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+    disabled: { opacity: 0.5 },
+  });
+};
 
 // ════════════════════════════════════════════════════════════════
 // LeadFormModal - MAIN COMPONENT
@@ -561,6 +592,24 @@ const LeadFormModal = ({
   });
 
   const insets = useSafeAreaInsets();
+
+  const { isDark } = useTheme();
+  const colors = useMemo(
+    () => ({
+      modalBg: isDark ? '#0f172a' : '#fff',
+      border: isDark ? '#334155' : '#e5e7eb',
+      textPrimary: isDark ? '#f1f5f9' : '#111827',
+      textSecondary: isDark ? '#94a3b8' : '#6b7280',
+      textMuted: isDark ? '#9ca3af' : '#9ca3af',
+      inputBg: isDark ? '#111827' : '#fff',
+      inputBorder: isDark ? 'rgba(255,255,255,0.06)' : '#d1d5db',
+      closeIconBg: isDark ? '#0f172a' : '#f3f4f6',
+      tabActive: '#5a7bf6',
+    }),
+    [isDark],
+  );
+
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const customColumns = Array.isArray(settings?.customColumns)
     ? settings.customColumns
@@ -1191,7 +1240,7 @@ const LeadFormModal = ({
       <StatusBar
         translucent
         backgroundColor="transparent"
-        barStyle="dark-content"
+        barStyle={isDark ? 'light-content' : 'dark-content'}
       />
       <View style={styles.overlay}>
         <TouchableOpacity
@@ -1202,23 +1251,45 @@ const LeadFormModal = ({
         <View
           style={[
             styles.modalSafeArea,
-            { paddingTop: insets.top, paddingBottom: insets.bottom },
+            {
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom,
+              backgroundColor: colors.modalBg,
+            },
           ]}
         >
-          <View style={styles.modalBody}>
+          <View
+            style={[
+              styles.modalBody,
+              { backgroundColor: colors.modalBg, borderColor: colors.border },
+            ]}
+          >
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { borderBottomColor: colors.border }]}>
               <View style={styles.headerTextWrap}>
-                <Text style={styles.headerTitle}>
+                <Text
+                  style={[styles.headerTitle, { color: colors.textPrimary }]}
+                >
                   {lead ? 'Edit Lead' : 'Add New Lead'}
                 </Text>
-                <Text style={styles.headerSubtitle}>
+                <Text
+                  style={[
+                    styles.headerSubtitle,
+                    { color: colors.textSecondary },
+                  ]}
+                >
                   Complete profile, assignment, activity, recording, payment and
                   reminder sections.
                 </Text>
               </View>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                <Icon name="close" size={20} color="#6b7280" />
+              <TouchableOpacity
+                onPress={onClose}
+                style={[
+                  styles.closeBtn,
+                  { backgroundColor: colors.closeIconBg },
+                ]}
+              >
+                <Icon name="close" size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
@@ -1238,7 +1309,14 @@ const LeadFormModal = ({
                       style={styles.tabBtn}
                     >
                       <Text
-                        style={[styles.tabText, active && styles.tabTextActive]}
+                        style={[
+                          styles.tabText,
+                          {
+                            color: active
+                              ? colors.tabActive
+                              : colors.textSecondary,
+                          },
+                        ]}
                       >
                         {tab}
                       </Text>
@@ -1253,7 +1331,10 @@ const LeadFormModal = ({
             <ScrollView
               contentContainerStyle={styles.formScroll}
               keyboardShouldPersistTaps="handled"
-              style={styles.formScrollView}
+              style={[
+                styles.formScrollView,
+                { backgroundColor: colors.modalBg },
+              ]}
             >
               {/* PROFILE TAB */}
               {activeTab === 'Profile' ? (
@@ -1263,7 +1344,15 @@ const LeadFormModal = ({
                       value={form.name}
                       onChangeText={v => handleChange('name', v)}
                       placeholder="Contact name"
-                      style={styles.input}
+                      placeholderTextColor={colors.textMuted}
+                      style={[
+                        styles.input,
+                        {
+                          borderColor: colors.inputBorder,
+                          backgroundColor: colors.inputBg,
+                          color: colors.textPrimary,
+                        },
+                      ]}
                     />
                   </FieldBlock>
 
@@ -1300,7 +1389,15 @@ const LeadFormModal = ({
                         value={form.dealValue}
                         onChangeText={v => handleChange('dealValue', v)}
                         placeholder="Deal value"
-                        style={styles.input}
+                        placeholderTextColor={colors.textMuted}
+                        style={[
+                          styles.input,
+                          {
+                            borderColor: colors.inputBorder,
+                            backgroundColor: colors.inputBg,
+                            color: colors.textPrimary,
+                          },
+                        ]}
                       />
                     </FieldBlock>
                   </FormRow>
@@ -1311,7 +1408,15 @@ const LeadFormModal = ({
                         value={form.city}
                         onChangeText={v => handleChange('city', v)}
                         placeholder="City"
-                        style={styles.input}
+                        placeholderTextColor={colors.textMuted}
+                        style={[
+                          styles.input,
+                          {
+                            borderColor: colors.inputBorder,
+                            backgroundColor: colors.inputBg,
+                            color: colors.textPrimary,
+                          },
+                        ]}
                       />
                     </FieldBlock>
                     <FieldBlock label="Alternate Phone (Optional)">
@@ -1338,7 +1443,15 @@ const LeadFormModal = ({
                         value={form.product}
                         onChangeText={v => handleChange('product', v)}
                         placeholder="Product"
-                        style={styles.input}
+                        placeholderTextColor={colors.textMuted}
+                        style={[
+                          styles.input,
+                          {
+                            borderColor: colors.inputBorder,
+                            backgroundColor: colors.inputBg,
+                            color: colors.textPrimary,
+                          },
+                        ]}
                       />
                     </FieldBlock>
                   </FormRow>
@@ -1351,7 +1464,15 @@ const LeadFormModal = ({
                         value={form.email}
                         onChangeText={v => handleChange('email', v)}
                         placeholder="Email address"
-                        style={styles.input}
+                        placeholderTextColor={colors.textMuted}
+                        style={[
+                          styles.input,
+                          {
+                            borderColor: colors.inputBorder,
+                            backgroundColor: colors.inputBg,
+                            color: colors.textPrimary,
+                          },
+                        ]}
                       />
                     </FieldBlock>
                     <FieldBlock label="Close Date">
@@ -1376,7 +1497,15 @@ const LeadFormModal = ({
                                 handleCustomFieldChange(column.key, v)
                               }
                               placeholder={`Enter ${column.label}`}
-                              style={styles.input}
+                              placeholderTextColor={colors.textMuted}
+                              style={[
+                                styles.input,
+                                {
+                                  borderColor: colors.inputBorder,
+                                  backgroundColor: colors.inputBg,
+                                  color: colors.textPrimary,
+                                },
+                              ]}
                             />
                           </FieldBlock>
                         ))
@@ -1389,7 +1518,16 @@ const LeadFormModal = ({
                       value={form.note}
                       onChangeText={v => handleChange('note', v)}
                       placeholder="Initial note or lead details"
-                      style={[styles.input, styles.textarea]}
+                      placeholderTextColor={colors.textMuted}
+                      style={[
+                        styles.input,
+                        styles.textarea,
+                        {
+                          borderColor: colors.inputBorder,
+                          backgroundColor: colors.inputBg,
+                          color: colors.textPrimary,
+                        },
+                      ]}
                     />
                   </FieldBlock>
                 </View>
@@ -1529,8 +1667,16 @@ const LeadFormModal = ({
                           ? 'Call summary — what was discussed?'
                           : 'Add details...'
                       }
-                      style={[styles.input, styles.textarea]}
-                      placeholderTextColor="#9ca3af"
+                      style={[
+                        styles.input,
+                        styles.textarea,
+                        {
+                          borderColor: colors.inputBorder,
+                          backgroundColor: colors.inputBg,
+                          color: colors.textPrimary,
+                        },
+                      ]}
+                      placeholderTextColor={colors.textMuted}
                     />
 
                     {activeActivityType === 'Call' ? (
@@ -1542,7 +1688,15 @@ const LeadFormModal = ({
                               updateActivity('Call', 'duration', v)
                             }
                             placeholder="3m 42s"
-                            style={styles.input}
+                            placeholderTextColor={colors.textMuted}
+                            style={[
+                              styles.input,
+                              {
+                                borderColor: colors.inputBorder,
+                                backgroundColor: colors.inputBg,
+                                color: colors.textPrimary,
+                              },
+                            ]}
                           />
                         </FieldBlock>
                         <FieldBlock label="DIRECTION">
@@ -1832,7 +1986,15 @@ const LeadFormModal = ({
                         value={form.recordingLabel}
                         onChangeText={v => handleChange('recordingLabel', v)}
                         placeholder="First call · 30 Apr"
-                        style={styles.input}
+                        placeholderTextColor={colors.textMuted}
+                        style={[
+                          styles.input,
+                          {
+                            borderColor: colors.inputBorder,
+                            backgroundColor: colors.inputBg,
+                            color: colors.textPrimary,
+                          },
+                        ]}
                       />
                     </FieldBlock>
                     <FieldBlock label="Recording URL">
@@ -1843,8 +2005,16 @@ const LeadFormModal = ({
                           if (recordingFile) setRecordingFile(null);
                         }}
                         placeholder="https://drive.google.com/..."
+                        placeholderTextColor={colors.textMuted}
                         autoCapitalize="none"
-                        style={styles.input}
+                        style={[
+                          styles.input,
+                          {
+                            borderColor: colors.inputBorder,
+                            backgroundColor: colors.inputBg,
+                            color: colors.textPrimary,
+                          },
+                        ]}
                       />
                     </FieldBlock>
 
@@ -1860,7 +2030,11 @@ const LeadFormModal = ({
                     >
                       {recordingFile ? (
                         <View style={styles.fileRow}>
-                          <Icon name="microphone" size={24} color="#5a7bf6" />
+                          <Icon
+                            name="microphone"
+                            size={24}
+                            color={colors.tabActive}
+                          />
                           <View style={styles.fileInfo}>
                             <Text style={styles.fileName} numberOfLines={1}>
                               {recordingFile.name}
@@ -2074,7 +2248,15 @@ const LeadFormModal = ({
                         value={form.paymentAmount}
                         onChangeText={v => handleChange('paymentAmount', v)}
                         placeholder="0"
-                        style={styles.input}
+                        placeholderTextColor={colors.textMuted}
+                        style={[
+                          styles.input,
+                          {
+                            borderColor: colors.inputBorder,
+                            backgroundColor: colors.inputBg,
+                            color: colors.textPrimary,
+                          },
+                        ]}
                       />
                     </FieldBlock>
                     <FieldBlock label="Date">
@@ -2107,7 +2289,15 @@ const LeadFormModal = ({
                         value={form.paymentReference}
                         onChangeText={v => handleChange('paymentReference', v)}
                         placeholder="Transaction ID / UTR"
-                        style={styles.input}
+                        placeholderTextColor={colors.textMuted}
+                        style={[
+                          styles.input,
+                          {
+                            borderColor: colors.inputBorder,
+                            backgroundColor: colors.inputBg,
+                            color: colors.textPrimary,
+                          },
+                        ]}
                       />
                     </FieldBlock>
                   </FormRow>
@@ -2199,7 +2389,15 @@ const LeadFormModal = ({
                       value={form.reminderNote}
                       onChangeText={v => handleChange('reminderNote', v)}
                       placeholder="Reminder note"
-                      style={styles.input}
+                      placeholderTextColor={colors.textMuted}
+                      style={[
+                        styles.input,
+                        {
+                          borderColor: colors.inputBorder,
+                          backgroundColor: colors.inputBg,
+                          color: colors.textPrimary,
+                        },
+                      ]}
                     />
                   </FieldBlock>
                   <FieldBlock label="Also notify">
@@ -2225,14 +2423,42 @@ const LeadFormModal = ({
               ) : null}
 
               {/* Footer */}
-              <View style={styles.footer}>
-                <TouchableOpacity onPress={onClose} style={styles.cancelBtn}>
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
+              <View
+                style={[
+                  styles.footer,
+                  {
+                    borderTopColor: colors.border,
+                    backgroundColor: colors.modalBg,
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  onPress={onClose}
+                  style={[
+                    styles.cancelBtn,
+                    {
+                      borderColor: colors.inputBorder,
+                      backgroundColor: colors.modalBg,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.cancelBtnText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Cancel
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   disabled={submitting}
                   onPress={handleSubmit}
-                  style={[styles.submitBtn, submitting && styles.disabled]}
+                  style={[
+                    styles.submitBtn,
+                    submitting && styles.disabled,
+                    { backgroundColor: colors.tabActive },
+                  ]}
                 >
                   <Text style={styles.submitBtnText}>
                     {submitting
@@ -2251,413 +2477,442 @@ const LeadFormModal = ({
   );
 };
 
-// ── Styles ──
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-start',
-  },
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  modalSafeArea: { flex: 1, backgroundColor: '#fff' },
-  modalBody: {
-    flex: 1,
-    alignSelf: 'stretch',
-    backgroundColor: '#fff',
-    width: '100%',
-    height: '100%',
-    marginHorizontal: 0,
-    marginTop: 0,
-    marginBottom: 0,
-    borderRadius: 0,
-    borderWidth: 0,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 10,
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  formScrollView: { flex: 1, backgroundColor: '#fff' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    gap: 12,
-  },
-  headerTextWrap: { flex: 1, paddingRight: 12 },
-  headerTitle: { fontSize: 20, fontWeight: '600', color: '#111827' },
-  headerSubtitle: { fontSize: 13, color: '#6b7280', marginTop: 2 },
-  closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabsContainer: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    maxHeight: 48,
-    flexGrow: 0,
-    flexShrink: 0,
-  },
-  tabsInner: {
-    flexDirection: 'row',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    gap: 4,
-    alignItems: 'center',
-  },
-  tabBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabText: { fontSize: 14, fontWeight: '500', color: '#4b5563' },
-  tabTextActive: { color: '#5a7bf6' },
-  tabIndicator: {
-    position: 'absolute',
-    bottom: -1,
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: '#5a7bf6',
-    borderRadius: 2,
-  },
-  formScroll: { paddingBottom: 24, flexGrow: 1 },
-  formContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
-    gap: 12,
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 6,
-  },
-  input: {
-    minHeight: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 14,
-    color: '#111827',
-  },
-  textarea: { minHeight: 80, textAlignVertical: 'top' },
-  warningText: { marginTop: 8, fontSize: 13, color: '#d97706' },
-  warningTextCenter: {
-    marginTop: 10,
-    fontSize: 12,
-    color: '#d97706',
-    textAlign: 'center',
-  },
-  coAssignBox: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
-    padding: 16,
-    marginTop: 6,
-  },
-  activityTypeHeader: { marginBottom: 14, gap: 8 },
-  typeScroll: { marginTop: 4 },
-  typeRow: { flexDirection: 'row', gap: 8 },
-  typePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    position: 'relative',
-  },
-  typePillInactive: { backgroundColor: '#f3f4f6' },
-  typePillText: { fontSize: 13, fontWeight: '500', color: '#374151' },
-  typePillTextActive: { color: '#fff' },
-  typePillDot: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: '#10b981',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  activityForm: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
-    padding: 16,
-    gap: 14,
-  },
-  activityFormTitle: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  callGrid: { flexDirection: 'row', gap: 10 },
-  taskGrid: { flexDirection: 'row', gap: 14 },
-  clearLink: { color: '#f87171', fontSize: 12 },
-  recentBlock: { marginTop: 16, gap: 12, maxHeight: 256 },
-  recentHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  recentTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#6b7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  recentDivider: { flex: 1, height: 1, backgroundColor: '#e5e7eb' },
-  recentCount: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  recentCountText: { fontSize: 11, color: '#6b7280' },
-  recentItem: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#fff',
-    padding: 12,
-    gap: 6,
-  },
-  recentItemTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  recentIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recentType: { fontSize: 13, fontWeight: '500', color: '#1f2937' },
-  outcomeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderWidth: 1,
-  },
-  outcomeDot: { width: 6, height: 6, borderRadius: 999 },
-  outcomeText: { fontSize: 10, fontWeight: '600' },
-  recentBadge: {
-    backgroundColor: '#dcfce7',
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  recentBadgeText: { fontSize: 10, fontWeight: '700', color: '#15803d' },
-  recentText: { fontSize: 12, color: '#4b5563', lineHeight: 17 },
-  recentMeta: { fontSize: 11, color: '#9ca3af', marginTop: 4 },
-  recordingBlock: { gap: 14 },
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  orDivider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  orLine: { flex: 1, height: 1, backgroundColor: '#e5e7eb' },
-  orText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#9ca3af',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  uploadZone: {
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    borderStyle: 'dashed',
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 100,
-    backgroundColor: '#fff',
-  },
-  uploadIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  uploadTitle: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  uploadHint: { fontSize: 12, color: '#9ca3af', textAlign: 'center' },
-  fileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    width: '100%',
-  },
-  fileInfo: { flex: 1 },
-  fileName: { fontSize: 13, fontWeight: '600', color: '#111827' },
-  fileSize: { fontSize: 11, color: '#9ca3af', marginTop: 2 },
-  fileRemove: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#fee2e2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressWrap: { gap: 6 },
-  progressTopRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  progressLabel: { fontSize: 11, color: '#6b7280' },
-  progressTrack: {
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: '#e5e7eb',
-    overflow: 'hidden',
-  },
-  progressFill: { height: 6, borderRadius: 999, backgroundColor: '#5a7bf6' },
-  uploadBtn: {
-    borderRadius: 12,
-    backgroundColor: '#5a7bf6',
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  uploadBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  disabled: { opacity: 0.5 },
-  savedRecsBlock: { marginTop: 20, gap: 12 },
-  savedRecsHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  savedRecsTitle: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  savedRecItem: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#fff',
-    overflow: 'hidden',
-  },
-  savedRecTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
-  },
-  savedRecIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(90,123,246,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  savedRecInfo: { flex: 1 },
-  savedRecLabel: { fontSize: 14, fontWeight: '600', color: '#1f2937' },
-  savedRecMeta: { fontSize: 12, color: '#9ca3af', marginTop: 2 },
-  savedRecActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  recActionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(90,123,246,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recActionBtnGray: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recActionBtnRed: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(239,68,68,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mediaContainer: { paddingHorizontal: 12, paddingBottom: 12 },
-  mediaPlayer: {
-    width: '100%',
-    height: 180,
-    backgroundColor: '#000',
-    borderRadius: 12,
-  },
-  emptyRecording: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#e5e7eb',
-    paddingVertical: 40,
-    alignItems: 'center',
-    gap: 8,
-  },
-  emptyRecordingText: { fontSize: 13, color: '#9ca3af' },
-  paymentHistoryBlock: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
-    padding: 16,
-    marginTop: 6,
-  },
-  paymentHistoryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  paymentHistoryTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#6b7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    backgroundColor: '#fff',
-  },
-  cancelBtn: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  cancelBtnText: { fontSize: 14, fontWeight: '500', color: '#374151' },
-  submitBtn: {
-    borderRadius: 12,
-    backgroundColor: '#5a7bf6',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    shadowColor: '#818cf8',
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
-  },
-  submitBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
-});
+// ── Styles factory ──
+const createStyles = colors =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      justifyContent: 'flex-start',
+    },
+    backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+    modalSafeArea: { flex: 1, backgroundColor: colors.modalBg },
+    modalBody: {
+      flex: 1,
+      alignSelf: 'stretch',
+      backgroundColor: colors.modalBg,
+      width: '100%',
+      height: '100%',
+      marginHorizontal: 0,
+      marginTop: 0,
+      marginBottom: 0,
+      borderRadius: 0,
+      borderWidth: 0,
+      shadowColor: '#000',
+      shadowOpacity: 0.15,
+      shadowRadius: 20,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 10,
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+    },
+    formScrollView: { flex: 1, backgroundColor: colors.modalBg },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      gap: 12,
+    },
+    headerTextWrap: { flex: 1, paddingRight: 12 },
+    headerTitle: { fontSize: 20, fontWeight: '600', color: colors.textPrimary },
+    headerSubtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+    closeBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.closeIconBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    tabsContainer: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      maxHeight: 48,
+      flexGrow: 0,
+      flexShrink: 0,
+    },
+    tabsInner: {
+      flexDirection: 'row',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      gap: 4,
+      alignItems: 'center',
+    },
+    tabBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+    },
+    tabText: { fontSize: 14, fontWeight: '500', color: colors.textSecondary },
+    tabTextActive: { color: colors.tabActive },
+    tabIndicator: {
+      position: 'absolute',
+      bottom: -1,
+      left: 0,
+      right: 0,
+      height: 2,
+      backgroundColor: colors.tabActive,
+      borderRadius: 2,
+    },
+    formScroll: { paddingBottom: 24, flexGrow: 1 },
+    formContainer: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 24,
+      gap: 12,
+    },
+    fieldLabel: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginBottom: 6,
+    },
+    input: {
+      minHeight: 44,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      backgroundColor: colors.inputBg,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      fontSize: 14,
+      color: colors.textPrimary,
+    },
+    textarea: { minHeight: 80, textAlignVertical: 'top' },
+    warningText: { marginTop: 8, fontSize: 13, color: '#d97706' },
+    warningTextCenter: {
+      marginTop: 10,
+      fontSize: 12,
+      color: '#d97706',
+      textAlign: 'center',
+    },
+    coAssignBox: {
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.inputBg,
+      padding: 16,
+      marginTop: 6,
+    },
+    activityTypeHeader: { marginBottom: 14, gap: 8 },
+    typeScroll: { marginTop: 4 },
+    typeRow: { flexDirection: 'row', gap: 8 },
+    typePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderRadius: 999,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      position: 'relative',
+    },
+    typePillInactive: { backgroundColor: colors.closeIconBg },
+    typePillText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: colors.textPrimary,
+    },
+    typePillTextActive: { color: '#fff' },
+    typePillDot: {
+      position: 'absolute',
+      top: -2,
+      right: -2,
+      width: 10,
+      height: 10,
+      borderRadius: 999,
+      backgroundColor: '#10b981',
+      borderWidth: 2,
+      borderColor: '#fff',
+    },
+    activityForm: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.inputBg,
+      padding: 16,
+      gap: 14,
+    },
+    activityFormTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    callGrid: { flexDirection: 'row', gap: 10 },
+    taskGrid: { flexDirection: 'row', gap: 14 },
+    clearLink: { color: '#f87171', fontSize: 12 },
+    recentBlock: { marginTop: 16, gap: 12, maxHeight: 256 },
+    recentHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    recentTitle: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    recentDivider: { flex: 1, height: 1, backgroundColor: colors.border },
+    recentCount: {
+      backgroundColor: colors.closeIconBg,
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    recentCountText: { fontSize: 11, color: colors.textSecondary },
+    recentItem: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.inputBg,
+      padding: 12,
+      gap: 6,
+    },
+    recentItemTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+    recentIcon: {
+      width: 24,
+      height: 24,
+      borderRadius: 6,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    recentType: { fontSize: 13, fontWeight: '500', color: colors.textPrimary },
+    outcomeBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderWidth: 1,
+    },
+    outcomeDot: { width: 6, height: 6, borderRadius: 999 },
+    outcomeText: { fontSize: 10, fontWeight: '600' },
+    recentBadge: {
+      backgroundColor: '#dcfce7',
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+    },
+    recentBadgeText: { fontSize: 10, fontWeight: '700', color: '#15803d' },
+    recentText: { fontSize: 12, color: colors.textSecondary, lineHeight: 17 },
+    recentMeta: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
+    recordingBlock: { gap: 14 },
+    sectionTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    orDivider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    orLine: { flex: 1, height: 1, backgroundColor: colors.border },
+    orText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    uploadZone: {
+      borderRadius: 16,
+      borderWidth: 2,
+      borderColor: colors.inputBorder,
+      borderStyle: 'dashed',
+      padding: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      minHeight: 100,
+      backgroundColor: colors.inputBg,
+    },
+    uploadIconCircle: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.closeIconBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    uploadTitle: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+    uploadHint: { fontSize: 12, color: colors.textMuted, textAlign: 'center' },
+    fileRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      width: '100%',
+    },
+    fileInfo: { flex: 1 },
+    fileName: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
+    fileSize: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+    fileRemove: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: 'rgba(254,226,226,0.8)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    progressWrap: { gap: 6 },
+    progressTopRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    progressLabel: { fontSize: 11, color: colors.textSecondary },
+    progressTrack: {
+      height: 6,
+      borderRadius: 999,
+      backgroundColor: colors.border,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: 6,
+      borderRadius: 999,
+      backgroundColor: colors.tabActive,
+    },
+    uploadBtn: {
+      borderRadius: 12,
+      backgroundColor: colors.tabActive,
+      paddingVertical: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    uploadBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+    disabled: { opacity: 0.5 },
+    savedRecsBlock: { marginTop: 20, gap: 12 },
+    savedRecsHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    savedRecsTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    savedRecItem: {
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.inputBg,
+      overflow: 'hidden',
+    },
+    savedRecTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 12,
+    },
+    savedRecIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: 'rgba(90,123,246,0.06)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    savedRecInfo: { flex: 1 },
+    savedRecLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    savedRecMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+    savedRecActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    recActionBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: 'rgba(90,123,246,0.1)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    recActionBtnGray: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.closeIconBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    recActionBtnRed: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: 'rgba(239,68,68,0.1)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    mediaContainer: { paddingHorizontal: 12, paddingBottom: 12 },
+    mediaPlayer: {
+      width: '100%',
+      height: 180,
+      backgroundColor: '#000',
+      borderRadius: 12,
+    },
+    emptyRecording: {
+      borderRadius: 16,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: colors.border,
+      paddingVertical: 40,
+      alignItems: 'center',
+      gap: 8,
+    },
+    emptyRecordingText: { fontSize: 13, color: colors.textMuted },
+    paymentHistoryBlock: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.inputBg,
+      padding: 16,
+      marginTop: 6,
+    },
+    paymentHistoryHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 16,
+    },
+    paymentHistoryTitle: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    footer: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 12,
+      padding: 16,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.modalBg,
+    },
+    cancelBtn: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      backgroundColor: colors.modalBg,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+    cancelBtnText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.textSecondary,
+    },
+    submitBtn: {
+      borderRadius: 12,
+      backgroundColor: colors.tabActive,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      shadowColor: '#818cf8',
+      shadowOpacity: 0.25,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 5,
+    },
+    submitBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
+  });
 
 export default LeadFormModal;

@@ -15,8 +15,9 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Picker } from '@react-native-picker/picker';
+import CustomDropdown from '../ui/CustomDropdown.jsx';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTheme } from '../../contexts/ThemeContext';
 import { leadsService } from '../../services/leadsService.js';
 import {
   useCallRecordingEvents,
@@ -76,8 +77,7 @@ const LeadPreviewDrawer = ({
   const [mobileView, setMobileView] = useState('info');
 
   const settings = useSelector(state => state.settings?.data || state.settings);
-
-  const isDark = Boolean(settings?.theme === 'dark' || settings?.isDarkMode);
+  const { isDark } = useTheme();
 
   const theme = useMemo(
     () => ({
@@ -392,25 +392,13 @@ const LeadPreviewDrawer = ({
           {label}
         </Text>
         {options ? (
-          <View
-            style={[
-              styles.pickerWrap,
-              { borderColor: theme.accent, backgroundColor: theme.inputBg },
-            ]}
-          >
-            <Picker
-              selectedValue={tempLead[field] || ''}
-              onValueChange={value => updateTempField(field, value)}
-              mode="dropdown"
-              dropdownIconColor={theme.textSecondary}
-              style={[styles.picker, { color: theme.textPrimary }]}
-            >
-              <Picker.Item label="Select..." value="" />
-              {options.map(opt => (
-                <Picker.Item key={opt} label={opt} value={opt} />
-              ))}
-            </Picker>
-          </View>
+          <CustomDropdown
+            options={options}
+            value={tempLead[field] || ''}
+            onChange={value => updateTempField(field, value)}
+            placeholder="Select..."
+            style={{ width: '100%' }}
+          />
         ) : (
           <TextInput
             keyboardType={
@@ -422,10 +410,11 @@ const LeadPreviewDrawer = ({
             }
             value={tempLead[field] ? String(tempLead[field]) : ''}
             onChangeText={value => updateTempField(field, value)}
+            placeholderTextColor={theme.textMuted}
             style={[
               styles.input,
               {
-                borderColor: theme.accent,
+                borderColor: theme.border,
                 backgroundColor: theme.inputBg,
                 color: theme.textPrimary,
               },
@@ -459,10 +448,11 @@ const LeadPreviewDrawer = ({
         <TextInput
           value={tempLead.customFields?.[key] || ''}
           onChangeText={value => updateCustomField(key, value)}
+          placeholderTextColor={theme.textMuted}
           style={[
             styles.input,
             {
-              borderColor: theme.accent,
+              borderColor: theme.border,
               backgroundColor: theme.inputBg,
               color: theme.textPrimary,
             },
@@ -649,7 +639,7 @@ const LeadPreviewDrawer = ({
                             {
                               color: theme.textPrimary,
                               backgroundColor: theme.inputBg,
-                              borderColor: theme.accent,
+                              borderColor: theme.border,
                             },
                           ]}
                           placeholder="Lead name *"
@@ -1266,8 +1256,8 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 6,
     borderWidth: 1,
-    overflow: 'hidden',
     justifyContent: 'center',
+    alignItems: 'stretch',
   },
   picker: { width: '100%', height: 40 },
   sheetBadge: {

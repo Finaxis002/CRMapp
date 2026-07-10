@@ -1,7 +1,14 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+} from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const Pagination = ({
   page,
@@ -13,6 +20,20 @@ const Pagination = ({
   onLimitChange,
   limitOptions = [10, 20, 50, 100],
 }) => {
+  const { isDark } = useTheme();
+  const colors = {
+    bg: isDark ? '#0f172a' : '#FFFFFF',
+    border: isDark ? 'rgba(255,255,255,0.06)' : '#EEF2F7',
+    textPrimary: isDark ? '#F8FAFC' : '#0F172A',
+    textMuted: isDark ? '#94A3B8' : '#94A3B8',
+    pickerBg: isDark ? '#0f172a' : '#F8FAFC',
+    pickerBorder: isDark ? '#334155' : '#E2E8F0',
+    pickerLabelText: isDark ? '#CBD5E1' : '#1E293B',
+    navIcon: isDark ? '#CBD5E1' : '#475569',
+    disabledIcon: isDark ? '#475569' : '#CBD5E1',
+    activePageBg: '#5A7BF6',
+    pageText: isDark ? '#CBD5E1' : '#475569',
+  };
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
   const to = Math.min(page * limit, total);
 
@@ -40,20 +61,52 @@ const Pagination = ({
   const disabledNext = page >= totalPages || loading;
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.bg, borderTopColor: colors.border },
+      ]}
+    >
       {/* Top Row: Info + Per Page */}
       <View style={styles.topRow}>
-        <Text style={styles.infoText} numberOfLines={1}>
-          <Text style={styles.boldText}>{from}-{to}</Text>
-          <Text style={styles.muted}> of </Text>
-          <Text style={styles.boldText}>{total}</Text>
+        <Text
+          style={[styles.infoText, { color: colors.textPrimary }]}
+          numberOfLines={1}
+        >
+          <Text style={[styles.boldText, { color: colors.textPrimary }]}>
+            {from}-{to}
+          </Text>
+          <Text style={[styles.muted, { color: colors.textMuted }]}> of </Text>
+          <Text style={[styles.boldText, { color: colors.textPrimary }]}>
+            {total}
+          </Text>
         </Text>
 
-        <View style={[styles.pickerWrap, loading && styles.disabled]}>
+        <View
+          style={[
+            styles.pickerWrap,
+            loading && styles.disabled,
+            {
+              borderColor: colors.pickerBorder,
+              backgroundColor: colors.pickerBg,
+            },
+          ]}
+        >
           {/* Visible label overlay - always shows current value */}
           <View style={styles.pickerLabelRow} pointerEvents="none">
-            <Text style={styles.pickerLabelText}>{limit} / page</Text>
-            <Icon name="chevron-down" size={16} color="#64748B" />
+            <Text
+              style={[
+                styles.pickerLabelText,
+                { color: colors.pickerLabelText },
+              ]}
+            >
+              {limit} / page
+            </Text>
+            <Icon
+              name="chevron-down"
+              size={16}
+              color={colors.pickerLabelText}
+            />
           </View>
 
           {/* Transparent picker on top for interaction */}
@@ -83,7 +136,7 @@ const Pagination = ({
           <Icon
             name="chevron-left"
             size={18}
-            color={disabledPrev ? '#CBD5E1' : '#475569'}
+            color={disabledPrev ? colors.disabledIcon : colors.navIcon}
           />
         </TouchableOpacity>
 
@@ -98,11 +151,19 @@ const Pagination = ({
                 key={p}
                 disabled={loading || p === page}
                 onPress={() => onPageChange(p)}
-                style={[styles.pageBtn, p === page && styles.activePageBtn]}
+                style={[
+                  styles.pageBtn,
+                  p === page && styles.activePageBtn,
+                  p === page && { backgroundColor: colors.activePageBg },
+                ]}
                 activeOpacity={0.7}
               >
                 <Text
-                  style={[styles.pageText, p === page && styles.activePageText]}
+                  style={[
+                    styles.pageText,
+                    p === page && styles.activePageText,
+                    { color: p === page ? '#FFFFFF' : colors.pageText },
+                  ]}
                 >
                   {p}
                 </Text>
@@ -120,7 +181,7 @@ const Pagination = ({
           <Icon
             name="chevron-right"
             size={18}
-            color={disabledNext ? '#CBD5E1' : '#475569'}
+            color={disabledNext ? colors.disabledIcon : colors.navIcon}
           />
         </TouchableOpacity>
       </View>

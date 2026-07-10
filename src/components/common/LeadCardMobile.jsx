@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Linking,
 } from 'react-native';
+import { useTheme } from '../../contexts/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 /**
@@ -60,6 +61,28 @@ const LeadCardMobile = ({
   getAssignedName,
   formatCurrency,
 }) => {
+  const { isDark } = useTheme();
+  const colors = useMemo(
+    () => ({
+      card: isDark ? '#111827' : '#ffffff',
+      border: isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb',
+      textPrimary: isDark ? '#F8FAFC' : '#111827',
+      textSecondary: isDark ? '#CBD5E1' : '#6b7280',
+      muted: isDark ? '#94A3B8' : '#6b7280',
+      checkboxBorder: isDark ? '#475569' : '#d1d5db',
+      checkboxBg: isDark ? '#0f172a' : '#ffffff',
+      selectedBg: isDark ? 'rgba(90,123,246,0.18)' : '#5a7bf60d',
+      actionBg: isDark ? '#111827' : '#ffffff',
+      actionText: isDark ? '#CBD5E1' : '#6b7280',
+      crossSellBg: isDark ? '#312e81' : '#f3e8ff',
+      crossSellBorder: isDark ? '#4338ca' : '#e9d5ff',
+      crossSellText: isDark ? '#c7d2fe' : '#9333ea',
+      phoneText: isDark ? '#cbd5e1' : '#475569',
+      phoneIcon: isDark ? '#86efac' : '#16a34a',
+      danger: isDark ? '#fca5a5' : '#ef4444',
+    }),
+    [isDark],
+  );
   const status = lead.status || 'New';
   const statusColor = getStageColor(status);
   const priority = lead.priority || 'Normal';
@@ -72,14 +95,30 @@ const LeadCardMobile = ({
   const isCrossSell = lead.isCrossSell || lead.crossSellRecord;
 
   return (
-    <View style={[styles.card, selected && styles.cardSelected]}>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+        },
+        selected && { backgroundColor: colors.selectedBg },
+      ]}
+    >
       {/* ── Top row: checkbox + name + status badge ── */}
       <View style={styles.topRow}>
         <View style={styles.nameWrap}>
           {onToggleSelect && (
             <TouchableOpacity
               onPress={() => onToggleSelect(lead._id)}
-              style={[styles.checkbox, selected && styles.checkboxChecked]}
+              style={[
+                styles.checkbox,
+                selected && styles.checkboxChecked,
+                {
+                  borderColor: colors.checkboxBorder,
+                  backgroundColor: colors.checkboxBg,
+                },
+              ]}
               activeOpacity={0.7}
             >
               {selected ? (
@@ -89,12 +128,30 @@ const LeadCardMobile = ({
           )}
           <View style={styles.nameBlock}>
             <View style={styles.nameRow}>
-              <Text style={styles.nameText} numberOfLines={1}>
+              <Text
+                style={[styles.nameText, { color: colors.textPrimary }]}
+                numberOfLines={1}
+              >
                 {lead.name || '—'}
               </Text>
               {isCrossSell ? (
-                <View style={styles.crossSellBadge}>
-                  <Text style={styles.crossSellText}>🔁 Cross-Sell</Text>
+                <View
+                  style={[
+                    styles.crossSellBadge,
+                    {
+                      backgroundColor: colors.crossSellBg,
+                      borderColor: colors.crossSellBorder,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.crossSellText,
+                      { color: colors.crossSellText },
+                    ]}
+                  >
+                    🔁 Cross-Sell
+                  </Text>
                 </View>
               ) : null}
             </View>
@@ -105,11 +162,15 @@ const LeadCardMobile = ({
                 activeOpacity={0.6}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               >
-                <Icon name="phone-outline" size={12} color="#16a34a" />
-                <Text style={styles.phoneText}>{phone}</Text>
+                <Icon name="phone-outline" size={12} color={colors.phoneIcon} />
+                <Text style={[styles.phoneText, { color: colors.phoneText }]}>
+                  {phone}
+                </Text>
               </TouchableOpacity>
             ) : (
-              <Text style={styles.phoneText}>—</Text>
+              <Text style={[styles.phoneText, { color: colors.phoneText }]}>
+                —
+              </Text>
             )}
           </View>
         </View>
@@ -161,21 +222,37 @@ const LeadCardMobile = ({
       <View style={styles.actionsRow}>
         <TouchableOpacity
           onPress={e => onPreview(lead, e)}
-          style={[styles.actionBtn, styles.actionBtnDefault]}
+          style={[
+            styles.actionBtn,
+            styles.actionBtnDefault,
+            { backgroundColor: colors.actionBg },
+          ]}
           activeOpacity={0.7}
         >
-          <Icon name="eye-outline" size={13} color="#6b7280" />
-          <Text style={styles.actionTextDefault}>Preview</Text>
+          <Icon name="eye-outline" size={13} color={colors.actionText} />
+          <Text
+            style={[styles.actionTextDefault, { color: colors.actionText }]}
+          >
+            Preview
+          </Text>
         </TouchableOpacity>
 
         {canEditAnyLead && (
           <TouchableOpacity
             onPress={e => onEdit(lead)}
-            style={[styles.actionBtn, styles.actionBtnDefault]}
+            style={[
+              styles.actionBtn,
+              styles.actionBtnDefault,
+              { backgroundColor: colors.actionBg },
+            ]}
             activeOpacity={0.7}
           >
-            <Icon name="pencil-outline" size={13} color="#6b7280" />
-            <Text style={styles.actionTextDefault}>Edit</Text>
+            <Icon name="pencil-outline" size={13} color={colors.actionText} />
+            <Text
+              style={[styles.actionTextDefault, { color: colors.actionText }]}
+            >
+              Edit
+            </Text>
           </TouchableOpacity>
         )}
 
@@ -185,8 +262,10 @@ const LeadCardMobile = ({
             style={[styles.actionBtn, styles.actionBtnDanger]}
             activeOpacity={0.7}
           >
-            <Icon name="trash-can-outline" size={13} color="#ef4444" />
-            <Text style={styles.actionTextDanger}>Delete</Text>
+            <Icon name="trash-can-outline" size={13} color={colors.danger} />
+            <Text style={[styles.actionTextDanger, { color: colors.danger }]}>
+              Delete
+            </Text>
           </TouchableOpacity>
         )}
       </View>
