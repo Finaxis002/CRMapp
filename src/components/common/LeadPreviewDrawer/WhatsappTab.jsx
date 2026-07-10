@@ -93,21 +93,21 @@ const WhatsappTab = ({
   const [showActionsId, setShowActionsId] = useState(null);
   const messagesEndRef = useRef(null);
 
-  // Theme values
-  const waBg = isDark ? '#0B141A' : '#ECE5DD';
-  const callCardBg = isDark ? '#1F2C34' : '#fff';
-  const filterBg = isDark ? '#1A1A1A' : '#F0F2F5';
-  const inputBg = isDark ? '#1F2C34' : '#fff';
-  const inputColor = isDark ? '#E9EDF0' : '#111';
+  // Theme-aware values (use theme when provided)
+  const waBg = theme.whatsappBg || (isDark ? '#0B141A' : '#ECE5DD');
+  const callCardBg = theme.callCardBg || (isDark ? '#1F2C34' : '#fff');
+  const filterBg = theme.filterBg || (isDark ? '#1A1A1A' : '#F0F2F5');
+  const inputBg = theme.inputBg || (isDark ? '#1F2C34' : '#fff');
+  const inputColor = theme.inputColor || (isDark ? '#E9EDF0' : '#111');
 
   const bubbleStyle = {
     sent: {
-      bg: isDark ? '#005C4B' : '#DCF8C6',
-      color: isDark ? '#E9EDF0' : '#111',
+      bg: theme.bubbleSentBg || (isDark ? '#005C4B' : '#DCF8C6'),
+      color: theme.bubbleSentColor || (isDark ? '#E9EDF0' : '#111'),
     },
     received: {
-      bg: isDark ? '#1F2C34' : '#fff',
-      color: isDark ? '#E9EDF0' : '#111',
+      bg: theme.bubbleReceivedBg || (isDark ? '#1F2C34' : '#fff'),
+      color: theme.bubbleReceivedColor || (isDark ? '#E9EDF0' : '#111'),
     },
   };
 
@@ -309,7 +309,7 @@ const WhatsappTab = ({
   const renderMessageBubble = item => {
     const isSent = item.direction === 'outgoing';
     const bs = isSent ? bubbleStyle.sent : bubbleStyle.received;
-    const tickColor = item.status === 'read' ? '#53BDEB' : '#aaa';
+    const tickColor = item.status === 'read' ? theme.info || '#53BDEB' : '#aaa';
     const tick =
       item.status === 'read' || item.status === 'delivered' ? '✓✓' : '✓';
 
@@ -338,7 +338,14 @@ const WhatsappTab = ({
               onPress={() => handleDeleteMessage(item._id)}
               style={styles.actionButton}
             >
-              <Text style={[styles.actionIcon, { color: '#ef4444' }]}>🗑️</Text>
+              <Text
+                style={[
+                  styles.actionIcon,
+                  { color: theme.danger || '#ef4444' },
+                ]}
+              >
+                🗑️
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -360,9 +367,9 @@ const WhatsappTab = ({
               style={[
                 styles.attachment,
                 {
-                  backgroundColor: isDark
-                    ? 'rgba(255,255,255,0.08)'
-                    : 'rgba(0,0,0,0.06)',
+                  backgroundColor:
+                    theme.attachmentBg ||
+                    (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
                 },
               ]}
             >
@@ -383,8 +390,10 @@ const WhatsappTab = ({
                 style={[
                   styles.editInput,
                   {
-                    backgroundColor: isDark ? '#111827' : '#f8fafc',
-                    color: isDark ? '#eef2ff' : '#111827',
+                    backgroundColor:
+                      theme.editInputBg || (isDark ? '#111827' : '#f8fafc'),
+                    color:
+                      theme.editInputColor || (isDark ? '#eef2ff' : '#111827'),
                   },
                 ]}
               />

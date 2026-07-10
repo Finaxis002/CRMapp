@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import LeadCardMobile from './LeadCardMobile.jsx';
+
+import { useTheme } from '../../contexts/ThemeContext';
 
 const ACCENT = '#5a7bf6';
 
@@ -41,15 +43,32 @@ const LeadsListMobile = ({
   getAssignedName,
   formatCurrency,
 }) => {
+  const { isDark } = useTheme();
+  const colors = useMemo(
+    () => ({
+      accent: ACCENT,
+      bg: isDark ? '#0F172A' : '#F9FAFB',
+      surface: isDark ? '#111827' : '#FFFFFF',
+      border: isDark ? 'rgba(255,255,255,0.08)' : '#E5E7EB',
+      textPrimary: isDark ? '#F8FAFC' : '#111827',
+      textSecondary: isDark ? '#94A3B8' : '#6B7280',
+      muted: isDark ? '#CBD5E1' : '#9CA3AF',
+      skeleton: isDark ? '#1f2937' : '#e5e7eb',
+    }),
+    [isDark],
+  );
+
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const refreshControl = onRefresh ? (
     <RefreshControl
       refreshing={refreshing}
       onRefresh={onRefresh}
-      colors={[ACCENT]}
-      tintColor={ACCENT}
-      progressBackgroundColor="#ffffff"
+      colors={[colors.accent]}
+      tintColor={colors.accent}
+      progressBackgroundColor={colors.surface}
       title="Pull to refresh..."
-      titleColor="#6b7280"
+      titleColor={colors.textSecondary}
     />
   ) : undefined;
 
@@ -126,67 +145,55 @@ const LeadsListMobile = ({
   );
 };
 
-const styles = StyleSheet.create({
-  listContainer: {
-    padding: 12,
-    gap: 12,
-  },
-  skeletonCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
-    padding: 16,
-    marginBottom: 12,
-  },
-  skeletonHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-  },
-  skeletonLine: {
-    height: 16,
-    borderRadius: 4,
-    backgroundColor: '#e5e7eb',
-  },
-  skeletonBadge: {
-    height: 20,
-    borderRadius: 999,
-    backgroundColor: '#e5e7eb',
-  },
-  skeletonGrid: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 16,
-  },
-  skeletonBlock: {
-    flex: 1,
-    height: 32,
-    borderRadius: 6,
-    backgroundColor: '#e5e7eb',
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 80,
-    gap: 8,
-  },
-  emptyIcon: {
-    fontSize: 40,
-    marginBottom: 4,
-  },
-  emptyTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6b7280',
-  },
-  emptySubtitle: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-});
+const createStyles = colors =>
+  StyleSheet.create({
+    listContainer: { padding: 12, gap: 12 },
+    skeletonCard: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: 16,
+      marginBottom: 12,
+    },
+    skeletonHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 12,
+    },
+    skeletonLine: {
+      height: 16,
+      borderRadius: 4,
+      backgroundColor: colors.skeleton,
+    },
+    skeletonBadge: {
+      height: 20,
+      borderRadius: 999,
+      backgroundColor: colors.skeleton,
+    },
+    skeletonGrid: { flexDirection: 'row', gap: 8, marginTop: 16 },
+    skeletonBlock: {
+      flex: 1,
+      height: 32,
+      borderRadius: 6,
+      backgroundColor: colors.skeleton,
+    },
+    emptyContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+      paddingVertical: 80,
+      gap: 8,
+    },
+    emptyIcon: { fontSize: 40, marginBottom: 4 },
+    emptyTitle: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.textSecondary,
+    },
+    emptySubtitle: { fontSize: 12, color: colors.muted },
+  });
 
 export default LeadsListMobile;

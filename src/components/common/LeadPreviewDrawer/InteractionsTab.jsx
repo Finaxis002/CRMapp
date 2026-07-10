@@ -16,6 +16,23 @@ import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import api from '../../../services/api';
+
+const hexToRgba = (hex, alpha = 1) => {
+  if (!hex) return `rgba(0,0,0,${alpha})`;
+  const h = hex.replace('#', '');
+  const full =
+    h.length === 3
+      ? h
+          .split('')
+          .map(c => c + c)
+          .join('')
+      : h;
+  const val = parseInt(full, 16);
+  const r = (val >> 16) & 255;
+  const g = (val >> 8) & 255;
+  const b = val & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 import CallLogCard from '../../../services/callLogCard.js';
 
 // =============================================
@@ -56,27 +73,22 @@ const getActivityIcon = (type, source, isAutoTracked) => {
   return '📝';
 };
 
-const getCallOutcomeMeta = outcome => {
+const getCallOutcomeMeta = (outcome, theme = {}) => {
+  const success = theme.success || '#16a34a';
+  const danger = theme.danger || '#dc2626';
+  const warn = theme.warn || '#d97706';
   switch (outcome) {
     case 'Spoke':
     case 'Recorded':
-      return {
-        label: outcome,
-        color: '#16a34a',
-        bg: 'rgba(34, 197, 94, 0.12)',
-      };
+      return { label: outcome, color: success, bg: hexToRgba(success, 0.12) };
     case 'No Answer':
     case 'Unknown':
-      return {
-        label: outcome,
-        color: '#dc2626',
-        bg: 'rgba(239, 68, 68, 0.12)',
-      };
+      return { label: outcome, color: danger, bg: hexToRgba(danger, 0.12) };
     case 'Left Voicemail':
       return {
         label: 'Left Voicemail',
-        color: '#d97706',
-        bg: 'rgba(245, 158, 11, 0.12)',
+        color: warn,
+        bg: hexToRgba(warn, 0.12),
       };
     default:
       return null;
@@ -249,11 +261,12 @@ const InteractionsTab = ({
       const whatsappPromise = api.get(`/whatsapp/messages?leadId=${leadId}`);
       const callLogPromise = api.get(`/call-logs?leadId=${leadId}&limit=50`);
 
-      const [activityResult, whatsappResult, callLogResult] = await Promise.allSettled([
-        activityPromise,
-        whatsappPromise,
-        callLogPromise,
-      ]);
+      const [activityResult, whatsappResult, callLogResult] =
+        await Promise.allSettled([
+          activityPromise,
+          whatsappPromise,
+          callLogPromise,
+        ]);
 
       const activities = parseApiResponseArray(
         activityResult.status === 'fulfilled' ? activityResult.value : null,
@@ -266,7 +279,9 @@ const InteractionsTab = ({
       if (callLogResult.status === 'fulfilled') {
         const callLogs = parseApiResponseArray(callLogResult.value);
         const callLogMap = {};
-        callLogs.forEach(cl => { callLogMap[cl._id] = cl; });
+        callLogs.forEach(cl => {
+          callLogMap[cl._id] = cl;
+        });
         activities.forEach(act => {
           if (act.isAutoTracked && act._id && callLogMap[act._id]) {
             act.aiAnalysis = callLogMap[act._id].aiAnalysis;
@@ -469,7 +484,7 @@ const InteractionsTab = ({
 
     switch (rawType) {
       case 'call': {
-        const outcomeMeta = getCallOutcomeMeta(item.callOutcome);
+        const outcomeMeta = getCallOutcomeMeta(item.callOutcome, theme);
         return (
           <>
             <Text

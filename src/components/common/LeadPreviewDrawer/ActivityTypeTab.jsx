@@ -369,7 +369,12 @@ const ActivityTypeTab = ({
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity onPress={() => handleDelete(item)}>
-              <Text style={[styles.actionText, { color: '#dc2626' }]}>
+              <Text
+                style={[
+                  styles.actionText,
+                  { color: theme.danger || '#dc2626' },
+                ]}
+              >
                 Delete
               </Text>
             </TouchableOpacity>
@@ -532,7 +537,8 @@ const ActivityTypeTab = ({
                   <Text
                     style={[styles.fieldLabel, { color: theme.textSecondary }]}
                   >
-                    Due Date <Text style={{ color: '#ef4444' }}>*</Text>
+                    Due Date{' '}
+                    <Text style={{ color: theme.danger || '#ef4444' }}>*</Text>
                   </Text>
                   <TouchableOpacity
                     onPress={() => setShowDatePicker(true)}
@@ -730,7 +736,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   picker: { height: 42, width: '100%' },
-  errorText: { color: '#dc2626', fontSize: 12, lineHeight: 17 },
+  errorText: { fontSize: 12, lineHeight: 17 },
   submitRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
   cancelBtn: {
     paddingVertical: 7,

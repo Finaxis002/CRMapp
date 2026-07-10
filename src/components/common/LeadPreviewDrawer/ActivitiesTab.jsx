@@ -9,6 +9,23 @@ import {
 } from 'react-native';
 import api from '../../../services/api.js';
 
+const hexToRgba = (hex, alpha = 1) => {
+  if (!hex) return `rgba(0,0,0,${alpha})`;
+  const h = hex.replace('#', '');
+  const full =
+    h.length === 3
+      ? h
+          .split('')
+          .map(c => c + c)
+          .join('')
+      : h;
+  const val = parseInt(full, 16);
+  const r = (val >> 16) & 255;
+  const g = (val >> 8) & 255;
+  const b = val & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 const getActivityIcon = type => {
   const raw = String(type || '').toLowerCase();
   if (raw === 'call') return '📞';
@@ -23,28 +40,31 @@ const getActivityIcon = type => {
   return '📝';
 };
 
-const getCallOutcomeMeta = outcome => {
+const getCallOutcomeMeta = (outcome, theme = {}) => {
+  const success = theme.success || '#16a34a';
+  const danger = theme.danger || '#dc2626';
+  const warn = theme.warn || '#d97706';
   switch (outcome) {
     case 'Spoke':
       return {
         label: 'Spoke',
-        color: '#16a34a',
-        bg: 'rgba(34, 197, 94, 0.12)',
-        border: 'rgba(34, 197, 94, 0.35)',
+        color: success,
+        bg: hexToRgba(success, 0.12),
+        border: hexToRgba(success, 0.35),
       };
     case 'No Answer':
       return {
         label: 'No Answer',
-        color: '#dc2626',
-        bg: 'rgba(239, 68, 68, 0.12)',
-        border: 'rgba(239, 68, 68, 0.35)',
+        color: danger,
+        bg: hexToRgba(danger, 0.12),
+        border: hexToRgba(danger, 0.35),
       };
     case 'Left Voicemail':
       return {
         label: 'Left Voicemail',
-        color: '#d97706',
-        bg: 'rgba(245, 158, 11, 0.12)',
-        border: 'rgba(245, 158, 11, 0.35)',
+        color: warn,
+        bg: hexToRgba(warn, 0.12),
+        border: hexToRgba(warn, 0.35),
       };
     default:
       return null;
@@ -105,7 +125,7 @@ const ActivitiesTab = ({ leadId, theme, activityRefreshTrigger }) => {
 
     switch (rawType) {
       case 'call': {
-        const outcomeMeta = getCallOutcomeMeta(item.callOutcome);
+        const outcomeMeta = getCallOutcomeMeta(item.callOutcome, theme);
         return (
           <>
             <Text style={[styles.summaryText, { color: theme.textPrimary }]}>
@@ -170,7 +190,9 @@ const ActivitiesTab = ({ leadId, theme, activityRefreshTrigger }) => {
               </Text>
             ) : null}
             {item.isCompleted ? (
-              <Text style={styles.completedText}>Completed</Text>
+              <Text style={[styles.completedText, { color: theme.success }]}>
+                Completed
+              </Text>
             ) : null}
           </>
         );
