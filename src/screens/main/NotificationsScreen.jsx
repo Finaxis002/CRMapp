@@ -44,9 +44,9 @@ const formatDate = (dateStr) => {
   const diffMs = now - date;
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
-  if (diffMins < 1) return "Abhi";
-  if (diffMins < 60) return `${diffMins} min pehle`;
-  if (diffHours < 24) return `${diffHours} ghante pehle`;
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins} min ago`;
+  if (diffHours < 24) return `${diffHours} hr ago`;
   return date.toLocaleString("en-IN", {
     day: "numeric",
     month: "short",
@@ -207,7 +207,7 @@ const loadNotifications = useCallback(async (reset = true) => {
       const loadedCount = reset ? data.length : notifications.length + data.length;
       setHasMore(total > 0 ? loadedCount < total : data.length >= LIMIT);
     } catch (err) {
-      setError(err?.response?.data?.message || "Notifications load nahi ho sake.");
+      setError(err?.response?.data?.message || "Couldn't load notifications.");
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -227,11 +227,11 @@ const loadNotifications = useCallback(async (reset = true) => {
       setNotifications((prev) =>
         prev.map((n) => (n._id === notificationId ? { ...n, isRead: true } : n))
       );
-      Toast.show({ type: "success", text1: "Notification read mark ho gayi." });
+      Toast.show({ type: "success", text1: "Notification marked as read." });
     } catch (err) {
       Toast.show({
         type: "error",
-        text1: err?.response?.data?.message || "Mark read fail ho gaya.",
+        text1: err?.response?.data?.message || "Failed to mark as read.",
       });
     } finally {
       setProcessing(false);
@@ -244,11 +244,11 @@ const loadNotifications = useCallback(async (reset = true) => {
     try {
       await markAllNotificationsRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      Toast.show({ type: "success", text1: "Saari notifications read mark ho gayi." });
+      Toast.show({ type: "success", text1: "All notifications marked as read." });
     } catch (err) {
       Toast.show({
         type: "error",
-        text1: err?.response?.data?.message || "Mark all read fail ho gaya.",
+        text1: err?.response?.data?.message || "Failed to mark all as read.",
       });
     } finally {
       setProcessing(false);
@@ -271,28 +271,28 @@ const loadNotifications = useCallback(async (reset = true) => {
 
   const ListEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Text style={[styles.emptyTitle, { color: colors.emptyTitle }]}>Koi notification nahi.</Text>
-      <Text style={[styles.emptySubtitle, { color: colors.emptySubtitle }]}>Aap bilkul up-to-date hain!</Text>
+      <Text style={[styles.emptyTitle, { color: colors.emptyTitle }]}>No notifications yet.</Text>
+      <Text style={[styles.emptySubtitle, { color: colors.emptySubtitle }]}>You're all caught up!</Text>
       <TouchableOpacity
         style={styles.dashboardBtn}
         onPress={() => navigation.navigate("Dashboard")}
         activeOpacity={0.8}
       >
-        <Text style={styles.dashboardBtnText}>Dashboard par jao</Text>
+        <Text style={styles.dashboardBtnText}>Go to Dashboard</Text>
       </TouchableOpacity>
     </View>
   );
 
   const ListError = () => (
     <View style={styles.emptyContainer}>
-      <Text style={[styles.errorTitle, { color: colors.errorTitle }]}>Notifications nahi load ho sake</Text>
+      <Text style={[styles.errorTitle, { color: colors.errorTitle }]}>Couldn't load notifications</Text>
       <Text style={[styles.errorSubtitle, { color: colors.errorSubtitle }]}>{error}</Text>
       <TouchableOpacity
         style={styles.dashboardBtn}
         onPress={() => loadNotifications(true)}
         activeOpacity={0.8}
       >
-        <Text style={styles.dashboardBtnText}>Dobara try karo</Text>
+        <Text style={styles.dashboardBtnText}>Try again</Text>
       </TouchableOpacity>
     </View>
   );
@@ -313,7 +313,7 @@ const ListFooter = () => {
         <View>
           <Text style={[styles.headerTitle, { color: colors.title }]}>Notifications</Text>
           <Text style={[styles.headerSubtitle, { color: colors.subtitle }]}>
-            Saari notifications ek jagah dekhein aur manage karein.
+            View and manage all your notifications in one place.
           </Text>
         </View>
 
@@ -350,7 +350,7 @@ const ListFooter = () => {
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={colors.spinnerColor} />
           <Text style={[styles.loadingText, { color: colors.loadingText }]}>
-            Notifications load ho rahi hain...
+            Loading notifications...
           </Text>
         </View>
       ) : error ? (
