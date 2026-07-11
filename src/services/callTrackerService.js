@@ -360,6 +360,28 @@ const getTodayDateString = () => {
   return today.toISOString().split('T')[0];
 };
 
+export const applyOverlayNotesToLead = async (lead, notes = []) => {
+  if (!lead?._id || !Array.isArray(notes) || notes.length === 0) return [];
+
+  const applied = [];
+  for (const note of notes) {
+    try {
+      const payload = await buildOverlayActivityPayload(lead, note);
+      await api.put(`/leads/${lead._id}`, { activities: [payload] });
+      applied.push(note);
+    } catch (error) {
+      console.warn('applyOverlayNotesToLead failed', {
+        leadId: lead._id,
+        note,
+        error: error?.response?.data || error?.message || error,
+      });
+      throw error;
+    }
+  }
+
+  return applied;
+};
+
 // ══════════════════════════════════════════════
 // OFFLINE-SAFE OVERLAY NOTES QUEUE
 // Same problem applies to overlay notes/tasks: if network is down when
@@ -439,11 +461,10 @@ const flushPendingOverlayNotes = async phoneNumber => {
     return;
   }
 
-  for (const note of notesToFlush) {
-    try {
-      const payload = await buildOverlayActivityPayload(lead, note);
-      await api.put(`/leads/${lead._id}`, { activities: [payload] });
-    } catch (error) {
+  try {
+    await applyOverlayNotesToLead(lead, notesToFlush);
+  } catch (error) {
+    for (const note of notesToFlush) {
       console.warn(
         'flushPendingOverlayNotes: save failed, queuing for retry',
         note,
@@ -496,8 +517,25 @@ const subscribeToOverlayEvents = () => {
             return;
           }
 
-          await leadsService.createLead(payload);
+          const createdLead = await leadsService.createLead(payload);
           console.log('Overlay lead created successfully', payload.name);
+
+          const notesToAttach = pendingOverlayNotes.slice();
+          if (notesToAttach.length > 0) {
+            try {
+              await applyOverlayNotesToLead(createdLead, notesToAttach);
+              pendingOverlayNotes = [];
+            } catch (error) {
+              console.warn(
+                'Overlay lead created, but note/task attachment failed; retrying later',
+                error,
+              );
+              for (const note of notesToAttach) {
+                await enqueuePendingOverlayNote(payload.phone, note);
+              }
+            }
+          }
+
           showOverlayFeedback(
             'Lead created',
             `${payload.name} was added successfully.`,
