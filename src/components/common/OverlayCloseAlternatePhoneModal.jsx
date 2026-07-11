@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import { IconSearch } from '@tabler/icons-react-native';
 import { leadsService } from '../../services/leadsService';
 
 export default function OverlayCloseAlternatePhoneModal({
@@ -39,15 +40,9 @@ export default function OverlayCloseAlternatePhoneModal({
   };
 
   useEffect(() => {
-    if (visible) {
-      setQuery('');
-      setResults([]);
-      setSelectedLead(null);
-    } else {
-      setQuery('');
-      setResults([]);
-      setSelectedLead(null);
-    }
+    setQuery('');
+    setResults([]);
+    setSelectedLead(null);
   }, [visible, phoneNumber]);
 
   const performSearch = async term => {
@@ -122,17 +117,23 @@ export default function OverlayCloseAlternatePhoneModal({
         <View style={styles.card}>
           <Text style={styles.title}>Add Alternate Phone ({phoneNumber})</Text>
           <Text style={styles.subtitle}>Search lead name or number</Text>
-          <TextInput
-            style={styles.input}
-            value={query}
-            onChangeText={text => {
-              setQuery(text);
-              performSearch(text);
-            }}
-            placeholder="Enter lead name or phone"
-            keyboardType="default"
-            returnKeyType="search"
-          />
+
+          <View style={styles.searchContainer}>
+            <IconSearch size={20} color="#94A3B8" style={styles.searchIcon} />
+            <TextInput
+              style={styles.input}
+              value={query}
+              onChangeText={text => {
+                setQuery(text);
+                performSearch(text);
+              }}
+              placeholder="Enter lead name or phone"
+              keyboardType="default"
+              returnKeyType="search"
+              placeholderTextColor="#94A3B8"
+            />
+          </View>
+
           <View style={styles.resultListContainer}>
             {loading ? (
               <View style={styles.statusBox}>
@@ -146,10 +147,11 @@ export default function OverlayCloseAlternatePhoneModal({
               <ScrollView style={styles.resultList} nestedScrollEnabled>
                 {results.map(lead => (
                   <TouchableOpacity
-                    key={lead._id}
+                    key={lead._id || lead.id}
                     style={[
                       styles.resultItem,
-                      selectedLead?._id === lead._id &&
+                      (selectedLead?._id === lead._id ||
+                        selectedLead?.id === lead.id) &&
                         styles.selectedResultItem,
                     ]}
                     onPress={() => setSelectedLead(lead)}
@@ -160,12 +162,16 @@ export default function OverlayCloseAlternatePhoneModal({
                       </Text>
                       <Text
                         style={
-                          selectedLead?._id === lead._id
+                          selectedLead?._id === lead._id ||
+                          selectedLead?.id === lead.id
                             ? styles.selectedLabel
                             : styles.selectLabel
                         }
                       >
-                        {selectedLead?._id === lead._id ? 'Selected' : 'Select'}
+                        {selectedLead?._id === lead._id ||
+                        selectedLead?.id === lead.id
+                          ? 'Selected'
+                          : 'Select'}
                       </Text>
                     </View>
                     <Text style={styles.resultSubtitle}>
@@ -221,13 +227,24 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginBottom: 12,
   },
-  input: {
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#CBD5E1',
     borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 10,
     marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#0F172A',
   },
   resultListContainer: {
     maxHeight: 260,
@@ -247,13 +264,6 @@ const styles = StyleSheet.create({
   statusText: {
     color: '#64748B',
     textAlign: 'center',
-  },
-  resultItem: {
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 8,
   },
   selectedResultItem: {
     borderColor: '#5A7BF6',
