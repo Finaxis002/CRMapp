@@ -7,6 +7,20 @@ const api = axios.create({
   baseURL: API_BASE_URL,
 });
 
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
 // Request Interceptor - attach access token
 api.interceptors.request.use(
   async config => {
@@ -35,7 +49,22 @@ api.interceptors.response.use(
       !originalRequest.url?.includes('/auth/login') &&
       !originalRequest.url?.includes('/auth/refresh')
     ) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(token => {
+            originalRequest.headers = {
+              ...originalRequest.headers,
+              Authorization: `Bearer ${token}`,
+            };
+            return api(originalRequest);
+          })
+          .catch(err => Promise.reject(err));
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
 
       const refreshToken = await AsyncStorage.getItem('refreshToken');
 
@@ -46,22 +75,47 @@ api.interceptors.response.use(
           });
 
           const accessToken = response.data?.data?.accessToken;
+          const newRefreshToken = response.data?.data?.refreshToken;
 
-          if (accessToken) {
-            await AsyncStorage.setItem('accessToken', accessToken);
-            originalRequest.headers = {
-              ...originalRequest.headers,
-              Authorization: `Bearer ${accessToken}`,
-            };
-            return api(originalRequest);
+          if (!accessToken) {
+            throw new Error('No accessToken in refresh response');
           }
+
+          await AsyncStorage.setItem('accessToken', accessToken);
+          if (newRefreshToken) {
+            await AsyncStorage.setItem('refreshToken', newRefreshToken);
+          }
+
+          originalRequest.headers = {
+            ...originalRequest.headers,
+            Authorization: `Bearer ${accessToken}`,
+          };
+
+          processQueue(null, accessToken);
+
+          return api(originalRequest);
         } catch (refreshError) {
-          await AsyncStorage.removeItem('accessToken');
-          await AsyncStorage.removeItem('refreshToken');
+          processQueue(refreshError, null);
+          await AsyncStorage.multiRemove([
+            'accessToken',
+            'refreshToken',
+            'currentUserId',
+          ]);
+          reset('Login');
+
+          return Promise.reject(refreshError);
+        } finally {
+          isRefreshing = false;
         }
       } else {
-        await AsyncStorage.removeItem('accessToken');
-        await AsyncStorage.removeItem('refreshToken');
+        isRefreshing = false;
+        await AsyncStorage.multiRemove([
+          'accessToken',
+          'refreshToken',
+          'currentUserId',
+        ]);
+        reset('Login');
+        return Promise.reject(error);
       }
     }
 
