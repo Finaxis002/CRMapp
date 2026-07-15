@@ -30,7 +30,10 @@ const DEFAULT_STAGES = [
   { name: 'Success', color: '#2a7d4f' },
   { name: 'Closed', color: '#1a1a18' },
 ];
-
+const getStatusBadgeColor = (status, fallbackColor) => {
+  if (status === 'Repeat') return '#9333ea'; 
+  return fallbackColor;
+};
 const SOURCE_OPTIONS = [
   'Google Ads','Website','Referral','Walk-in',
   'Cold Call','Social Media','Google Sheet','Other',
@@ -67,14 +70,14 @@ const getColors = isDark => ({
 });
 
 // ─── Lead Card ───────────────────────────────────────────────
-const MobileLeadCard = ({ lead, stage, onOpen, formatCurrency, getAssignedName, colors }) => (
+const MobileLeadCard = ({ lead, index, stage, onOpen, formatCurrency, getAssignedName, colors }) => (
   <TouchableOpacity
     onPress={() => onOpen(lead)}
     style={[styles.mobileCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
   >
     <View style={styles.cardTopRow}>
       <Text style={[styles.cardName, { color: colors.primaryText }]} numberOfLines={1}>
-        {lead.name}
+        {index + 1}. {lead.name}
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {lead.hasCrossSell && (
@@ -104,7 +107,7 @@ const MobileLeadCard = ({ lead, stage, onOpen, formatCurrency, getAssignedName, 
       <Text style={[styles.assignedText, { color: colors.secondaryText }]}>
         👤 {getAssignedName(lead)}
       </Text>
-      <View style={[styles.stageBadge, { backgroundColor: stage.color }]}>
+      <View style={[styles.stageBadge, { backgroundColor: getStatusBadgeColor(lead.status, stage.color) }]}>
         <Text style={styles.stageBadgeText}>{lead.status || stage.name}</Text>
       </View>
     </View>
@@ -350,19 +353,26 @@ const KanbanScreen = () => {
       {loading ? (
        <KanbanSkeleton colors={colors} />
       ) : (
-        <FlatList
-          data={activeMobileData.items}
-          keyExtractor={item => item._id}
-          renderItem={({ item }) => (
-            <MobileLeadCard
-              lead={item}
-              stage={activeStageFull}
-              onOpen={handleCardClick}
-              formatCurrency={formatCurrency}
-              getAssignedName={getAssignedName}
-              colors={colors}
-            />
-          )}
+<FlatList
+  data={activeMobileData.items}
+  keyExtractor={item => item._id}
+  onEndReachedThreshold={0.4}
+  onEndReached={() => {
+    if (activeMobileData.hasNextPage && !loadingColumns[mobileActiveStage]) {
+      loadColumnPage(mobileActiveStage, (activeMobileData.page || 1) + 1);
+    }
+  }}
+  renderItem={({ item, index }) => (
+    <MobileLeadCard
+      lead={item}
+        index={index}
+      stage={activeStageFull}
+      onOpen={handleCardClick}
+      formatCurrency={formatCurrency}
+      getAssignedName={getAssignedName}
+      colors={colors}
+    />
+  )}
           contentContainerStyle={{ padding: 12, paddingBottom: 40 }}
             style={{ backgroundColor: colors.screenBg }} 
           refreshControl={
