@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Modal,
   Dimensions,
   TextInput,
@@ -23,6 +22,10 @@ import { googleCalendarService } from '../../services/googleCalendarService.js';
 import AddEventModal from '../../components/common/AddEventModal.jsx';
 import api from '../../services/api.js';
 import { API_BASE_URL } from '../../config/index.js';
+import { useUISystem } from '../../hooks/useUISystem';
+import { useToast as useKitToast } from '../../components/ui/CustomToast';
+import PageHeader from '../../components/ui/PageHeader';
+import ImprovedButton from '../../components/ui/ImprovedButton';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -445,6 +448,7 @@ const AddReminderModal = ({
   onClose,
   onSaved,
 }) => {
+  const toast = useKitToast();
   const today = toDateInputValue(new Date());
   const [form, setForm] = useState({
     leadSearch: '',
@@ -492,15 +496,15 @@ const AddReminderModal = ({
 
   const handleSave = async () => {
     if (!form.leadId) {
-      Alert.alert('Error', 'Select a lead');
+      toast.error('Select a lead');
       return;
     }
     if (!form.assignedTo) {
-      Alert.alert('Error', 'Assign to a user');
+      toast.error('Assign to a user');
       return;
     }
     if (!form.reminderDate) {
-      Alert.alert('Error', 'Pick a date');
+      toast.error('Pick a date');
       return;
     }
     const payload = {
@@ -518,14 +522,14 @@ const AddReminderModal = ({
         body: JSON.stringify(payload),
       });
       if (res.success) {
-        Alert.alert('Success', res.message || 'Reminder created!');
+        toast.success(res.message || 'Reminder created!');
         await onSaved(res.data);
         onClose();
       } else {
-        Alert.alert('Error', res.message || 'Failed to create reminder');
+        toast.error(res.message || 'Failed to create reminder');
       }
     } catch {
-      Alert.alert('Error', 'Network error');
+      toast.error('Network error');
     } finally {
       setSaving(false);
     }
@@ -781,6 +785,7 @@ const AddTaskModal = ({
   onClose,
   onSaved,
 }) => {
+  const toast = useKitToast();
   const today = toDateInputValue(new Date());
   const [form, setForm] = useState({
     leadSearch: '',
@@ -826,19 +831,19 @@ const AddTaskModal = ({
 
   const handleSave = async () => {
     if (!form.leadId) {
-      Alert.alert('Error', 'Select a lead');
+      toast.error('Select a lead');
       return;
     }
     if (!form.text.trim()) {
-      Alert.alert('Error', 'Enter task description');
+      toast.error('Enter task description');
       return;
     }
     if (!form.dueDate) {
-      Alert.alert('Error', 'Due date is required');
+      toast.error('Due date is required');
       return;
     }
     if (!form.assignedTo) {
-      Alert.alert('Error', 'Assign to a user');
+      toast.error('Assign to a user');
       return;
     }
     const payload = {
@@ -859,14 +864,14 @@ const AddTaskModal = ({
         body: JSON.stringify(payload),
       });
       if (res.success) {
-        Alert.alert('Success', 'Task created & synced to Google Calendar ✅');
+        toast.success('Task created & synced to Google Calendar ✅');
         await onSaved();
         onClose();
       } else {
-        Alert.alert('Error', res.message || 'Failed to create task');
+        toast.error(res.message || 'Failed to create task');
       }
     } catch {
-      Alert.alert('Error', 'Network error');
+      toast.error('Network error');
     } finally {
       setSaving(false);
     }
@@ -1676,6 +1681,7 @@ const RemindersView = ({
   onOpenDetail,
   setDeleteConfirm,
 }) => {
+  const toast = useKitToast();
   const isAdmin = user?.role === 'master' || user?.role === 'admin';
   const today = new Date();
 
@@ -1731,10 +1737,10 @@ const RemindersView = ({
   const markDone = async (id, cur) => {
     try {
       await api.patch(`/reminders/${id}/done`, { isDone: !cur });
-      Alert.alert('', cur ? 'Marked as pending' : 'Marked as done');
+      toast.info(cur ? 'Marked as pending' : 'Marked as done');
       onRefresh();
     } catch {
-      Alert.alert('Error', 'Failed to update status.');
+      toast.error('Failed to update status.');
     }
   };
   const markEventDone = async (id, cur) => {
@@ -1747,7 +1753,7 @@ const RemindersView = ({
         onRefresh();
       }
     } catch {
-      Alert.alert('Error', 'Failed to update event status.');
+      toast.error('Failed to update event status.');
     }
   };
 
@@ -1898,6 +1904,8 @@ const RemindersView = ({
 // ═════════════════════════════════════════════════════════════════════════════
 const CalendarScreen = () => {
   const { user } = useSelector(state => state.auth);
+  const { colors, typography, spacing, borderRadius, isDark } = useUISystem();
+  const toast = useKitToast();
   const today = new Date();
 
   const [activeView, setActiveView] = useState('calendar');
@@ -1958,7 +1966,7 @@ const CalendarScreen = () => {
         ...parseApiList(completedRes),
       ]);
     } catch {
-      Alert.alert('Error', 'Failed to load reminders.');
+      toast.error('Failed to load reminders.');
     } finally {
       setLoading(false);
     }
@@ -2057,7 +2065,7 @@ const CalendarScreen = () => {
       setGcalConnecting(true);
       await googleCalendarService.connect();
     } catch {
-      Alert.alert('Error', 'Could not start Google sign-in.');
+      toast.error('Could not start Google sign-in.');
       setGcalConnecting(false);
     }
   };
@@ -2073,7 +2081,7 @@ const CalendarScreen = () => {
       await googleCalendarService.disconnect();
       setGcalStatus({ connected: false, user: null });
     } catch {
-      Alert.alert('Error', 'Failed to disconnect.');
+      toast.error('Failed to disconnect.');
     } finally {
       setGcalConnecting(false);
     }
@@ -2091,7 +2099,7 @@ const CalendarScreen = () => {
         fetchTodayReminders();
       }
     } catch {
-      Alert.alert('Error', 'Failed to mark done');
+      toast.error('Failed to mark done');
     }
   };
   const handleMarkEventDone = async eventId => {
@@ -2102,7 +2110,7 @@ const CalendarScreen = () => {
       });
       if (res.success) fetchEvents();
     } catch {
-      Alert.alert('Error', 'Failed to mark done');
+      toast.error('Failed to mark done');
     }
   };
   const handleMarkTaskDone = async (taskId, currentCompleted) => {
@@ -2112,9 +2120,9 @@ const CalendarScreen = () => {
         body: JSON.stringify({ taskCompleted: !currentCompleted }),
       });
       if (res.success) fetchTasks();
-      else Alert.alert('Error', res.message || 'Failed to update task');
+      else toast.error(res.message || 'Failed to update task');
     } catch {
-      Alert.alert('Error', 'Failed to update task');
+      toast.error('Failed to update task');
     }
   };
   const handleDeleteTask = taskId =>
@@ -2139,7 +2147,7 @@ const CalendarScreen = () => {
       if (res.success) {
         fetchTasks();
       } else {
-        Alert.alert('Error', res.message || 'Failed to delete task');
+        toast.error(res.message || 'Failed to delete task');
       }
       return;
     }
@@ -2260,10 +2268,7 @@ const CalendarScreen = () => {
       >
         {/* ── Header ── */}
         <View style={s.header}>
-          <View>
-            <Text style={s.headerTitle}>Calendar & Reminders</Text>
-            <Text style={s.headerSub}>Reminders, events and follow-ups</Text>
-          </View>
+          <PageHeader title="Calendar & Reminders" subtitle="Reminders, events and follow-ups" />
 
           {/* View Toggle */}
           <View style={s.toggleRow}>

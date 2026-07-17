@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -6,31 +6,9 @@ import {
   StyleSheet,
   Linking,
 } from 'react-native';
-import { useTheme } from '../../contexts/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-
-/**
- * LeadCardMobile
- * Mobile-only card representation of a single lead (replaces the table row on small screens).
- *
- * All data/formatting is passed in as props so this component stays dumb and reuses
- * the exact same logic that LeadsPage already has (colors, currency, assigned name...).
- *
- * Props:
- *  - lead
- *  - selected            (bool)
- *  - onToggleSelect(id)
- *  - onPreview(lead, e)
- *  - onEdit(lead)
- *  - onDelete(id, e)
- *  - canEditAnyLead      (bool)
- *  - canDeleteLead       (bool)
- *  - getStageColor(status) -> hex
- *  - getContrastTextColor(hex) -> hex
- *  - getPriorityColor(priority) -> { bg, text }
- *  - getAssignedName(lead) -> string
- *  - formatCurrency(value) -> string
- */
+import { useUISystem } from '../../hooks/useUISystem';
+import ImprovedButton from '../ui/ImprovedButton';
 
 const openPhone = phoneNumber => {
   const rawPhone = String(phoneNumber || '').trim();
@@ -61,48 +39,32 @@ const LeadCardMobile = ({
   getAssignedName,
   formatCurrency,
 }) => {
-  const { isDark } = useTheme();
-  const colors = useMemo(
-    () => ({
-      card: isDark ? '#111827' : '#ffffff',
-      border: isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb',
-      textPrimary: isDark ? '#F8FAFC' : '#111827',
-      textSecondary: isDark ? '#CBD5E1' : '#6b7280',
-      muted: isDark ? '#94A3B8' : '#6b7280',
-      checkboxBorder: isDark ? '#475569' : '#d1d5db',
-      checkboxBg: isDark ? '#0f172a' : '#ffffff',
-      selectedBg: isDark ? 'rgba(90,123,246,0.18)' : '#5a7bf60d',
-      actionBg: isDark ? '#111827' : '#ffffff',
-      actionText: isDark ? '#CBD5E1' : '#6b7280',
-      crossSellBg: isDark ? '#312e81' : '#f3e8ff',
-      crossSellBorder: isDark ? '#4338ca' : '#e9d5ff',
-      crossSellText: isDark ? '#c7d2fe' : '#9333ea',
-      phoneText: isDark ? '#cbd5e1' : '#475569',
-      phoneIcon: isDark ? '#86efac' : '#16a34a',
-      danger: isDark ? '#fca5a5' : '#ef4444',
-    }),
-    [isDark],
-  );
+  const { colors, typography, spacing, borderRadius, elevation } =
+    useUISystem();
+
   const status = lead.status || 'New';
   const statusColor = getStageColor(status);
   const priority = lead.priority || 'Normal';
   const priorityColors = getPriorityColor(priority);
-
   const phone = String(lead.phone || '')
     .replace(/\D/g, '')
     .slice(-10);
-
   const isCrossSell = lead.isCrossSell || lead.crossSellRecord;
 
   return (
     <View
       style={[
         styles.card,
+        elevation.sm,
         {
-          backgroundColor: colors.card,
+          backgroundColor: colors.surface,
           borderColor: colors.border,
+          borderRadius: borderRadius.lg,
         },
-        selected && { backgroundColor: colors.selectedBg },
+        selected && {
+          backgroundColor: colors.primarySoft,
+          borderColor: colors.primary,
+        },
       ]}
     >
       {/* ── Top row: checkbox + name + status badge ── */}
@@ -113,10 +75,13 @@ const LeadCardMobile = ({
               onPress={() => onToggleSelect(lead._id)}
               style={[
                 styles.checkbox,
-                selected && styles.checkboxChecked,
                 {
-                  borderColor: colors.checkboxBorder,
-                  backgroundColor: colors.checkboxBg,
+                  borderColor: colors.borderSolid,
+                  backgroundColor: colors.surface,
+                },
+                selected && {
+                  backgroundColor: colors.primary,
+                  borderColor: colors.primary,
                 },
               ]}
               activeOpacity={0.7}
@@ -129,7 +94,10 @@ const LeadCardMobile = ({
           <View style={styles.nameBlock}>
             <View style={styles.nameRow}>
               <Text
-                style={[styles.nameText, { color: colors.textPrimary }]}
+                style={[
+                  typography.label,
+                  { color: colors.textPrimary, fontSize: 14, flexShrink: 1 },
+                ]}
                 numberOfLines={1}
               >
                 {lead.name || '—'}
@@ -139,15 +107,15 @@ const LeadCardMobile = ({
                   style={[
                     styles.crossSellBadge,
                     {
-                      backgroundColor: colors.crossSellBg,
-                      borderColor: colors.crossSellBorder,
+                      backgroundColor: colors.purpleSoft,
+                      borderColor: colors.purple + '40',
                     },
                   ]}
                 >
                   <Text
                     style={[
-                      styles.crossSellText,
-                      { color: colors.crossSellText },
+                      typography.caption,
+                      { color: colors.purple, fontWeight: '600', fontSize: 10 },
                     ]}
                   >
                     🔁 Cross-Sell
@@ -162,20 +130,29 @@ const LeadCardMobile = ({
                 activeOpacity={0.6}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               >
-                <Icon name="phone-outline" size={12} color={colors.phoneIcon} />
-                <Text style={[styles.phoneText, { color: colors.phoneText }]}>
+                <Icon name="phone-outline" size={12} color={colors.success} />
+                <Text
+                  style={[typography.caption, { color: colors.textSecondary }]}
+                >
                   {phone}
                 </Text>
               </TouchableOpacity>
             ) : (
-              <Text style={[styles.phoneText, { color: colors.phoneText }]}>
+              <Text
+                style={[typography.caption, { color: colors.textSecondary }]}
+              >
                 —
               </Text>
             )}
           </View>
         </View>
 
-        <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+        <View
+          style={[
+            styles.statusBadge,
+            { backgroundColor: statusColor, borderRadius: borderRadius.full },
+          ]}
+        >
           <Text
             style={[
               styles.statusText,
@@ -187,51 +164,77 @@ const LeadCardMobile = ({
         </View>
       </View>
 
-      {/* ── Info grid: Deal Value / Priority / Assigned ── */}
-      <View style={styles.infoGrid}>
+      {/* ── Info grid ── */}
+      <View style={[styles.infoGrid, { paddingHorizontal: spacing.lg }]}>
         <View style={styles.infoCell}>
-          <Text style={styles.infoLabel}>Deal Value</Text>
-          <Text style={styles.infoValue} numberOfLines={1}>
+          <Text style={[typography.overline, { color: colors.textTertiary }]}>
+            Deal Value
+          </Text>
+          <Text
+            style={[
+              typography.body2,
+              { color: colors.textPrimary, fontWeight: '500', fontSize: 13 },
+            ]}
+            numberOfLines={1}
+          >
             {formatCurrency(lead.dealValue ?? lead.value)}
           </Text>
         </View>
-
         <View style={styles.infoCell}>
-          <Text style={styles.infoLabel}>Priority</Text>
+          <Text style={[typography.overline, { color: colors.textTertiary }]}>
+            Priority
+          </Text>
           <View
             style={[
               styles.priorityBadge,
-              { backgroundColor: priorityColors.bg },
+              {
+                backgroundColor: priorityColors.bg,
+                borderRadius: borderRadius.full,
+              },
             ]}
           >
-            <Text style={[styles.priorityText, { color: priorityColors.text }]}>
+            <Text
+              style={[
+                typography.caption,
+                { color: priorityColors.text, fontWeight: '600', fontSize: 11 },
+              ]}
+            >
               {priority}
             </Text>
           </View>
         </View>
-
         <View style={styles.infoCell}>
-          <Text style={styles.infoLabel}>Assigned</Text>
-          <Text style={styles.infoValue} numberOfLines={1}>
+          <Text style={[typography.overline, { color: colors.textTertiary }]}>
+            Assigned
+          </Text>
+          <Text
+            style={[
+              typography.body2,
+              { color: colors.textPrimary, fontWeight: '500', fontSize: 13 },
+            ]}
+            numberOfLines={1}
+          >
             {getAssignedName(lead)}
           </Text>
         </View>
       </View>
 
       {/* ── Actions row ── */}
-      <View style={styles.actionsRow}>
+      <View style={[styles.actionsRow, { borderTopColor: colors.borderLight }]}>
         <TouchableOpacity
           onPress={e => onPreview(lead, e)}
           style={[
             styles.actionBtn,
-            styles.actionBtnDefault,
-            { backgroundColor: colors.actionBg },
+            { backgroundColor: colors.surface, borderColor: colors.border },
           ]}
           activeOpacity={0.7}
         >
-          <Icon name="eye-outline" size={13} color={colors.actionText} />
+          <Icon name="eye-outline" size={13} color={colors.textSecondary} />
           <Text
-            style={[styles.actionTextDefault, { color: colors.actionText }]}
+            style={[
+              typography.caption,
+              { color: colors.textSecondary, fontWeight: '500' },
+            ]}
           >
             Preview
           </Text>
@@ -239,17 +242,23 @@ const LeadCardMobile = ({
 
         {canEditAnyLead && (
           <TouchableOpacity
-            onPress={e => onEdit(lead)}
+            onPress={() => onEdit(lead)}
             style={[
               styles.actionBtn,
-              styles.actionBtnDefault,
-              { backgroundColor: colors.actionBg },
+              { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
             activeOpacity={0.7}
           >
-            <Icon name="pencil-outline" size={13} color={colors.actionText} />
+            <Icon
+              name="pencil-outline"
+              size={13}
+              color={colors.textSecondary}
+            />
             <Text
-              style={[styles.actionTextDefault, { color: colors.actionText }]}
+              style={[
+                typography.caption,
+                { color: colors.textSecondary, fontWeight: '500' },
+              ]}
             >
               Edit
             </Text>
@@ -259,11 +268,22 @@ const LeadCardMobile = ({
         {canDeleteLead && (
           <TouchableOpacity
             onPress={e => onDelete(lead._id, e)}
-            style={[styles.actionBtn, styles.actionBtnDanger]}
+            style={[
+              styles.actionBtn,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.dangerSoft,
+              },
+            ]}
             activeOpacity={0.7}
           >
             <Icon name="trash-can-outline" size={13} color={colors.danger} />
-            <Text style={[styles.actionTextDanger, { color: colors.danger }]}>
+            <Text
+              style={[
+                typography.caption,
+                { color: colors.danger, fontWeight: '500' },
+              ]}
+            >
               Delete
             </Text>
           </TouchableOpacity>
@@ -274,27 +294,7 @@ const LeadCardMobile = ({
 };
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  cardSelected: {
-    borderColor: '#5a7bf6',
-    backgroundColor: '#5a7bf60d',
-    shadowColor: '#5a7bf6',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 4,
-  },
+  card: { borderWidth: 1, marginBottom: 12 },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -315,46 +315,24 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 4,
     borderWidth: 1.5,
-    borderColor: '#d1d5db',
-    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
   },
-  checkboxChecked: {
-    backgroundColor: '#5a7bf6',
-    borderColor: '#5a7bf6',
-  },
-  nameBlock: {
-    flex: 1,
-    minWidth: 0,
-  },
+  nameBlock: { flex: 1, minWidth: 0 },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     flexWrap: 'wrap',
   },
-  nameText: {
-    fontWeight: '600',
-    fontSize: 14,
-    color: '#111827',
-    flexShrink: 1,
-  },
   crossSellBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 999,
-    backgroundColor: '#f3e8ff',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderWidth: 1,
-    borderColor: '#e9d5ff',
-  },
-  crossSellText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#9333ea',
   },
   phoneRow: {
     flexDirection: 'row',
@@ -363,60 +341,19 @@ const styles = StyleSheet.create({
     marginTop: 2,
     alignSelf: 'flex-start',
   },
-  phoneText: {
-    marginTop: 2,
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  statusBadge: {
-    flexShrink: 0,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  infoGrid: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginTop: 4,
-  },
-  infoCell: {
-    flex: 1,
-    gap: 4,
-    minWidth: 0,
-  },
-  infoLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    color: '#9ca3af',
-  },
-  infoValue: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#1f2937',
-  },
+  statusBadge: { flexShrink: 0, paddingHorizontal: 10, paddingVertical: 4 },
+  statusText: { fontSize: 11, fontWeight: '600' },
+  infoGrid: { flexDirection: 'row', gap: 8, paddingVertical: 12, marginTop: 4 },
+  infoCell: { flex: 1, gap: 4, minWidth: 0 },
   priorityBadge: {
     alignSelf: 'flex-start',
-    borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 2,
-  },
-  priorityText: {
-    fontSize: 11,
-    fontWeight: '600',
   },
   actionsRow: {
     flexDirection: 'row',
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
@@ -430,24 +367,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingVertical: 8,
     paddingHorizontal: 8,
-  },
-  actionBtnDefault: {
-    backgroundColor: '#ffffff',
-    borderColor: '#e5e7eb',
-  },
-  actionBtnDanger: {
-    backgroundColor: '#ffffff',
-    borderColor: '#fecaca',
-  },
-  actionTextDefault: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#6b7280',
-  },
-  actionTextDanger: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#ef4444',
   },
 });
 

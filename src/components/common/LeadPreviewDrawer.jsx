@@ -6,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  StyleSheet,
   Modal,
   ActivityIndicator,
   Alert,
@@ -15,14 +14,24 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import CustomDropdown from '../ui/CustomDropdown.jsx';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useUISystem } from '../../hooks/useUISystem';
+import { useToast as useKitToast } from '../ui/CustomToast';
 import { leadsService } from '../../services/leadsService.js';
 import {
   useCallRecordingEvents,
   showRecordingToast,
 } from '../../hooks/useCallRecordingEvents.js';
+
+// UI Kit
+import ImprovedButton from '../ui/ImprovedButton';
+import ImprovedDropdown from '../ui/ImprovedDropdown';
+import ImprovedTextInput from '../ui/ImprovedTextInput';
+import Avatar from '../ui/Avatar';
+import IconButton from '../ui/IconButton';
+import FilterChip from '../ui/FilterChip';
+
+// Sub-tabs
 import InteractionsTab from './LeadPreviewDrawer/InteractionsTab.jsx';
 import TasksTab from './LeadPreviewDrawer/TasksTab.jsx';
 import NotesTab from './LeadPreviewDrawer/NotesTab.jsx';
@@ -42,7 +51,6 @@ const TABS = [
   'Documents',
   'Activities',
 ];
-
 const SOURCE_OPTIONS = [
   'Google Ads',
   'Website',
@@ -54,11 +62,7 @@ const SOURCE_OPTIONS = [
   'Meta Ads',
   'Other',
 ];
-
 const PRIORITY_OPTIONS = ['Normal', 'High', 'Urgent'];
-
-const showError = message => Alert.alert('Error', message);
-const showSuccess = message => Alert.alert('Success', message);
 
 const LeadPreviewDrawer = ({
   lead,
@@ -77,28 +81,31 @@ const LeadPreviewDrawer = ({
   const [mobileView, setMobileView] = useState('info');
 
   const settings = useSelector(state => state.settings?.data || state.settings);
-  const { isDark } = useTheme();
+  const { colors, typography, spacing, borderRadius, elevation, isDark } =
+    useUISystem();
+  const toast = useKitToast();
 
+  // Build theme object for sub-tabs (they still expect a theme prop)
   const theme = useMemo(
     () => ({
-      bgDrawer: isDark ? '#1e293b' : '#f5f6fa',
-      bgSurface: isDark ? '#334155' : '#fff',
-      bgContent: isDark ? '#0f172a' : '#f8f9fb',
-      border: isDark ? '#475569' : '#e5e7eb',
-      borderSubtle: isDark ? '#1e293b' : '#f0f0f5',
-      textPrimary: isDark ? '#f1f5f9' : '#111827',
-      textSecondary: isDark ? '#94a3b8' : '#6b7280',
-      textMuted: isDark ? '#64748b' : '#9ca3af',
-      statusBg: '#ede9fe',
-      statusText: '#6366f1',
-      phoneBg: isDark ? '#064e3b' : '#dcfce7',
-      phoneIcon: isDark ? '#4ade80' : '#16a34a',
-      accent: '#6366f1',
-      danger: '#ef4444',
-      success: '#22c55e',
-      inputBg: isDark ? '#1e293b' : '#f9fafb',
+      bgDrawer: colors.background,
+      bgSurface: colors.surface,
+      bgContent: colors.backgroundSecondary,
+      border: colors.border,
+      borderSubtle: colors.borderLight,
+      textPrimary: colors.textPrimary,
+      textSecondary: colors.textSecondary,
+      textMuted: colors.textTertiary,
+      statusBg: colors.purpleSoft,
+      statusText: colors.purple,
+      phoneBg: colors.successSoft,
+      phoneIcon: colors.success,
+      accent: colors.primary,
+      danger: colors.danger,
+      success: colors.success,
+      inputBg: colors.backgroundSecondary,
     }),
-    [isDark],
+    [colors],
   );
 
   const customColumns = useMemo(
@@ -106,7 +113,6 @@ const LeadPreviewDrawer = ({
       Array.isArray(settings?.customColumns) ? settings.customColumns : [],
     [settings],
   );
-
   const pipelineStages = useMemo(
     () =>
       settings?.pipelineStages?.map(s => s.name) || [
@@ -142,14 +148,12 @@ const LeadPreviewDrawer = ({
       .slice(0, 2)
       .map(w => w[0]?.toUpperCase())
       .join('');
-
   const getAssignedName = item => {
     if (!item.assignedTo) return null;
     return typeof item.assignedTo === 'string'
       ? item.assignedTo
       : item.assignedTo.name || item.assignedTo.email || null;
   };
-
   const getCoAssigneeNames = item => {
     if (!Array.isArray(item.coAssignees) || item.coAssignees.length === 0)
       return null;
@@ -161,69 +165,55 @@ const LeadPreviewDrawer = ({
       .join(', ');
   };
 
-  const updateTempField = (key, value) => {
+  const updateTempField = (key, value) =>
     setTempLead(prev => ({ ...prev, [key]: value }));
-  };
-
-  const updateCustomField = (key, value) => {
+  const updateCustomField = (key, value) =>
     setTempLead(prev => ({
       ...prev,
       customFields: { ...prev.customFields, [key]: value },
     }));
-  };
 
   const validateBeforeSave = () => {
     const phoneRegex = /^\+?[1-9][0-9]{9,14}$/;
-
     if (!tempLead.name?.trim()) {
-      showError('Lead name is required.');
+      toast.error('Lead name is required.');
       return false;
     }
-
     if (tempLead.phone) {
       const rawDigits = tempLead.phone.replace(/\D/g, '');
       if (!phoneRegex.test(tempLead.phone) || rawDigits.length < 10) {
-        showError('Please enter a valid phone number with country code.');
+        toast.error('Please enter a valid phone number.');
         return false;
       }
     }
-
     if (tempLead.alternatePhone) {
       const altDigits = String(tempLead.alternatePhone).replace(/\D/g, '');
       if (!phoneRegex.test(tempLead.alternatePhone) || altDigits.length < 10) {
-        showError(
-          'Please enter a valid alternate phone number with country code.',
-        );
+        toast.error('Please enter a valid alternate phone.');
         return false;
       }
     }
-
     if (tempLead.email && tempLead.email.trim()) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(tempLead.email.trim())) {
-        showError('Please enter a valid email address.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(tempLead.email.trim())) {
+        toast.error('Please enter a valid email.');
         return false;
       }
     }
-
     if (
       tempLead.dealValue !== undefined &&
       tempLead.dealValue !== '' &&
       tempLead.dealValue !== null
     ) {
-      const numVal = Number(tempLead.dealValue);
-      if (isNaN(numVal) || numVal < 0) {
-        showError('Deal value must be a valid positive number.');
+      if (isNaN(Number(tempLead.dealValue)) || Number(tempLead.dealValue) < 0) {
+        toast.error('Deal value must be a valid positive number.');
         return false;
       }
     }
-
     return true;
   };
 
   const handleQuickSave = async () => {
     if (!validateBeforeSave()) return;
-
     setSaving(true);
     try {
       const payload = {
@@ -239,25 +229,22 @@ const LeadPreviewDrawer = ({
         priority: tempLead.priority || 'Normal',
         assignedTo:
           typeof tempLead.assignedTo === 'object'
-            ? tempLead.assignedTo?._id || tempLead.assignedTo?.id || ''
+            ? tempLead.assignedTo?._id || ''
             : tempLead.assignedTo || '',
         coAssignees: Array.isArray(tempLead.coAssignees)
           ? tempLead.coAssignees
-              .map(u => (typeof u === 'object' ? u?._id || u?.id || '' : u))
+              .map(u => (typeof u === 'object' ? u?._id || '' : u))
               .filter(Boolean)
           : [],
       };
-
-      if (customColumns.length && tempLead.customFields) {
+      if (customColumns.length && tempLead.customFields)
         payload.customFields = { ...tempLead.customFields };
-      }
-
       await leadsService.updateLead(lead._id, payload);
-      showSuccess('Lead updated successfully');
+      toast.success('Lead updated successfully');
       setIsEditing(false);
       if (onRefresh) onRefresh();
     } catch (error) {
-      showError(error.response?.data?.message || 'Update failed');
+      toast.error(error.response?.data?.message || 'Update failed');
     } finally {
       setSaving(false);
     }
@@ -266,8 +253,7 @@ const LeadPreviewDrawer = ({
   const assignedName = getAssignedName(lead);
   const coAssigneesNames = getCoAssigneeNames(lead);
   const initials = getInitials(isEditing ? tempLead.name : lead.name);
-  const alternatePhoneValue = lead.alternatePhone || '';
-  const contactPhones = [lead.phone, alternatePhoneValue].filter(Boolean);
+  const contactPhones = [lead.phone, lead.alternatePhone || ''].filter(Boolean);
   const primaryPhone = contactPhones[0] || '';
 
   const openPhone = phoneNumber => {
@@ -276,66 +262,43 @@ const LeadPreviewDrawer = ({
     const hasCountryCode =
       rawPhone.startsWith('+') || rawPhone.replace(/\D/g, '').length > 10;
     const cleanDigits = rawPhone.replace(/\D/g, '');
-    const telHref = hasCountryCode
-      ? rawPhone.startsWith('+')
-        ? `tel:${rawPhone}`
-        : `tel:+${rawPhone}`
-      : `tel:+91${cleanDigits}`;
-    Linking.openURL(telHref);
+    Linking.openURL(
+      hasCountryCode
+        ? rawPhone.startsWith('+')
+          ? `tel:${rawPhone}`
+          : `tel:+${rawPhone}`
+        : `tel:+91${cleanDigits}`,
+    );
   };
-
   const openWhatsapp = phoneNumber => {
     const rawPhone = String(phoneNumber || '').trim();
     if (!rawPhone) return;
     const cleanDigits = rawPhone.replace(/\D/g, '');
     const hasCountryCode = rawPhone.startsWith('+') || cleanDigits.length > 10;
-    const whatsappHref = hasCountryCode
-      ? `https://wa.me/${cleanDigits}`
-      : `https://wa.me/91${cleanDigits}`;
-    Linking.openURL(whatsappHref);
+    Linking.openURL(
+      hasCountryCode
+        ? `https://wa.me/${cleanDigits}`
+        : `https://wa.me/91${cleanDigits}`,
+    );
   };
 
   const renderTabContent = () => {
+    const tabProps = {
+      leadId: lead._id,
+      users,
+      theme,
+      activityRefreshTrigger,
+      onActivitySaved: onRefresh,
+    };
     switch (activeTab) {
       case 'Notes':
-        return (
-          <NotesTab
-            leadId={lead._id}
-            users={users}
-            theme={theme}
-            activityRefreshTrigger={activityRefreshTrigger}
-            onActivitySaved={onRefresh}
-          />
-        );
+        return <NotesTab {...tabProps} />;
       case 'Tasks':
-        return (
-          <TasksTab
-            leadId={lead._id}
-            users={users}
-            theme={theme}
-            activityRefreshTrigger={activityRefreshTrigger}
-            onActivitySaved={onRefresh}
-          />
-        );
+        return <TasksTab {...tabProps} />;
       case 'Calls':
-        return (
-          <CallsTab
-            leadId={lead._id}
-            users={users}
-            theme={theme}
-            activityRefreshTrigger={activityRefreshTrigger}
-            onActivitySaved={onRefresh}
-          />
-        );
+        return <CallsTab {...tabProps} />;
       case 'Emails':
-        return (
-          <EmailsTab
-            leadId={lead._id}
-            users={users}
-            theme={theme}
-            activityRefreshTrigger={activityRefreshTrigger}
-          />
-        );
+        return <EmailsTab {...tabProps} />;
       case 'Whatsapp':
         return (
           <WhatsappTab
@@ -356,7 +319,6 @@ const LeadPreviewDrawer = ({
             activityRefreshTrigger={activityRefreshTrigger}
           />
         );
-      case 'Interactions':
       default:
         return (
           <InteractionsTab
@@ -376,28 +338,42 @@ const LeadPreviewDrawer = ({
       if (value === null || value === undefined || value === '') return null;
       return (
         <View style={styles.infoRow}>
-          <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>
+          <Text style={[typography.caption, { color: colors.textSecondary }]}>
             {label}
           </Text>
-          <Text style={[styles.infoValue, { color: theme.textPrimary }]}>
+          <Text
+            style={[
+              typography.body2,
+              {
+                color: colors.textPrimary,
+                fontWeight: '500',
+                fontSize: 12,
+                textAlign: 'right',
+                flexShrink: 1,
+              },
+            ]}
+          >
             {value}
           </Text>
         </View>
       );
     }
-
     return (
-      <View style={styles.editFieldWrap}>
-        <Text style={[styles.editLabel, { color: theme.textMuted }]}>
+      <View style={{ marginBottom: spacing.sm }}>
+        <Text
+          style={[
+            typography.overline,
+            { color: colors.textTertiary, marginBottom: 3 },
+          ]}
+        >
           {label}
         </Text>
         {options ? (
-          <CustomDropdown
-            options={options}
-            value={tempLead[field] || ''}
-            onChange={value => updateTempField(field, value)}
-            placeholder="Select..."
-            style={{ width: '100%' }}
+          <ImprovedDropdown
+            items={options.map(o => ({ value: o, label: o }))}
+            selectedValue={tempLead[field] || ''}
+            onValueChange={v => updateTempField(field, v)}
+            searchable={false}
           />
         ) : (
           <TextInput
@@ -409,14 +385,15 @@ const LeadPreviewDrawer = ({
                 : 'default'
             }
             value={tempLead[field] ? String(tempLead[field]) : ''}
-            onChangeText={value => updateTempField(field, value)}
-            placeholderTextColor={theme.textMuted}
+            onChangeText={v => updateTempField(field, v)}
+            placeholderTextColor={colors.placeholder}
             style={[
               styles.input,
               {
-                borderColor: theme.border,
-                backgroundColor: theme.inputBg,
-                color: theme.textPrimary,
+                borderColor: colors.border,
+                backgroundColor: colors.backgroundSecondary,
+                color: colors.textPrimary,
+                borderRadius: borderRadius.sm,
               },
             ]}
           />
@@ -430,31 +407,47 @@ const LeadPreviewDrawer = ({
       if (!value) return null;
       return (
         <View style={styles.infoRow}>
-          <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>
+          <Text style={[typography.caption, { color: colors.textSecondary }]}>
             {label}
           </Text>
-          <Text style={[styles.infoValue, { color: theme.textPrimary }]}>
+          <Text
+            style={[
+              typography.body2,
+              {
+                color: colors.textPrimary,
+                fontWeight: '500',
+                fontSize: 12,
+                textAlign: 'right',
+                flexShrink: 1,
+              },
+            ]}
+          >
             {value}
           </Text>
         </View>
       );
     }
-
     return (
-      <View style={styles.editFieldWrap}>
-        <Text style={[styles.editLabel, { color: theme.textMuted }]}>
+      <View style={{ marginBottom: spacing.sm }}>
+        <Text
+          style={[
+            typography.overline,
+            { color: colors.textTertiary, marginBottom: 3 },
+          ]}
+        >
           {label}
         </Text>
         <TextInput
           value={tempLead.customFields?.[key] || ''}
-          onChangeText={value => updateCustomField(key, value)}
-          placeholderTextColor={theme.textMuted}
+          onChangeText={v => updateCustomField(key, v)}
+          placeholderTextColor={colors.placeholder}
           style={[
             styles.input,
             {
-              borderColor: theme.border,
-              backgroundColor: theme.inputBg,
-              color: theme.textPrimary,
+              borderColor: colors.border,
+              backgroundColor: colors.backgroundSecondary,
+              color: colors.textPrimary,
+              borderRadius: borderRadius.sm,
             },
           ]}
         />
@@ -466,18 +459,19 @@ const LeadPreviewDrawer = ({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.drawer}
+        style={{ flex: 1 }}
       >
         <SafeAreaView
-          style={[styles.drawer, { backgroundColor: theme.bgDrawer }]}
+          style={{ flex: 1, backgroundColor: colors.background }}
           edges={['top', 'bottom']}
         >
+          {/* Top Bar */}
           <View
             style={[
               styles.topBar,
               {
-                backgroundColor: theme.bgSurface,
-                borderBottomColor: theme.border,
+                backgroundColor: colors.surface,
+                borderBottomColor: colors.border,
               },
             ]}
           >
@@ -485,171 +479,157 @@ const LeadPreviewDrawer = ({
               <View
                 style={[
                   styles.statusBadge,
-                  { backgroundColor: theme.statusBg },
+                  { backgroundColor: colors.purpleSoft },
                 ]}
               >
-                <Text style={[styles.statusText, { color: theme.statusText }]}>
+                <Text
+                  style={[
+                    typography.overline,
+                    { color: colors.purple, fontSize: 11 },
+                  ]}
+                >
                   {lead.status || 'New'}
                 </Text>
               </View>
               <Text
-                style={[styles.sourceText, { color: theme.textMuted }]}
+                style={[typography.caption, { color: colors.textTertiary }]}
                 numberOfLines={1}
               >
                 {lead.source || '-'}
               </Text>
             </View>
-
             <View style={styles.topActions}>
               {canEditAnyLead ? (
                 isEditing ? (
                   <>
-                    <TouchableOpacity
+                    <ImprovedButton
+                      title={saving ? 'Saving...' : 'Save'}
+                      size="small"
+                      variant="primary"
                       onPress={handleQuickSave}
+                      loading={saving}
                       disabled={saving}
-                      style={[styles.saveTopBtn, { opacity: saving ? 0.6 : 1 }]}
-                    >
-                      {saving ? (
-                        <ActivityIndicator size={14} color="#fff" />
-                      ) : (
-                        <Icon name="check" size={14} color="#fff" />
-                      )}
-                      <Text style={styles.topBtnWhiteText}>
-                        {saving ? 'Saving...' : 'Save'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                      style={{ backgroundColor: colors.success }}
+                    />
+                    <IconButton
+                      name="close"
+                      size={14}
+                      color={colors.danger}
                       onPress={() => {
                         setIsEditing(false);
                         setTempLead(lead);
                       }}
-                      style={[
-                        styles.cancelTopBtn,
-                        { borderColor: theme.danger },
-                      ]}
-                    >
-                      <Icon name="close" size={14} color={theme.danger} />
-                    </TouchableOpacity>
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.danger,
+                        borderRadius: borderRadius.sm,
+                        width: 30,
+                        height: 30,
+                      }}
+                    />
                   </>
                 ) : (
-                  <TouchableOpacity
+                  <ImprovedButton
+                    title="Edit"
+                    icon="pencil-outline"
+                    size="small"
+                    variant="secondary"
                     onPress={() => {
                       setTempLead(lead);
                       setIsEditing(true);
                     }}
-                    style={[
-                      styles.editTopBtn,
-                      { backgroundColor: isDark ? '#475569' : '#f3f4f6' },
-                    ]}
-                  >
-                    <Icon
-                      name="pencil-outline"
-                      size={13}
-                      color={theme.accent}
-                    />
-                    <Text style={[styles.editTopText, { color: theme.accent }]}>
-                      Edit
-                    </Text>
-                  </TouchableOpacity>
+                  />
                 )
               ) : null}
-
-              <TouchableOpacity
+              <ImprovedButton
+                title="Full"
+                size="small"
+                variant="danger"
                 onPress={onOpenFull}
-                style={[styles.fullBtn, { backgroundColor: theme.danger }]}
-              >
-                <Text style={styles.topBtnWhiteText}>Full</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              />
+              <IconButton
+                name="close"
+                size={18}
+                color={colors.textSecondary}
                 onPress={onClose}
-                style={[styles.closeBtn, { borderColor: theme.border }]}
-              >
-                <Icon name="close" size={18} color={theme.textSecondary} />
-              </TouchableOpacity>
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: borderRadius.sm,
+                  width: 30,
+                  height: 30,
+                }}
+              />
             </View>
           </View>
 
+          {/* Segment Toggle */}
           <View
             style={[
               styles.segmentBar,
               {
-                backgroundColor: theme.bgSurface,
-                borderBottomColor: theme.border,
+                backgroundColor: colors.surface,
+                borderBottomColor: colors.border,
               },
             ]}
           >
             {[
               { key: 'info', label: 'Details' },
               { key: 'tabs', label: 'Activity' },
-            ].map(seg => {
-              const active = mobileView === seg.key;
-              return (
-                <TouchableOpacity
-                  key={seg.key}
-                  onPress={() => setMobileView(seg.key)}
-                  style={[
-                    styles.segmentBtn,
-                    {
-                      borderColor: active ? theme.accent : theme.border,
-                      backgroundColor: active ? theme.accent : 'transparent',
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.segmentText,
-                      {
-                        color: active ? '#fff' : theme.textSecondary,
-                        fontWeight: active ? '700' : '500',
-                      },
-                    ]}
-                  >
-                    {seg.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            ].map(seg => (
+              <FilterChip
+                key={seg.key}
+                label={seg.label}
+                active={mobileView === seg.key}
+                onPress={() => setMobileView(seg.key)}
+                style={{ flex: 1, justifyContent: 'center' }}
+              />
+            ))}
           </View>
 
-          <View style={styles.body}>
+          {/* Body */}
+          <View style={{ flex: 1 }}>
             {mobileView === 'info' ? (
               <ScrollView
-                style={[styles.infoPanel, { backgroundColor: theme.bgSurface }]}
+                style={{ flex: 1, backgroundColor: colors.surface }}
                 showsVerticalScrollIndicator={false}
               >
+                {/* Avatar Section */}
                 <View
                   style={[
                     styles.avatarSection,
-                    { borderBottomColor: theme.borderSubtle },
+                    { borderBottomColor: colors.borderLight },
                   ]}
                 >
                   <View style={styles.avatarRow}>
-                    <View
-                      style={[styles.avatar, { backgroundColor: theme.accent }]}
-                    >
-                      <Text style={styles.avatarText}>{initials}</Text>
-                    </View>
-                    <View style={styles.nameWrap}>
+                    <Avatar
+                      name={isEditing ? tempLead.name : lead.name}
+                      size={44}
+                      rounded={borderRadius.md}
+                      variant="solid"
+                    />
+                    <View style={{ flex: 1, minWidth: 0 }}>
                       {isEditing ? (
                         <TextInput
                           value={tempLead.name || ''}
-                          onChangeText={value => updateTempField('name', value)}
+                          onChangeText={v => updateTempField('name', v)}
                           style={[
                             styles.nameInput,
                             {
-                              color: theme.textPrimary,
-                              backgroundColor: theme.inputBg,
-                              borderColor: theme.border,
+                              color: colors.textPrimary,
+                              backgroundColor: colors.backgroundSecondary,
+                              borderColor: colors.border,
+                              borderRadius: borderRadius.sm,
                             },
                           ]}
                           placeholder="Lead name *"
-                          placeholderTextColor={theme.textMuted}
+                          placeholderTextColor={colors.placeholder}
                         />
                       ) : (
                         <Text
                           style={[
-                            styles.nameText,
-                            { color: theme.textPrimary },
+                            typography.h4,
+                            { color: colors.textPrimary, fontSize: 15 },
                           ]}
                         >
                           {lead.name || '-'}
@@ -658,8 +638,8 @@ const LeadPreviewDrawer = ({
                       {assignedName ? (
                         <Text
                           style={[
-                            styles.mutedSmall,
-                            { color: theme.textMuted },
+                            typography.caption,
+                            { color: colors.textTertiary, marginTop: 2 },
                           ]}
                         >
                           {assignedName}
@@ -668,8 +648,8 @@ const LeadPreviewDrawer = ({
                       {coAssigneesNames ? (
                         <Text
                           style={[
-                            styles.mutedSmall,
-                            { color: theme.textMuted },
+                            typography.caption,
+                            { color: colors.textTertiary, marginTop: 2 },
                           ]}
                         >
                           Co-assignees: {coAssigneesNames}
@@ -677,42 +657,65 @@ const LeadPreviewDrawer = ({
                       ) : null}
                     </View>
                     {primaryPhone && !isEditing ? (
-                      <TouchableOpacity
+                      <IconButton
+                        name="phone-outline"
+                        size={15}
+                        color={colors.success}
+                        backgroundColor={colors.successSoft}
                         onPress={() => openPhone(primaryPhone)}
-                        style={[
-                          styles.phoneCircle,
-                          { backgroundColor: theme.phoneBg },
-                        ]}
-                      >
-                        <Icon
-                          name="phone-outline"
-                          size={15}
-                          color={theme.phoneIcon}
-                        />
-                      </TouchableOpacity>
+                        style={{ width: 32, height: 32, borderRadius: 16 }}
+                      />
                     ) : null}
                   </View>
                   {lead.isDuplicate ? (
-                    <View style={styles.repeatBadge}>
-                      <Text style={styles.repeatText}>Repeat</Text>
+                    <View
+                      style={[
+                        styles.repeatBadge,
+                        { backgroundColor: colors.warningSoft },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          typography.caption,
+                          {
+                            color: colors.warning,
+                            fontWeight: '600',
+                            fontSize: 10,
+                          },
+                        ]}
+                      >
+                        Repeat
+                      </Text>
                     </View>
                   ) : null}
                 </View>
 
-                {!isEditing ? (
+                {/* Contact Numbers (view mode) */}
+                {!isEditing && (
                   <View
                     style={[
                       styles.section,
-                      { borderBottomColor: theme.borderSubtle },
+                      { borderBottomColor: colors.borderLight },
                     ]}
                   >
                     <Text
-                      style={[styles.sectionTitle, { color: theme.textMuted }]}
+                      style={[
+                        typography.overline,
+                        {
+                          color: colors.textTertiary,
+                          marginBottom: spacing.sm,
+                        },
+                      ]}
                     >
                       Contact Numbers
                     </Text>
                     {contactPhones.length === 0 ? (
-                      <Text style={{ color: theme.textPrimary, fontSize: 13 }}>
+                      <Text
+                        style={[
+                          typography.body2,
+                          { color: colors.textPrimary, fontSize: 13 },
+                        ]}
+                      >
                         -
                       </Text>
                     ) : null}
@@ -735,47 +738,45 @@ const LeadPreviewDrawer = ({
                           <Icon
                             name="phone-outline"
                             size={13}
-                            color={theme.textSecondary}
+                            color={colors.textSecondary}
                           />
                           <Text
                             style={[
-                              styles.phoneText,
-                              { color: theme.textPrimary },
+                              typography.body2,
+                              {
+                                color: colors.textPrimary,
+                                fontWeight: '500',
+                                fontSize: 13,
+                              },
                             ]}
                           >
                             {displayPhone}
                           </Text>
                           <View style={styles.phoneActions}>
-                            <TouchableOpacity
+                            <IconButton
+                              name="phone-outline"
+                              size={12}
+                              color={colors.textSecondary}
+                              backgroundColor={colors.backgroundSecondary}
                               onPress={() => openPhone(rawPhone)}
-                              style={[
-                                styles.actionCircle,
-                                {
-                                  backgroundColor: isDark
-                                    ? '#334155'
-                                    : '#f3f4f6',
-                                },
-                              ]}
-                            >
-                              <Icon
-                                name="phone-outline"
-                                size={12}
-                                color={theme.textSecondary}
-                              />
-                            </TouchableOpacity>
-                            <TouchableOpacity
+                              style={{
+                                width: 26,
+                                height: 26,
+                                borderRadius: 13,
+                              }}
+                            />
+                            <IconButton
+                              name="whatsapp"
+                              size={12}
+                              color={colors.success}
+                              backgroundColor={colors.successSoft}
                               onPress={() => openWhatsapp(rawPhone)}
-                              style={[
-                                styles.actionCircle,
-                                { backgroundColor: theme.phoneBg },
-                              ]}
-                            >
-                              <Icon
-                                name="whatsapp"
-                                size={12}
-                                color={theme.phoneIcon}
-                              />
-                            </TouchableOpacity>
+                              style={{
+                                width: 26,
+                                height: 26,
+                                borderRadius: 13,
+                              }}
+                            />
                           </View>
                         </View>
                       );
@@ -785,12 +786,16 @@ const LeadPreviewDrawer = ({
                         <Icon
                           name="email-outline"
                           size={13}
-                          color={theme.textSecondary}
+                          color={colors.textSecondary}
                         />
                         <Text
                           style={[
-                            styles.emailText,
-                            { color: theme.textPrimary },
+                            typography.body2,
+                            {
+                              color: colors.textPrimary,
+                              fontSize: 12,
+                              flex: 1,
+                            },
                           ]}
                         >
                           {lead.email}
@@ -798,16 +803,25 @@ const LeadPreviewDrawer = ({
                       </View>
                     ) : null}
                   </View>
-                ) : null}
+                )}
 
-                <View style={styles.infoSection}>
+                {/* Lead Info */}
+                <View
+                  style={{
+                    paddingHorizontal: spacing.lg,
+                    paddingVertical: spacing.md,
+                    paddingBottom: spacing['2xl'],
+                  }}
+                >
                   <Text
-                    style={[styles.sectionTitle, { color: theme.textMuted }]}
+                    style={[
+                      typography.overline,
+                      { color: colors.textTertiary, marginBottom: spacing.sm },
+                    ]}
                   >
                     Lead Info
                   </Text>
-
-                  {isEditing ? (
+                  {isEditing && (
                     <>
                       {renderInfoRow('Phone', tempLead.phone, 'phone')}
                       {renderInfoRow(
@@ -817,35 +831,39 @@ const LeadPreviewDrawer = ({
                       )}
                       {renderInfoRow('Email', tempLead.email, 'email')}
                     </>
-                  ) : null}
-
+                  )}
                   {renderInfoRow(
                     'Source',
                     tempLead.source,
                     'source',
                     SOURCE_OPTIONS,
                   )}
-
                   {isEditing ? (
                     renderInfoRow('Deal Value', tempLead.dealValue, 'dealValue')
                   ) : lead.dealValue || lead.dealValue === 0 ? (
                     <View style={styles.infoRow}>
                       <Text
                         style={[
-                          styles.infoLabel,
-                          { color: theme.textSecondary },
+                          typography.caption,
+                          { color: colors.textSecondary },
                         ]}
                       >
                         Deal Value
                       </Text>
                       <Text
-                        style={[styles.infoValue, { color: theme.textPrimary }]}
+                        style={[
+                          typography.body2,
+                          {
+                            color: colors.textPrimary,
+                            fontWeight: '500',
+                            fontSize: 12,
+                          },
+                        ]}
                       >
                         ₹{Number(lead.dealValue).toLocaleString('en-IN')}
                       </Text>
                     </View>
                   ) : null}
-
                   {renderInfoRow('Product', tempLead.product, 'product')}
                   {renderInfoRow(
                     'Priority',
@@ -860,15 +878,14 @@ const LeadPreviewDrawer = ({
                     pipelineStages,
                   )}
                   {renderInfoRow('City', tempLead.city, 'city')}
-
                   {!isEditing &&
                   lead.source === 'Google Sheet' &&
                   lead.sheetName ? (
                     <View style={styles.infoRow}>
                       <Text
                         style={[
-                          styles.infoLabel,
-                          { color: theme.textSecondary },
+                          typography.caption,
+                          { color: colors.textSecondary },
                         ]}
                       >
                         Sheet
@@ -876,18 +893,18 @@ const LeadPreviewDrawer = ({
                       <View
                         style={[
                           styles.sheetBadge,
-                          { backgroundColor: isDark ? '#14532d' : '#dcfce7' },
+                          { backgroundColor: colors.successSoft },
                         ]}
                       >
                         <Icon
                           name="clipboard-text-outline"
                           size={11}
-                          color={isDark ? '#4ade80' : '#15803d'}
+                          color={colors.success}
                         />
                         <Text
                           style={[
-                            styles.sheetText,
-                            { color: isDark ? '#4ade80' : '#15803d' },
+                            typography.caption,
+                            { color: colors.success, fontWeight: '600' },
                           ]}
                         >
                           {lead.sheetName}
@@ -895,7 +912,6 @@ const LeadPreviewDrawer = ({
                       </View>
                     </View>
                   ) : null}
-
                   {customColumns.length > 0
                     ? customColumns
                         .filter(
@@ -927,28 +943,34 @@ const LeadPreviewDrawer = ({
                           );
                         })
                     : null}
-
                   {lead.createdAt ? (
                     <View
                       style={[
                         styles.createdRow,
                         {
                           borderTopColor: isEditing
-                            ? theme.border
+                            ? colors.border
                             : 'transparent',
                         },
                       ]}
                     >
                       <Text
                         style={[
-                          styles.infoLabel,
-                          { color: theme.textSecondary },
+                          typography.caption,
+                          { color: colors.textSecondary },
                         ]}
                       >
                         Created On
                       </Text>
                       <Text
-                        style={[styles.infoValue, { color: theme.textPrimary }]}
+                        style={[
+                          typography.body2,
+                          {
+                            color: colors.textPrimary,
+                            fontWeight: '500',
+                            fontSize: 12,
+                          },
+                        ]}
                       >
                         {new Date(lead.createdAt).toLocaleString('en-IN', {
                           day: '2-digit',
@@ -965,22 +987,22 @@ const LeadPreviewDrawer = ({
               </ScrollView>
             ) : (
               <View
-                style={[styles.tabsPanel, { backgroundColor: theme.bgContent }]}
+                style={{ flex: 1, backgroundColor: colors.backgroundSecondary }}
               >
+                {/* Tabs */}
                 <View
                   style={[
                     styles.tabsWrap,
                     {
-                      backgroundColor: theme.bgSurface,
-                      borderBottomColor: theme.border,
+                      backgroundColor: colors.surface,
+                      borderBottomColor: colors.border,
                     },
                   ]}
                 >
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    style={styles.tabsScroller}
-                    contentContainerStyle={styles.tabsScrollContent}
+                    contentContainerStyle={{ height: 39, alignItems: 'center' }}
                   >
                     {TABS.map(tab => {
                       const active = activeTab === tab;
@@ -992,18 +1014,18 @@ const LeadPreviewDrawer = ({
                             styles.tabBtn,
                             {
                               borderBottomColor: active
-                                ? theme.accent
+                                ? colors.primary
                                 : 'transparent',
                             },
                           ]}
                         >
                           <Text
                             style={[
-                              styles.tabText,
+                              typography.caption,
                               {
                                 color: active
-                                  ? theme.accent
-                                  : theme.textSecondary,
+                                  ? colors.primary
+                                  : colors.textSecondary,
                                 fontWeight: active ? '600' : '400',
                               },
                             ]}
@@ -1015,15 +1037,15 @@ const LeadPreviewDrawer = ({
                     })}
                   </ScrollView>
                 </View>
-
-                <View style={styles.tabContent}>{renderTabContent()}</View>
-
+                <View style={{ flex: 1, padding: 14 }}>
+                  {renderTabContent()}
+                </View>
                 {!assignedName ? (
                   <View
                     style={[
                       styles.nextSteps,
                       {
-                        borderColor: isDark ? '#854d0e' : '#fed7aa',
+                        borderColor: colors.warningSoft,
                         backgroundColor: isDark ? '#451a03' : '#fff7ed',
                       },
                     ]}
@@ -1031,31 +1053,27 @@ const LeadPreviewDrawer = ({
                     <View style={{ flex: 1 }}>
                       <Text
                         style={[
-                          styles.nextStepsTitle,
-                          { color: isDark ? '#fed7aa' : '#ea580c' },
+                          typography.overline,
+                          { color: colors.warning, marginBottom: 2 },
                         ]}
                       >
                         Next Steps
                       </Text>
                       <Text
                         style={[
-                          styles.nextStepsText,
+                          typography.caption,
                           { color: isDark ? '#fde68a' : '#92400e' },
                         ]}
                       >
                         Unassigned · Assign this lead to a rep
                       </Text>
                     </View>
-                    <TouchableOpacity
+                    <ImprovedButton
+                      title="assign to rep"
+                      size="small"
+                      variant="outline"
                       onPress={onOpenFull}
-                      style={[styles.assignBtn, { borderColor: theme.accent }]}
-                    >
-                      <Text
-                        style={[styles.assignBtnText, { color: theme.accent }]}
-                      >
-                        assign to rep
-                      </Text>
-                    </TouchableOpacity>
+                    />
                   </View>
                 ) : null}
               </View>
@@ -1067,8 +1085,7 @@ const LeadPreviewDrawer = ({
   );
 };
 
-const styles = StyleSheet.create({
-  drawer: { flex: 1 },
+const styles = {
   topBar: {
     minHeight: 48,
     paddingHorizontal: 12,
@@ -1086,52 +1103,11 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   statusBadge: { borderRadius: 4, paddingVertical: 2, paddingHorizontal: 8 },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  sourceText: { fontSize: 12, flexShrink: 1 },
   topActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     flexShrink: 0,
-  },
-  saveTopBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    backgroundColor: '#22c55e',
-    borderRadius: 6,
-  },
-  cancelTopBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  editTopBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-  },
-  editTopText: { fontSize: 12, fontWeight: '600' },
-  fullBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6 },
-  topBtnWhiteText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  closeBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 6,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   segmentBar: {
     flexDirection: 'row',
@@ -1140,88 +1116,35 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
   },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  segmentText: { fontSize: 13 },
-  body: { flex: 1, overflow: 'hidden' },
-  infoPanel: { flex: 1 },
   avatarSection: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
   },
   avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  nameWrap: { flex: 1, minWidth: 0 },
-  nameText: { fontWeight: '700', fontSize: 15, lineHeight: 18 },
   nameInput: {
     fontSize: 13,
     fontWeight: '700',
     borderWidth: 1,
-    borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 4,
-  },
-  mutedSmall: { fontSize: 11, marginTop: 2 },
-  phoneCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   repeatBadge: {
     alignSelf: 'flex-start',
     marginTop: 10,
-    backgroundColor: '#fef3c7',
     borderRadius: 4,
     paddingVertical: 2,
     paddingHorizontal: 7,
   },
-  repeatText: { fontSize: 10, color: '#b45309', fontWeight: '600' },
   section: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
-  sectionTitle: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
   phoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 12,
   },
-  phoneText: { fontSize: 13, fontWeight: '500' },
   phoneActions: { flexDirection: 'row', gap: 6, marginLeft: 'auto' },
-  actionCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   emailRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  emailText: { fontSize: 12, flex: 1 },
-  infoSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: 24,
-  },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1229,37 +1152,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     gap: 10,
   },
-  infoLabel: { fontSize: 12 },
-  infoValue: {
-    fontSize: 12,
-    fontWeight: '500',
-    flexShrink: 1,
-    textAlign: 'right',
-  },
-  editFieldWrap: { marginBottom: 10 },
-  editLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    marginBottom: 3,
-  },
   input: {
     width: '100%',
     paddingHorizontal: 8,
     paddingVertical: 6,
-    borderRadius: 6,
     borderWidth: 1,
     fontSize: 12,
   },
-  pickerWrap: {
-    width: '100%',
-    height: 40,
-    borderRadius: 6,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'stretch',
-  },
-  picker: { width: '100%', height: 40 },
   sheetBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1268,7 +1167,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     paddingHorizontal: 8,
   },
-  sheetText: { fontSize: 11, fontWeight: '600' },
   createdRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1279,7 +1177,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     gap: 10,
   },
-  tabsPanel: { flex: 1 },
   tabsWrap: {
     height: 40,
     maxHeight: 40,
@@ -1288,17 +1185,12 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     flexGrow: 0,
   },
-  tabsScroller: { height: 39, maxHeight: 39, flexGrow: 0, flexShrink: 0 },
-  tabsScrollContent: { height: 39, alignItems: 'center' },
   tabBtn: {
     height: 39,
     justifyContent: 'center',
-    paddingVertical: 0,
     paddingHorizontal: 14,
     borderBottomWidth: 2,
   },
-  tabText: { fontSize: 12 },
-  tabContent: { flex: 1, padding: 14 },
   nextSteps: {
     marginHorizontal: 16,
     marginBottom: 16,
@@ -1311,21 +1203,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
   },
-  nextStepsTitle: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  nextStepsText: { fontSize: 12 },
-  assignBtn: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-  },
-  assignBtnText: { fontSize: 12, fontWeight: '600' },
-});
+};
 
 export default LeadPreviewDrawer;
