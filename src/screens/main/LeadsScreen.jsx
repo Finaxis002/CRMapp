@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Modal,
   ScrollView,
   Alert,
   ActivityIndicator,
@@ -14,23 +13,31 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useTheme } from '../../contexts/ThemeContext';
-
+import { useUISystem } from '../../hooks/useUISystem';
 import { leadsService } from '../../services/leadsService.js';
 import { userService } from '../../services/userService.js';
 import { fetchSettings } from '../../store/slices/settingsSlice.js';
 import { canUser } from '../../utils/permissions.js';
 import api from '../../services/api.js';
-
 import LeadFormModal from '../../components/common/LeadFormModal.jsx';
 import LeadPreviewDrawer from '../../components/common/LeadPreviewDrawer.jsx';
 import LeadsListMobile from '../../components/common/LeadsListMobile.jsx';
 import Pagination from '../../components/common/Pagination.jsx';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useToast as useKitToast } from '../../components/ui/CustomToast';
+
+// ─── UI Kit imports ────────────────────────────────────────────────────────
+import PageHeader from '../../components/ui/PageHeader';
+import ImprovedButton from '../../components/ui/ImprovedButton';
+import ImprovedTextInput from '../../components/ui/ImprovedTextInput';
+import IconButton from '../../components/ui/IconButton';
+import ActiveFilterBadge from '../../components/ui/ActiveFilterBadge';
+import BottomSheet from '../../components/ui/BottomSheet';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import Avatar from '../../components/ui/Avatar';
+import EmptyState from '../../components/ui/EmptyState';
 
 // ─────────────────────────────────────────────────────────────
-const ACCENT = '#5a7bf6';
-
 const SOURCE_OPTIONS = [
   'Google Ads',
   'Website',
@@ -42,9 +49,7 @@ const SOURCE_OPTIONS = [
   'Meta Ads',
   'Other',
 ];
-
 const PRIORITY_OPTIONS = ['Urgent', 'High', 'Normal'];
-
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest', icon: 'clock-outline' },
   {
@@ -61,7 +66,6 @@ const SORT_OPTIONS = [
     icon: 'calendar-clock',
   },
 ];
-
 const DEFAULT_STATUS_OPTIONS = [
   'New',
   'Interested',
@@ -71,45 +75,22 @@ const DEFAULT_STATUS_OPTIONS = [
   'Repeat',
 ];
 
-// ─── toast ────────────────────────────────────────────────────
-const toast = {
-  success: msg => Alert.alert('Success', msg),
-  error: msg => Alert.alert('Error', msg),
-};
-
-// DeleteModal is declared inside the component so it can use theme-aware styles
+// toast is now provided by useKitToast() inside the component
 
 // ─────────────────────────────────────────────────────────────
 //  MAIN SCREEN
 // ─────────────────────────────────────────────────────────────
 const LeadsScreen = () => {
-  const { isDark } = useTheme();
+  const { colors, typography, spacing, borderRadius, elevation, isDark } =
+    useUISystem();
+
+  // Toast — uses CustomToast (ToastProvider must be in App.js)
+  const toast = useKitToast();
+
   const dispatch = useDispatch();
   const settings = useSelector(s => s.settings?.data || s.settings);
   const currentUser = useSelector(s => s.auth.user);
   const globalSearch = useSelector(s => s.search?.query || '');
-
-  const colors = useMemo(
-    () => ({
-      bg: isDark ? '#0F172A' : '#F9FAFB',
-      surface: isDark ? '#111827' : '#FFFFFF',
-      card: isDark ? '#1F2937' : '#FFFFFF',
-      border: isDark ? 'rgba(255,255,255,0.08)' : '#E5E7EB',
-      textPrimary: isDark ? '#F8FAFC' : '#111827',
-      textSecondary: isDark ? '#94A3B8' : '#6B7280',
-      textMuted: isDark ? '#CBD5E1' : '#9CA3AF',
-      icon: isDark ? '#CBD5E1' : '#374151',
-      inputBg: isDark ? '#0F172A' : '#FFFFFF',
-      inputBorder: isDark ? 'rgba(255,255,255,0.12)' : '#E5E7EB',
-      surfaceAlt: isDark ? '#111827' : '#F9FAFB',
-      danger: '#ef4444',
-      success: '#16a34a',
-      accent: '#5a7bf6',
-    }),
-    [isDark],
-  );
-
-  const styles = useMemo(() => createStyles(colors), [colors]);
 
   // ── Permissions ──
   const canCreateLead = canUser(currentUser, settings, 'add_leads');
@@ -193,7 +174,6 @@ const LeadsScreen = () => {
     total: 0,
     totalPages: 1,
   });
-
   const skipLoadAfterSearchRef = useRef(false);
 
   // ── Status options from settings ──
@@ -630,37 +610,6 @@ const LeadsScreen = () => {
     setShowCreateModal(true);
   };
 
-  // Local DeleteModal (theme-aware)
-  const DeleteModal = ({ isOpen, onClose, onConfirm, title, message }) => (
-    <Modal
-      visible={isOpen}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>{title}</Text>
-          <Text style={styles.modalMessage}>{message}</Text>
-          <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.modalBtnCancel} onPress={onClose}>
-              <Text style={styles.modalBtnCancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalBtnDanger}
-              onPress={() => {
-                onConfirm();
-                onClose();
-              }}
-            >
-              <Text style={styles.modalBtnDangerText}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-
   const openNewLead = () => {
     if (!canCreateLead) return;
     setEditingLead(null);
@@ -719,13 +668,56 @@ const LeadsScreen = () => {
     }
   };
 
+  // ── User list item (reused in filter & bulk modals) ──
+  const UserListItem = ({ user: u, active, onPress }) => (
+    <TouchableOpacity
+      style={[
+        styles.userItem,
+        { borderBottomColor: colors.borderLight },
+        active && { backgroundColor: colors.primarySoft },
+      ]}
+      onPress={onPress}
+    >
+      <Avatar
+        name={u.name}
+        size={32}
+        rounded={16}
+        variant={active ? 'solid' : 'soft'}
+      />
+      <View style={{ flex: 1 }}>
+        <Text
+          style={[
+            typography.body2,
+            {
+              color: active ? colors.primary : colors.textPrimary,
+              fontWeight: active ? '600' : '400',
+            },
+          ]}
+        >
+          {u.name}
+        </Text>
+        {u.email ? (
+          <Text
+            style={[
+              typography.caption,
+              { color: colors.textTertiary, marginTop: 1 },
+            ]}
+          >
+            {u.email}
+          </Text>
+        ) : null}
+      </View>
+      {active && <Icon name="check-circle" size={18} color={colors.primary} />}
+    </TouchableOpacity>
+  );
+
   // ── RENDER ──────────────────────────────────────────────────
   return (
     <SafeAreaView
       edges={['bottom']}
-      style={[styles.safeArea, { backgroundColor: colors.bg }]}
+      style={[styles.safeArea, { backgroundColor: colors.background }]}
     >
-      <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         {/* ══ HEADER ══ */}
         <View
           style={[
@@ -736,43 +728,39 @@ const LeadsScreen = () => {
             },
           ]}
         >
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
-                Leads
-              </Text>
-              <Text
-                style={[styles.headerSubtitle, { color: colors.textSecondary }]}
-              >
-                Manage and track your sales pipeline
-              </Text>
-            </View>
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                onPress={() => setShowSortSheet(true)}
-                style={[
-                  styles.iconBtn,
-                  filters.sortBy && styles.iconBtnActive,
-                  {
-                    backgroundColor: filters.sortBy ? ACCENT : colors.surface,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <Icon
+          <PageHeader
+            title="Leads"
+            subtitle="Manage and track your sales pipeline"
+            right={
+              <View style={styles.headerActions}>
+                <IconButton
                   name="sort-variant"
-                  size={20}
-                  color={filters.sortBy ? '#fff' : colors.icon}
+                  onPress={() => setShowSortSheet(true)}
+                  color={
+                    filters.sortBy ? colors.textInverse : colors.textSecondary
+                  }
+                  backgroundColor={
+                    filters.sortBy ? colors.primary : 'transparent'
+                  }
+                  style={
+                    !filters.sortBy && {
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: borderRadius.md,
+                    }
+                  }
                 />
-              </TouchableOpacity>
-              {canCreateLead && (
-                <TouchableOpacity onPress={openNewLead} style={styles.addBtn}>
-                  <Icon name="plus" size={16} color="#fff" />
-                  <Text style={styles.addBtnText}>Add</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
+                {canCreateLead && (
+                  <ImprovedButton
+                    title="Add"
+                    icon="plus"
+                    size="small"
+                    onPress={openNewLead}
+                  />
+                )}
+              </View>
+            }
+          />
 
           {/* Search + Filter button */}
           <View style={styles.searchRow}>
@@ -780,18 +768,23 @@ const LeadsScreen = () => {
               style={[
                 styles.searchBox,
                 {
-                  backgroundColor: colors.inputBg,
-                  borderColor: colors.inputBorder,
+                  backgroundColor: colors.backgroundSecondary,
+                  borderColor: colors.border,
+                  borderRadius: borderRadius.md,
                 },
               ]}
             >
-              <Icon name="magnify" size={20} color={colors.textMuted} />
+              <Icon name="magnify" size={20} color={colors.textTertiary} />
               <TextInput
                 value={filters.search}
                 onChangeText={v => handleFilterChange('search', v)}
                 placeholder="Search leads..."
-                placeholderTextColor={colors.textMuted}
-                style={[styles.searchInput, { color: colors.textPrimary }]}
+                placeholderTextColor={colors.placeholder}
+                style={[
+                  styles.searchInput,
+                  typography.body2,
+                  { color: colors.textPrimary },
+                ]}
               />
               {filters.search ? (
                 <TouchableOpacity
@@ -800,30 +793,40 @@ const LeadsScreen = () => {
                   <Icon
                     name="close-circle"
                     size={18}
-                    color={colors.textMuted}
+                    color={colors.textTertiary}
                   />
                 </TouchableOpacity>
               ) : null}
             </View>
-
             <TouchableOpacity
               onPress={() => setShowFiltersSheet(true)}
               style={[
                 styles.filterIconBtn,
-                hasActiveFilters && styles.filterIconBtnActive,
                 {
-                  backgroundColor: hasActiveFilters ? ACCENT : colors.surface,
-                  borderColor: colors.border,
+                  backgroundColor: hasActiveFilters
+                    ? colors.primary
+                    : colors.surface,
+                  borderColor: hasActiveFilters
+                    ? colors.primary
+                    : colors.border,
+                  borderRadius: borderRadius.md,
                 },
               ]}
             >
               <Icon
                 name="tune-variant"
                 size={20}
-                color={hasActiveFilters ? '#fff' : colors.icon}
+                color={
+                  hasActiveFilters ? colors.textInverse : colors.textSecondary
+                }
               />
               {activeFilterCount > 0 && (
-                <View style={styles.filterBadge}>
+                <View
+                  style={[
+                    styles.filterBadge,
+                    { backgroundColor: colors.danger },
+                  ]}
+                >
                   <Text style={styles.filterBadgeText}>
                     {activeFilterCount}
                   </Text>
@@ -840,104 +843,88 @@ const LeadsScreen = () => {
               contentContainerStyle={styles.activeBadgesRow}
             >
               {filters.status ? (
-                <TouchableOpacity
-                  style={styles.activeBadge}
-                  onPress={() => handleFilterChange('status', '')}
-                >
-                  <View
-                    style={[
-                      styles.badgeDot,
-                      { backgroundColor: getStageColor(filters.status) },
-                    ]}
-                  />
-                  <Text style={styles.activeBadgeText}>{filters.status}</Text>
-                  <Icon name="close" size={13} color={ACCENT} />
-                </TouchableOpacity>
+                <ActiveFilterBadge
+                  label={filters.status}
+                  dotColor={getStageColor(filters.status)}
+                  onRemove={() => handleFilterChange('status', '')}
+                />
               ) : null}
-
               {filters.priority ? (
-                <TouchableOpacity
-                  style={styles.activeBadge}
-                  onPress={() => handleFilterChange('priority', '')}
-                >
-                  <Icon name="flag" size={13} color={ACCENT} />
-                  <Text style={styles.activeBadgeText}>{filters.priority}</Text>
-                  <Icon name="close" size={13} color={ACCENT} />
-                </TouchableOpacity>
+                <ActiveFilterBadge
+                  label={filters.priority}
+                  icon="flag"
+                  onRemove={() => handleFilterChange('priority', '')}
+                />
               ) : null}
-
               {filters.dateFrom || filters.dateTo ? (
-                <TouchableOpacity
-                  style={styles.activeBadge}
-                  onPress={() => {
+                <ActiveFilterBadge
+                  label={`${
+                    filters.dateFrom
+                      ? formatDateDisplay(filters.dateFrom)
+                      : '...'
+                  } → ${
+                    filters.dateTo ? formatDateDisplay(filters.dateTo) : '...'
+                  }`}
+                  icon="calendar-range"
+                  onRemove={() => {
                     setFilters(prev => ({ ...prev, dateFrom: '', dateTo: '' }));
                     setPagination(prev => ({ ...prev, page: 1 }));
                   }}
-                >
-                  <Icon name="calendar-range" size={13} color={ACCENT} />
-                  <Text style={styles.activeBadgeText}>
-                    {filters.dateFrom
-                      ? formatDateDisplay(filters.dateFrom)
-                      : '...'}
-                    {' → '}
-                    {filters.dateTo ? formatDateDisplay(filters.dateTo) : '...'}
-                  </Text>
-                  <Icon name="close" size={13} color={ACCENT} />
-                </TouchableOpacity>
+                />
               ) : null}
-
               {filters.assignedTo ? (
-                <TouchableOpacity
-                  style={styles.activeBadge}
-                  onPress={() => handleFilterChange('assignedTo', '')}
-                >
-                  <Icon name="account" size={13} color={ACCENT} />
-                  <Text style={styles.activeBadgeText}>
-                    {getSelectedUserName(filters.assignedTo) || 'Assigned'}
-                  </Text>
-                  <Icon name="close" size={13} color={ACCENT} />
-                </TouchableOpacity>
+                <ActiveFilterBadge
+                  label={getSelectedUserName(filters.assignedTo) || 'Assigned'}
+                  icon="account"
+                  onRemove={() => handleFilterChange('assignedTo', '')}
+                />
               ) : null}
-
               {filters.coAssignedTo ? (
-                <TouchableOpacity
-                  style={styles.activeBadge}
-                  onPress={() => handleFilterChange('coAssignedTo', '')}
-                >
-                  <Icon name="account-multiple" size={13} color={ACCENT} />
-                  <Text style={styles.activeBadgeText}>
-                    {getSelectedUserName(filters.coAssignedTo) || 'Co-assigned'}
-                  </Text>
-                  <Icon name="close" size={13} color={ACCENT} />
-                </TouchableOpacity>
+                <ActiveFilterBadge
+                  label={
+                    getSelectedUserName(filters.coAssignedTo) || 'Co-assigned'
+                  }
+                  icon="account-multiple"
+                  onRemove={() => handleFilterChange('coAssignedTo', '')}
+                />
               ) : null}
-
               {filters.sortBy ? (
-                <TouchableOpacity
-                  style={styles.activeBadge}
-                  onPress={() => handleFilterChange('sortBy', '')}
-                >
-                  <Icon name="sort-variant" size={13} color={ACCENT} />
-                  <Text style={styles.activeBadgeText}>
-                    {SORT_OPTIONS.find(o => o.value === filters.sortBy)
-                      ?.label || filters.sortBy}
-                  </Text>
-                  <Icon name="close" size={13} color={ACCENT} />
-                </TouchableOpacity>
+                <ActiveFilterBadge
+                  label={
+                    SORT_OPTIONS.find(o => o.value === filters.sortBy)?.label ||
+                    filters.sortBy
+                  }
+                  icon="sort-variant"
+                  onRemove={() => handleFilterChange('sortBy', '')}
+                />
               ) : null}
-
               <TouchableOpacity
                 onPress={clearAllFilters}
-                style={styles.clearAllBadge}
+                style={{ paddingHorizontal: 6, paddingVertical: 5 }}
               >
-                <Text style={styles.clearAllBadgeText}>Clear all</Text>
+                <Text
+                  style={[
+                    typography.caption,
+                    { color: colors.danger, fontWeight: '600' },
+                  ]}
+                >
+                  Clear all
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           )}
         </View>
 
         {/* ══ TOOLBAR ══ */}
-        <View style={styles.toolbar}>
+        <View
+          style={[
+            styles.toolbar,
+            {
+              backgroundColor: colors.backgroundSecondary,
+              borderBottomColor: colors.border,
+            },
+          ]}
+        >
           {selectedIds.size > 0 ? (
             <ScrollView
               horizontal
@@ -945,44 +932,54 @@ const LeadsScreen = () => {
               contentContainerStyle={styles.bulkBar}
             >
               <TouchableOpacity onPress={clearSelection}>
-                <View style={styles.selectedBadge}>
-                  <Text style={styles.selectedBadgeText}>
+                <View
+                  style={[
+                    styles.selectedBadge,
+                    { backgroundColor: colors.primarySoft },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      typography.caption,
+                      { color: colors.primary, fontWeight: '600' },
+                    ]}
+                  >
                     {selectedIds.size} selected ✕
                   </Text>
                 </View>
               </TouchableOpacity>
               {canAssignLead && (
-                <TouchableOpacity
+                <ImprovedButton
+                  title="👤 Assign"
+                  variant="outline"
+                  size="small"
                   disabled={bulkLoading}
                   onPress={() => setShowAssignModal(true)}
-                  style={[styles.bulkBtn, styles.bulkBtnBlue]}
-                >
-                  <Text style={styles.bulkBtnBlueText}>👤 Assign</Text>
-                </TouchableOpacity>
+                />
               )}
               {canDeleteLead && (
-                <TouchableOpacity
+                <ImprovedButton
+                  title="🗑 Delete"
+                  variant="danger"
+                  size="small"
                   disabled={bulkLoading}
                   onPress={() => setShowBulkDeleteModal(true)}
-                  style={[styles.bulkBtn, styles.bulkBtnRed]}
-                >
-                  <Text style={styles.bulkBtnRedText}>🗑 Delete</Text>
-                </TouchableOpacity>
+                />
               )}
-              <TouchableOpacity
+              <ImprovedButton
+                title="✏ Status"
+                variant="outline"
+                size="small"
                 disabled={bulkLoading}
                 onPress={() => setShowStatusModal(true)}
-                style={[styles.bulkBtn, styles.bulkBtnGreen]}
-              >
-                <Text style={styles.bulkBtnGreenText}>✏ Status</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              />
+              <ImprovedButton
+                title="🔥 Priority"
+                variant="outline"
+                size="small"
                 disabled={bulkLoading}
                 onPress={() => setShowPriorityModal(true)}
-                style={[styles.bulkBtn, styles.bulkBtnOrange]}
-              >
-                <Text style={styles.bulkBtnOrangeText}>🔥 Priority</Text>
-              </TouchableOpacity>
+              />
             </ScrollView>
           ) : (
             <View style={styles.toolbarNormal}>
@@ -993,17 +990,39 @@ const LeadsScreen = () => {
                 <View
                   style={[
                     styles.checkbox,
-                    isAllSelected && styles.checkboxSelected,
+                    { borderColor: colors.borderSolid },
+                    isAllSelected && {
+                      backgroundColor: colors.primary,
+                      borderColor: colors.primary,
+                    },
                   ]}
                 >
                   {isAllSelected && <Text style={styles.checkmark}>✓</Text>}
                 </View>
-                <Text style={styles.selectAllText}>Select all</Text>
+                <Text
+                  style={[typography.caption, { color: colors.textSecondary }]}
+                >
+                  Select all
+                </Text>
               </TouchableOpacity>
-              <Text style={styles.totalText}>{pagination.total} leads</Text>
+              <Text
+                style={[
+                  typography.caption,
+                  { color: colors.textSecondary, marginLeft: 'auto' },
+                ]}
+              >
+                {pagination.total} leads
+              </Text>
               {hasActiveFilters && (
                 <TouchableOpacity onPress={clearAllFilters}>
-                  <Text style={styles.clearFiltersText}>✕ Clear</Text>
+                  <Text
+                    style={[
+                      typography.caption,
+                      { color: colors.danger, fontWeight: '500' },
+                    ]}
+                  >
+                    ✕ Clear
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -1049,556 +1068,539 @@ const LeadsScreen = () => {
       {/* ════════════════════════════════════════════════════════
           FILTER BOTTOM SHEET
       ════════════════════════════════════════════════════════ */}
-      <Modal
+      <BottomSheet
         visible={showFiltersSheet}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowFiltersSheet(false)}
-      >
-        <View style={styles.sheetOverlay}>
-          <TouchableOpacity
-            style={styles.sheetBackdrop}
-            activeOpacity={1}
-            onPress={() => setShowFiltersSheet(false)}
-          />
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-
-            {/* Header */}
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Filters</Text>
-              <View style={styles.sheetHeaderRight}>
-                {hasActiveFilters && (
-                  <TouchableOpacity onPress={clearAllFilters}>
-                    <Text style={styles.clearAllText}>Clear all</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity onPress={() => setShowFiltersSheet(false)}>
-                  <Icon name="close" size={22} color="#6b7280" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <ScrollView
-              style={styles.sheetBody}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* ── STATUS ── */}
-              <Text style={styles.filterLabel}>STATUS</Text>
-              <View style={styles.chipsWrap}>
-                {/* All */}
-                <TouchableOpacity
-                  style={[styles.chip, !filters.status && styles.chipActive]}
-                  onPress={() => handleFilterChange('status', '')}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      !filters.status && styles.chipTextActive,
-                    ]}
-                  >
-                    All
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Active */}
-                <TouchableOpacity
-                  style={[
-                    styles.chip,
-                    filters.status === 'active' && styles.chipActive,
-                  ]}
-                  onPress={() => handleFilterChange('status', 'active')}
-                >
-                  <View
-                    style={[styles.chipDot, { backgroundColor: '#22c55e' }]}
-                  />
-                  <Text
-                    style={[
-                      styles.chipText,
-                      filters.status === 'active' && styles.chipTextActive,
-                    ]}
-                  >
-                    Active
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Repeat */}
-                <TouchableOpacity
-                  style={[
-                    styles.chip,
-                    filters.status === 'Repeat' && styles.chipActive,
-                  ]}
-                  onPress={() => handleFilterChange('status', 'Repeat')}
-                >
-                  <View
-                    style={[styles.chipDot, { backgroundColor: '#9333ea' }]}
-                  />
-                  <Text
-                    style={[
-                      styles.chipText,
-                      filters.status === 'Repeat' && styles.chipTextActive,
-                    ]}
-                  >
-                    Repeat
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Dynamic stages */}
-                {statusOptions.map(st => {
-                  const active = filters.status === st;
-                  const color = getStageColor(st);
-                  return (
-                    <TouchableOpacity
-                      key={st}
-                      style={[
-                        styles.chip,
-                        active && {
-                          backgroundColor: color + '18',
-                          borderColor: color,
-                        },
-                      ]}
-                      onPress={() => handleFilterChange('status', st)}
-                    >
-                      <View
-                        style={[styles.chipDot, { backgroundColor: color }]}
-                      />
-                      <Text
-                        style={[
-                          styles.chipText,
-                          active && { color, fontWeight: '600' },
-                        ]}
-                      >
-                        {st}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* ── PRIORITY ── */}
-              <Text style={styles.filterLabel}>PRIORITY</Text>
-              <View style={styles.chipsWrap}>
-                <TouchableOpacity
-                  style={[styles.chip, !filters.priority && styles.chipActive]}
-                  onPress={() => handleFilterChange('priority', '')}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      !filters.priority && styles.chipTextActive,
-                    ]}
-                  >
-                    All
-                  </Text>
-                </TouchableOpacity>
-                {PRIORITY_OPTIONS.map(p => {
-                  const active = filters.priority === p;
-                  const pc = getPriorityColor(p);
-                  return (
-                    <TouchableOpacity
-                      key={p}
-                      style={[
-                        styles.chip,
-                        active && {
-                          backgroundColor: pc.bg,
-                          borderColor: pc.text,
-                        },
-                      ]}
-                      onPress={() => handleFilterChange('priority', p)}
-                    >
-                      <Icon
-                        name={
-                          p === 'Urgent'
-                            ? 'alert-circle'
-                            : p === 'High'
-                            ? 'arrow-up-circle'
-                            : 'minus-circle'
-                        }
-                        size={14}
-                        color={active ? pc.text : '#9ca3af'}
-                      />
-                      <Text
-                        style={[
-                          styles.chipText,
-                          active && { color: pc.text, fontWeight: '600' },
-                        ]}
-                      >
-                        {p}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* ── DATE RANGE ── */}
-              <Text style={styles.filterLabel}>DATE RANGE</Text>
-
-              {/* Two calendar buttons */}
-              <View style={styles.dateRow}>
-                {/* From */}
-                <TouchableOpacity
-                  style={[
-                    styles.dateBtn,
-                    filters.dateFrom && styles.dateBtnActive,
-                  ]}
-                  onPress={() => {
-                    setTempFromDate(
-                      filters.dateFrom
-                        ? new Date(filters.dateFrom + 'T00:00:00')
-                        : new Date(),
-                    );
-                    setShowFromPicker(true);
-                  }}
-                >
-                  <Icon
-                    name="calendar-start"
-                    size={16}
-                    color={filters.dateFrom ? ACCENT : '#9ca3af'}
-                  />
-                  <Text
-                    style={[
-                      styles.dateBtnText,
-                      filters.dateFrom && styles.dateBtnTextActive,
-                    ]}
-                  >
-                    {filters.dateFrom
-                      ? formatDateDisplay(filters.dateFrom)
-                      : 'From date'}
-                  </Text>
-                </TouchableOpacity>
-
-                <Icon name="arrow-right" size={16} color="#d1d5db" />
-
-                {/* To */}
-                <TouchableOpacity
-                  style={[
-                    styles.dateBtn,
-                    filters.dateTo && styles.dateBtnActive,
-                  ]}
-                  onPress={() => {
-                    setTempToDate(
-                      filters.dateTo
-                        ? new Date(filters.dateTo + 'T00:00:00')
-                        : new Date(),
-                    );
-                    setShowToPicker(true);
-                  }}
-                >
-                  <Icon
-                    name="calendar-end"
-                    size={16}
-                    color={filters.dateTo ? ACCENT : '#9ca3af'}
-                  />
-                  <Text
-                    style={[
-                      styles.dateBtnText,
-                      filters.dateTo && styles.dateBtnTextActive,
-                    ]}
-                  >
-                    {filters.dateTo
-                      ? formatDateDisplay(filters.dateTo)
-                      : 'To date'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Selected range display + clear */}
-              {(filters.dateFrom || filters.dateTo) && (
-                <View style={styles.dateRangeInfo}>
-                  <View style={styles.dateRangeDisplay}>
-                    <Icon name="calendar-range" size={14} color={ACCENT} />
-                    <Text style={styles.dateRangeText}>
-                      {filters.dateFrom
-                        ? formatDateDisplay(filters.dateFrom)
-                        : '...'}
-                      {'  →  '}
-                      {filters.dateTo
-                        ? formatDateDisplay(filters.dateTo)
-                        : '...'}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.clearDateBtn}
-                    onPress={() => {
-                      setFilters(prev => ({
-                        ...prev,
-                        dateFrom: '',
-                        dateTo: '',
-                      }));
-                      setPagination(prev => ({ ...prev, page: 1 }));
-                    }}
-                  >
-                    <Icon name="close-circle" size={16} color="#ef4444" />
-                    <Text style={styles.clearDateText}>Clear</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* ── ASSIGNED TO ── */}
-              {(canViewAllLeads || (isManager && canViewTeamLeads)) && (
-                <>
-                  <Text style={styles.filterLabel}>ASSIGNED TO</Text>
-                  <View style={styles.userSearchBox}>
-                    <Icon name="magnify" size={16} color="#9ca3af" />
-                    <TextInput
-                      value={userSearch}
-                      onChangeText={setUserSearch}
-                      placeholder="Search team member..."
-                      placeholderTextColor="#9ca3af"
-                      style={styles.userSearchInput}
-                    />
-                    {userSearch ? (
-                      <TouchableOpacity onPress={() => setUserSearch('')}>
-                        <Icon name="close" size={16} color="#9ca3af" />
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                  <View style={styles.userList}>
-                    {/* All users */}
-                    <TouchableOpacity
-                      style={[
-                        styles.userItem,
-                        !filters.assignedTo && styles.userItemActive,
-                      ]}
-                      onPress={() => handleFilterChange('assignedTo', '')}
-                    >
-                      <View
-                        style={[
-                          styles.userAvatar,
-                          !filters.assignedTo && { backgroundColor: ACCENT },
-                        ]}
-                      >
-                        <Icon
-                          name="account-group"
-                          size={14}
-                          color={!filters.assignedTo ? '#fff' : '#6b7280'}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.userItemText,
-                          !filters.assignedTo && styles.userItemTextActive,
-                        ]}
-                      >
-                        All Users
-                      </Text>
-                      {!filters.assignedTo && (
-                        <Icon
-                          name="check-circle"
-                          size={18}
-                          color={ACCENT}
-                          style={{ marginLeft: 'auto' }}
-                        />
-                      )}
-                    </TouchableOpacity>
-                    {filteredUsers.map(u => {
-                      const active = filters.assignedTo === u._id;
-                      return (
-                        <TouchableOpacity
-                          key={u._id}
-                          style={[
-                            styles.userItem,
-                            active && styles.userItemActive,
-                          ]}
-                          onPress={() =>
-                            handleFilterChange('assignedTo', u._id)
-                          }
-                        >
-                          <View
-                            style={[
-                              styles.userAvatar,
-                              active && { backgroundColor: ACCENT },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.userAvatarText,
-                                active && { color: '#fff' },
-                              ]}
-                            >
-                              {getInitials(u.name)}
-                            </Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text
-                              style={[
-                                styles.userItemText,
-                                active && styles.userItemTextActive,
-                              ]}
-                            >
-                              {u.name}
-                            </Text>
-                            {u.email ? (
-                              <Text style={styles.userItemEmail}>
-                                {u.email}
-                              </Text>
-                            ) : null}
-                          </View>
-                          {active && (
-                            <Icon
-                              name="check-circle"
-                              size={18}
-                              color={ACCENT}
-                            />
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                    {filteredUsers.length === 0 && userSearch ? (
-                      <View style={styles.emptySearch}>
-                        <Text style={styles.emptySearchText}>
-                          No users found
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                </>
-              )}
-
-              {/* ── CO-ASSIGNEE ── */}
-              {(canViewAllLeads || (isManager && canViewTeamLeads)) && (
-                <>
-                  <Text style={styles.filterLabel}>CO-ASSIGNEE</Text>
-                  <View style={styles.userSearchBox}>
-                    <Icon name="magnify" size={16} color="#9ca3af" />
-                    <TextInput
-                      value={coUserSearch}
-                      onChangeText={setCoUserSearch}
-                      placeholder="Search co-assignee..."
-                      placeholderTextColor="#9ca3af"
-                      style={styles.userSearchInput}
-                    />
-                    {coUserSearch ? (
-                      <TouchableOpacity onPress={() => setCoUserSearch('')}>
-                        <Icon name="close" size={16} color="#9ca3af" />
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                  <View style={styles.userList}>
-                    <TouchableOpacity
-                      style={[
-                        styles.userItem,
-                        !filters.coAssignedTo && styles.userItemActive,
-                      ]}
-                      onPress={() => handleFilterChange('coAssignedTo', '')}
-                    >
-                      <View
-                        style={[
-                          styles.userAvatar,
-                          !filters.coAssignedTo && { backgroundColor: ACCENT },
-                        ]}
-                      >
-                        <Icon
-                          name="account-group"
-                          size={14}
-                          color={!filters.coAssignedTo ? '#fff' : '#6b7280'}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.userItemText,
-                          !filters.coAssignedTo && styles.userItemTextActive,
-                        ]}
-                      >
-                        All Co-assignees
-                      </Text>
-                      {!filters.coAssignedTo && (
-                        <Icon
-                          name="check-circle"
-                          size={18}
-                          color={ACCENT}
-                          style={{ marginLeft: 'auto' }}
-                        />
-                      )}
-                    </TouchableOpacity>
-                    {filteredCoUsers.map(u => {
-                      const active = filters.coAssignedTo === u._id;
-                      return (
-                        <TouchableOpacity
-                          key={u._id}
-                          style={[
-                            styles.userItem,
-                            active && styles.userItemActive,
-                          ]}
-                          onPress={() =>
-                            handleFilterChange('coAssignedTo', u._id)
-                          }
-                        >
-                          <View
-                            style={[
-                              styles.userAvatar,
-                              active && { backgroundColor: ACCENT },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.userAvatarText,
-                                active && { color: '#fff' },
-                              ]}
-                            >
-                              {getInitials(u.name)}
-                            </Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text
-                              style={[
-                                styles.userItemText,
-                                active && styles.userItemTextActive,
-                              ]}
-                            >
-                              {u.name}
-                            </Text>
-                            {u.email ? (
-                              <Text style={styles.userItemEmail}>
-                                {u.email}
-                              </Text>
-                            ) : null}
-                          </View>
-                          {active && (
-                            <Icon
-                              name="check-circle"
-                              size={18}
-                              color={ACCENT}
-                            />
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                    {filteredCoUsers.length === 0 && coUserSearch ? (
-                      <View style={styles.emptySearch}>
-                        <Text style={styles.emptySearchText}>
-                          No users found
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                </>
-              )}
-
-              <View style={{ height: 24 }} />
-            </ScrollView>
-
-            {/* Footer */}
-            <View style={styles.sheetFooter}>
-              <TouchableOpacity
-                style={styles.applyBtn}
-                onPress={() => setShowFiltersSheet(false)}
+        onClose={() => setShowFiltersSheet(false)}
+        title="Filters"
+        footerLabel={`Apply Filters${
+          activeFilterCount > 0 ? ` (${activeFilterCount})` : ''
+        }`}
+        onFooterPress={() => setShowFiltersSheet(false)}
+        rightHeader={
+          hasActiveFilters ? (
+            <TouchableOpacity onPress={clearAllFilters}>
+              <Text
+                style={[
+                  typography.caption,
+                  { color: colors.danger, fontWeight: '500' },
+                ]}
               >
-                <Text style={styles.applyBtnText}>
-                  Apply Filters
-                  {activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+                Clear all
+              </Text>
+            </TouchableOpacity>
+          ) : null
+        }
+      >
+        {/* ── STATUS ── */}
+        <Text style={[styles.filterLabel, { color: colors.textTertiary }]}>
+          STATUS
+        </Text>
+        <View style={styles.chipsWrap}>
+          <TouchableOpacity
+            style={[
+              styles.chip,
+              {
+                borderColor: colors.border,
+                backgroundColor: !filters.status
+                  ? colors.primary
+                  : colors.surface,
+              },
+            ]}
+            onPress={() => handleFilterChange('status', '')}
+          >
+            <Text
+              style={[
+                styles.chipText,
+                {
+                  color: !filters.status
+                    ? colors.textInverse
+                    : colors.textSecondary,
+                },
+              ]}
+            >
+              All
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.chip,
+              { borderColor: colors.border },
+              filters.status === 'active' && {
+                backgroundColor: colors.primarySoft,
+                borderColor: colors.primary,
+              },
+            ]}
+            onPress={() => handleFilterChange('status', 'active')}
+          >
+            <View style={[styles.chipDot, { backgroundColor: '#22c55e' }]} />
+            <Text
+              style={[
+                styles.chipText,
+                {
+                  color:
+                    filters.status === 'active'
+                      ? colors.primary
+                      : colors.textSecondary,
+                },
+              ]}
+            >
+              Active
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.chip,
+              { borderColor: colors.border },
+              filters.status === 'Repeat' && {
+                backgroundColor: colors.purpleSoft,
+                borderColor: colors.purple,
+              },
+            ]}
+            onPress={() => handleFilterChange('status', 'Repeat')}
+          >
+            <View style={[styles.chipDot, { backgroundColor: '#9333ea' }]} />
+            <Text
+              style={[
+                styles.chipText,
+                {
+                  color:
+                    filters.status === 'Repeat'
+                      ? colors.purple
+                      : colors.textSecondary,
+                },
+              ]}
+            >
+              Repeat
+            </Text>
+          </TouchableOpacity>
+          {statusOptions.map(st => {
+            const active = filters.status === st;
+            const color = getStageColor(st);
+            return (
+              <TouchableOpacity
+                key={st}
+                style={[
+                  styles.chip,
+                  { borderColor: colors.border },
+                  active && {
+                    backgroundColor: color + '18',
+                    borderColor: color,
+                  },
+                ]}
+                onPress={() => handleFilterChange('status', st)}
+              >
+                <View style={[styles.chipDot, { backgroundColor: color }]} />
+                <Text
+                  style={[
+                    styles.chipText,
+                    {
+                      color: active ? color : colors.textSecondary,
+                      fontWeight: active ? '600' : '500',
+                    },
+                  ]}
+                >
+                  {st}
                 </Text>
               </TouchableOpacity>
-            </View>
-          </View>
+            );
+          })}
         </View>
-      </Modal>
+
+        {/* ── PRIORITY ── */}
+        <Text style={[styles.filterLabel, { color: colors.textTertiary }]}>
+          PRIORITY
+        </Text>
+        <View style={styles.chipsWrap}>
+          <TouchableOpacity
+            style={[
+              styles.chip,
+              {
+                borderColor: colors.border,
+                backgroundColor: !filters.priority
+                  ? colors.primary
+                  : colors.surface,
+              },
+            ]}
+            onPress={() => handleFilterChange('priority', '')}
+          >
+            <Text
+              style={[
+                styles.chipText,
+                {
+                  color: !filters.priority
+                    ? colors.textInverse
+                    : colors.textSecondary,
+                },
+              ]}
+            >
+              All
+            </Text>
+          </TouchableOpacity>
+          {PRIORITY_OPTIONS.map(p => {
+            const active = filters.priority === p;
+            const pc = getPriorityColor(p);
+            return (
+              <TouchableOpacity
+                key={p}
+                style={[
+                  styles.chip,
+                  { borderColor: colors.border },
+                  active && { backgroundColor: pc.bg, borderColor: pc.text },
+                ]}
+                onPress={() => handleFilterChange('priority', p)}
+              >
+                <Icon
+                  name={
+                    p === 'Urgent'
+                      ? 'alert-circle'
+                      : p === 'High'
+                      ? 'arrow-up-circle'
+                      : 'minus-circle'
+                  }
+                  size={14}
+                  color={active ? pc.text : colors.textTertiary}
+                />
+                <Text
+                  style={[
+                    styles.chipText,
+                    {
+                      color: active ? pc.text : colors.textSecondary,
+                      fontWeight: active ? '600' : '500',
+                    },
+                  ]}
+                >
+                  {p}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* ── DATE RANGE ── */}
+        <Text style={[styles.filterLabel, { color: colors.textTertiary }]}>
+          DATE RANGE
+        </Text>
+        <View style={styles.dateRow}>
+          <TouchableOpacity
+            style={[
+              styles.dateBtn,
+              {
+                borderColor: filters.dateFrom ? colors.primary : colors.border,
+                backgroundColor: colors.backgroundSecondary,
+                borderRadius: borderRadius.md,
+              },
+            ]}
+            onPress={() => {
+              setTempFromDate(
+                filters.dateFrom
+                  ? new Date(filters.dateFrom + 'T00:00:00')
+                  : new Date(),
+              );
+              setShowFromPicker(true);
+            }}
+          >
+            <Icon
+              name="calendar-start"
+              size={16}
+              color={filters.dateFrom ? colors.primary : colors.textTertiary}
+            />
+            <Text
+              style={[
+                typography.body2,
+                {
+                  color: filters.dateFrom
+                    ? colors.textPrimary
+                    : colors.placeholder,
+                  fontSize: 13,
+                },
+              ]}
+            >
+              {filters.dateFrom
+                ? formatDateDisplay(filters.dateFrom)
+                : 'From date'}
+            </Text>
+          </TouchableOpacity>
+          <Icon name="arrow-right" size={16} color={colors.borderSolid} />
+          <TouchableOpacity
+            style={[
+              styles.dateBtn,
+              {
+                borderColor: filters.dateTo ? colors.primary : colors.border,
+                backgroundColor: colors.backgroundSecondary,
+                borderRadius: borderRadius.md,
+              },
+            ]}
+            onPress={() => {
+              setTempToDate(
+                filters.dateTo
+                  ? new Date(filters.dateTo + 'T00:00:00')
+                  : new Date(),
+              );
+              setShowToPicker(true);
+            }}
+          >
+            <Icon
+              name="calendar-end"
+              size={16}
+              color={filters.dateTo ? colors.primary : colors.textTertiary}
+            />
+            <Text
+              style={[
+                typography.body2,
+                {
+                  color: filters.dateTo
+                    ? colors.textPrimary
+                    : colors.placeholder,
+                  fontSize: 13,
+                },
+              ]}
+            >
+              {filters.dateTo ? formatDateDisplay(filters.dateTo) : 'To date'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {(filters.dateFrom || filters.dateTo) && (
+          <View style={styles.dateRangeInfo}>
+            <View
+              style={[
+                styles.dateRangeDisplay,
+                {
+                  backgroundColor: colors.primarySoft,
+                  borderColor: colors.primaryBorder,
+                  borderRadius: borderRadius.sm,
+                },
+              ]}
+            >
+              <Icon name="calendar-range" size={14} color={colors.primary} />
+              <Text
+                style={[
+                  typography.caption,
+                  { color: colors.primary, fontWeight: '500' },
+                ]}
+              >
+                {filters.dateFrom ? formatDateDisplay(filters.dateFrom) : '...'}
+                {'  →  '}
+                {filters.dateTo ? formatDateDisplay(filters.dateTo) : '...'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.clearDateBtn}
+              onPress={() => {
+                setFilters(prev => ({ ...prev, dateFrom: '', dateTo: '' }));
+                setPagination(prev => ({ ...prev, page: 1 }));
+              }}
+            >
+              <Icon name="close-circle" size={16} color={colors.danger} />
+              <Text
+                style={[
+                  typography.caption,
+                  { color: colors.danger, fontWeight: '500' },
+                ]}
+              >
+                Clear
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── ASSIGNED TO ── */}
+        {(canViewAllLeads || (isManager && canViewTeamLeads)) && (
+          <>
+            <Text style={[styles.filterLabel, { color: colors.textTertiary }]}>
+              ASSIGNED TO
+            </Text>
+            <View
+              style={[
+                styles.userSearchBox,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.backgroundSecondary,
+                  borderRadius: borderRadius.md,
+                },
+              ]}
+            >
+              <Icon name="magnify" size={16} color={colors.textTertiary} />
+              <TextInput
+                value={userSearch}
+                onChangeText={setUserSearch}
+                placeholder="Search team member..."
+                placeholderTextColor={colors.placeholder}
+                style={[styles.userSearchInput, { color: colors.textPrimary }]}
+              />
+              {userSearch ? (
+                <TouchableOpacity onPress={() => setUserSearch('')}>
+                  <Icon name="close" size={16} color={colors.textTertiary} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <View
+              style={[
+                styles.userList,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                  borderRadius: borderRadius.lg,
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.userItem,
+                  { borderBottomColor: colors.borderLight },
+                  !filters.assignedTo && {
+                    backgroundColor: colors.primarySoft,
+                  },
+                ]}
+                onPress={() => handleFilterChange('assignedTo', '')}
+              >
+                <Avatar
+                  name="All"
+                  size={32}
+                  rounded={16}
+                  variant={!filters.assignedTo ? 'solid' : 'soft'}
+                />
+                <Text
+                  style={[
+                    typography.body2,
+                    {
+                      color: !filters.assignedTo
+                        ? colors.primary
+                        : colors.textPrimary,
+                      fontWeight: !filters.assignedTo ? '600' : '400',
+                    },
+                  ]}
+                >
+                  All Users
+                </Text>
+                {!filters.assignedTo && (
+                  <Icon
+                    name="check-circle"
+                    size={18}
+                    color={colors.primary}
+                    style={{ marginLeft: 'auto' }}
+                  />
+                )}
+              </TouchableOpacity>
+              {filteredUsers.map(u => (
+                <UserListItem
+                  key={u._id}
+                  user={u}
+                  active={filters.assignedTo === u._id}
+                  onPress={() => handleFilterChange('assignedTo', u._id)}
+                />
+              ))}
+              {filteredUsers.length === 0 && userSearch ? (
+                <EmptyState
+                  icon="account-search-outline"
+                  message="No users found"
+                  style={{ paddingVertical: 16 }}
+                />
+              ) : null}
+            </View>
+          </>
+        )}
+
+        {/* ── CO-ASSIGNEE ── */}
+        {(canViewAllLeads || (isManager && canViewTeamLeads)) && (
+          <>
+            <Text style={[styles.filterLabel, { color: colors.textTertiary }]}>
+              CO-ASSIGNEE
+            </Text>
+            <View
+              style={[
+                styles.userSearchBox,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.backgroundSecondary,
+                  borderRadius: borderRadius.md,
+                },
+              ]}
+            >
+              <Icon name="magnify" size={16} color={colors.textTertiary} />
+              <TextInput
+                value={coUserSearch}
+                onChangeText={setCoUserSearch}
+                placeholder="Search co-assignee..."
+                placeholderTextColor={colors.placeholder}
+                style={[styles.userSearchInput, { color: colors.textPrimary }]}
+              />
+              {coUserSearch ? (
+                <TouchableOpacity onPress={() => setCoUserSearch('')}>
+                  <Icon name="close" size={16} color={colors.textTertiary} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <View
+              style={[
+                styles.userList,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                  borderRadius: borderRadius.lg,
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.userItem,
+                  { borderBottomColor: colors.borderLight },
+                  !filters.coAssignedTo && {
+                    backgroundColor: colors.primarySoft,
+                  },
+                ]}
+                onPress={() => handleFilterChange('coAssignedTo', '')}
+              >
+                <Avatar
+                  name="All"
+                  size={32}
+                  rounded={16}
+                  variant={!filters.coAssignedTo ? 'solid' : 'soft'}
+                />
+                <Text
+                  style={[
+                    typography.body2,
+                    {
+                      color: !filters.coAssignedTo
+                        ? colors.primary
+                        : colors.textPrimary,
+                      fontWeight: !filters.coAssignedTo ? '600' : '400',
+                    },
+                  ]}
+                >
+                  All Co-assignees
+                </Text>
+                {!filters.coAssignedTo && (
+                  <Icon
+                    name="check-circle"
+                    size={18}
+                    color={colors.primary}
+                    style={{ marginLeft: 'auto' }}
+                  />
+                )}
+              </TouchableOpacity>
+              {filteredCoUsers.map(u => (
+                <UserListItem
+                  key={u._id}
+                  user={u}
+                  active={filters.coAssignedTo === u._id}
+                  onPress={() => handleFilterChange('coAssignedTo', u._id)}
+                />
+              ))}
+              {filteredCoUsers.length === 0 && coUserSearch ? (
+                <EmptyState
+                  icon="account-search-outline"
+                  message="No users found"
+                  style={{ paddingVertical: 16 }}
+                />
+              ) : null}
+            </View>
+          </>
+        )}
+      </BottomSheet>
 
       {/* ════════════════════════════════════════════════════════
           NATIVE DATE PICKERS
       ════════════════════════════════════════════════════════ */}
-
-      {/* FROM DATE — Android */}
       {showFromPicker && Platform.OS === 'android' && (
         <DateTimePicker
           value={tempFromDate}
@@ -1609,61 +1611,41 @@ const LeadsScreen = () => {
           }
           onChange={(e, date) => {
             setShowFromPicker(false);
-            if (e.type === 'set' && date) {
+            if (e.type === 'set' && date)
               handleFilterChange('dateFrom', dateToString(date));
-            }
           }}
         />
       )}
-
-      {/* FROM DATE — iOS (modal wrapper) */}
       {showFromPicker && Platform.OS === 'ios' && (
-        <Modal
+        <ConfirmDialog
           visible
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowFromPicker(false)}
-        >
-          <View style={styles.dateModalOverlay}>
-            <View style={styles.dateModalCard}>
-              <Text style={styles.dateModalTitle}>From Date</Text>
-              <DateTimePicker
-                value={tempFromDate}
-                mode="date"
-                display="spinner"
-                maximumDate={
-                  filters.dateTo
-                    ? new Date(filters.dateTo + 'T00:00:00')
-                    : undefined
-                }
-                onChange={(e, date) => {
-                  if (date) setTempFromDate(date);
-                }}
-                style={{ height: 180 }}
-              />
-              <View style={styles.dateModalActions}>
-                <TouchableOpacity
-                  style={styles.dateModalBtnCancel}
-                  onPress={() => setShowFromPicker(false)}
-                >
-                  <Text style={styles.dateModalBtnCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.dateModalBtnDone}
-                  onPress={() => {
-                    handleFilterChange('dateFrom', dateToString(tempFromDate));
-                    setShowFromPicker(false);
-                  }}
-                >
-                  <Text style={styles.dateModalBtnDoneText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
+          onClose={() => setShowFromPicker(false)}
+          title="From Date"
+          variant="primary"
+          confirmLabel="Done"
+          cancelLabel="Cancel"
+          onConfirm={() => {
+            handleFilterChange('dateFrom', dateToString(tempFromDate));
+            setShowFromPicker(false);
+          }}
+          message={
+            <DateTimePicker
+              value={tempFromDate}
+              mode="date"
+              display="spinner"
+              maximumDate={
+                filters.dateTo
+                  ? new Date(filters.dateTo + 'T00:00:00')
+                  : undefined
+              }
+              onChange={(e, date) => {
+                if (date) setTempFromDate(date);
+              }}
+              style={{ height: 180 }}
+            />
+          }
+        />
       )}
-
-      {/* TO DATE — Android */}
       {showToPicker && Platform.OS === 'android' && (
         <DateTimePicker
           value={tempToDate}
@@ -1676,394 +1658,247 @@ const LeadsScreen = () => {
           }
           onChange={(e, date) => {
             setShowToPicker(false);
-            if (e.type === 'set' && date) {
+            if (e.type === 'set' && date)
               handleFilterChange('dateTo', dateToString(date));
-            }
           }}
         />
       )}
-
-      {/* TO DATE — iOS (modal wrapper) */}
       {showToPicker && Platform.OS === 'ios' && (
-        <Modal
+        <ConfirmDialog
           visible
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowToPicker(false)}
-        >
-          <View style={styles.dateModalOverlay}>
-            <View style={styles.dateModalCard}>
-              <Text style={styles.dateModalTitle}>To Date</Text>
-              <DateTimePicker
-                value={tempToDate}
-                mode="date"
-                display="spinner"
-                minimumDate={
-                  filters.dateFrom
-                    ? new Date(filters.dateFrom + 'T00:00:00')
-                    : undefined
-                }
-                onChange={(e, date) => {
-                  if (date) setTempToDate(date);
-                }}
-                style={{ height: 180 }}
-              />
-              <View style={styles.dateModalActions}>
-                <TouchableOpacity
-                  style={styles.dateModalBtnCancel}
-                  onPress={() => setShowToPicker(false)}
-                >
-                  <Text style={styles.dateModalBtnCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.dateModalBtnDone}
-                  onPress={() => {
-                    handleFilterChange('dateTo', dateToString(tempToDate));
-                    setShowToPicker(false);
-                  }}
-                >
-                  <Text style={styles.dateModalBtnDoneText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
+          onClose={() => setShowToPicker(false)}
+          title="To Date"
+          variant="primary"
+          confirmLabel="Done"
+          cancelLabel="Cancel"
+          onConfirm={() => {
+            handleFilterChange('dateTo', dateToString(tempToDate));
+            setShowToPicker(false);
+          }}
+          message={
+            <DateTimePicker
+              value={tempToDate}
+              mode="date"
+              display="spinner"
+              minimumDate={
+                filters.dateFrom
+                  ? new Date(filters.dateFrom + 'T00:00:00')
+                  : undefined
+              }
+              onChange={(e, date) => {
+                if (date) setTempToDate(date);
+              }}
+              style={{ height: 180 }}
+            />
+          }
+        />
       )}
 
       {/* ════════════════════════════════════════════════════════
           SORT BOTTOM SHEET
       ════════════════════════════════════════════════════════ */}
-      <Modal
+      <BottomSheet
         visible={showSortSheet}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowSortSheet(false)}
+        onClose={() => setShowSortSheet(false)}
+        title="Sort By"
+        maxHeight={440}
       >
-        <View style={styles.sheetOverlay}>
-          <TouchableOpacity
-            style={styles.sheetBackdrop}
-            activeOpacity={1}
-            onPress={() => setShowSortSheet(false)}
-          />
-          <View style={[styles.sheet, { maxHeight: 440 }]}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Sort By</Text>
-              <TouchableOpacity onPress={() => setShowSortSheet(false)}>
-                <Icon name="close" size={22} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              {SORT_OPTIONS.map(opt => {
-                const active = filters.sortBy === opt.value;
-                return (
-                  <TouchableOpacity
-                    key={opt.value}
-                    onPress={() => {
-                      handleFilterChange('sortBy', active ? '' : opt.value);
-                      setShowSortSheet(false);
-                    }}
-                    style={[
-                      styles.sortOption,
-                      active && styles.sortOptionActive,
-                    ]}
-                  >
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 12,
-                      }}
-                    >
-                      <Icon
-                        name={opt.icon}
-                        size={20}
-                        color={active ? ACCENT : '#6b7280'}
-                      />
-                      <Text
-                        style={[
-                          styles.sortOptionText,
-                          active && styles.sortOptionTextActive,
-                        ]}
-                      >
-                        {opt.label}
-                      </Text>
-                    </View>
-                    {active && <Icon name="check" size={20} color={ACCENT} />}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        {SORT_OPTIONS.map(opt => {
+          const active = filters.sortBy === opt.value;
+          return (
+            <TouchableOpacity
+              key={opt.value}
+              onPress={() => {
+                handleFilterChange('sortBy', active ? '' : opt.value);
+                setShowSortSheet(false);
+              }}
+              style={[
+                styles.sortOption,
+                { borderBottomColor: colors.borderLight },
+                active && { backgroundColor: colors.primarySoft },
+              ]}
+            >
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
+              >
+                <Icon
+                  name={opt.icon}
+                  size={20}
+                  color={active ? colors.primary : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    typography.body2,
+                    {
+                      color: active ? colors.primary : colors.textPrimary,
+                      fontWeight: active ? '600' : '400',
+                    },
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+              </View>
+              {active && <Icon name="check" size={20} color={colors.primary} />}
+            </TouchableOpacity>
+          );
+        })}
+      </BottomSheet>
 
       {/* ════════════════════════════════════════════════════════
           BULK ASSIGN MODAL
       ════════════════════════════════════════════════════════ */}
-      <Modal
+      <BottomSheet
         visible={showAssignModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowAssignModal(false)}
+        onClose={() => {
+          setShowAssignModal(false);
+          setBulkAssignUserId('');
+        }}
+        title={`Assign ${selectedIds.size} Lead${
+          selectedIds.size > 1 ? 's' : ''
+        }`}
+        footerLabel="Assign"
+        onFooterPress={handleBulkAssign}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
-              Assign {selectedIds.size} Lead{selectedIds.size > 1 ? 's' : ''}
-            </Text>
-            <ScrollView
-              style={{ maxHeight: 280 }}
-              showsVerticalScrollIndicator={false}
-            >
-              {users.map(u => {
-                const active = bulkAssignUserId === u._id;
-                return (
-                  <TouchableOpacity
-                    key={u._id}
-                    style={[styles.userItem, active && styles.userItemActive]}
-                    onPress={() => setBulkAssignUserId(u._id)}
-                  >
-                    <View
-                      style={[
-                        styles.userAvatar,
-                        active && { backgroundColor: ACCENT },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.userAvatarText,
-                          active && { color: '#fff' },
-                        ]}
-                      >
-                        {getInitials(u.name)}
-                      </Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.userItemText,
-                        active && styles.userItemTextActive,
-                      ]}
-                    >
-                      {u.name}
-                    </Text>
-                    {active && (
-                      <Icon
-                        name="check-circle"
-                        size={18}
-                        color={ACCENT}
-                        style={{ marginLeft: 'auto' }}
-                      />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalBtnCancel}
-                onPress={() => {
-                  setShowAssignModal(false);
-                  setBulkAssignUserId('');
-                }}
-              >
-                <Text style={styles.modalBtnCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalBtnPrimary,
-                  (!bulkAssignUserId || bulkLoading) && { opacity: 0.5 },
-                ]}
-                disabled={!bulkAssignUserId || bulkLoading}
-                onPress={handleBulkAssign}
-              >
-                {bulkLoading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.modalBtnPrimaryText}>Assign</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        <ScrollView
+          style={{ maxHeight: 280 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {users.map(u => (
+            <UserListItem
+              key={u._id}
+              user={u}
+              active={bulkAssignUserId === u._id}
+              onPress={() => setBulkAssignUserId(u._id)}
+            />
+          ))}
+        </ScrollView>
+      </BottomSheet>
 
       {/* ════════════════════════════════════════════════════════
           BULK STATUS MODAL
       ════════════════════════════════════════════════════════ */}
-      <Modal
+      <BottomSheet
         visible={showStatusModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowStatusModal(false)}
+        onClose={() => {
+          setShowStatusModal(false);
+          setBulkStatusValue('');
+        }}
+        title={`Change Status — ${selectedIds.size} Lead${
+          selectedIds.size > 1 ? 's' : ''
+        }`}
+        footerLabel="Update"
+        onFooterPress={handleBulkStatusChange}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
-              Change Status — {selectedIds.size} Lead
-              {selectedIds.size > 1 ? 's' : ''}
-            </Text>
-            <View style={[styles.chipsWrap, { marginTop: 4 }]}>
-              {statusOptions.map(st => {
-                const active = bulkStatusValue === st;
-                const color = getStageColor(st);
-                return (
-                  <TouchableOpacity
-                    key={st}
-                    style={[
-                      styles.chip,
-                      active && {
-                        backgroundColor: color + '18',
-                        borderColor: color,
-                      },
-                    ]}
-                    onPress={() => setBulkStatusValue(st)}
-                  >
-                    <View
-                      style={[styles.chipDot, { backgroundColor: color }]}
-                    />
-                    <Text
-                      style={[
-                        styles.chipText,
-                        active && { color, fontWeight: '600' },
-                      ]}
-                    >
-                      {st}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <View style={styles.modalActions}>
+        <View style={[styles.chipsWrap, { marginTop: 4 }]}>
+          {statusOptions.map(st => {
+            const active = bulkStatusValue === st;
+            const color = getStageColor(st);
+            return (
               <TouchableOpacity
-                style={styles.modalBtnCancel}
-                onPress={() => {
-                  setShowStatusModal(false);
-                  setBulkStatusValue('');
-                }}
-              >
-                <Text style={styles.modalBtnCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+                key={st}
                 style={[
-                  styles.modalBtnPrimary,
-                  (!bulkStatusValue || bulkLoading) && { opacity: 0.5 },
+                  styles.chip,
+                  { borderColor: colors.border },
+                  active && {
+                    backgroundColor: color + '18',
+                    borderColor: color,
+                  },
                 ]}
-                disabled={!bulkStatusValue || bulkLoading}
-                onPress={handleBulkStatusChange}
+                onPress={() => setBulkStatusValue(st)}
               >
-                {bulkLoading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.modalBtnPrimaryText}>Update</Text>
-                )}
+                <View style={[styles.chipDot, { backgroundColor: color }]} />
+                <Text
+                  style={[
+                    styles.chipText,
+                    {
+                      color: active ? color : colors.textSecondary,
+                      fontWeight: active ? '600' : '500',
+                    },
+                  ]}
+                >
+                  {st}
+                </Text>
               </TouchableOpacity>
-            </View>
-          </View>
+            );
+          })}
         </View>
-      </Modal>
+      </BottomSheet>
 
       {/* ════════════════════════════════════════════════════════
           BULK PRIORITY MODAL
       ════════════════════════════════════════════════════════ */}
-      <Modal
+      <BottomSheet
         visible={showPriorityModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowPriorityModal(false)}
+        onClose={() => {
+          setShowPriorityModal(false);
+          setBulkPriorityValue('');
+        }}
+        title={`Change Priority — ${selectedIds.size} Lead${
+          selectedIds.size > 1 ? 's' : ''
+        }`}
+        footerLabel="Update"
+        onFooterPress={handleBulkPriorityChange}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
-              Change Priority — {selectedIds.size} Lead
-              {selectedIds.size > 1 ? 's' : ''}
-            </Text>
-            <View style={[styles.chipsWrap, { marginTop: 4 }]}>
-              {PRIORITY_OPTIONS.map(p => {
-                const active = bulkPriorityValue === p;
-                const pc = getPriorityColor(p);
-                return (
-                  <TouchableOpacity
-                    key={p}
-                    style={[
-                      styles.chip,
-                      active && {
-                        backgroundColor: pc.bg,
-                        borderColor: pc.text,
-                      },
-                    ]}
-                    onPress={() => setBulkPriorityValue(p)}
-                  >
-                    <Icon
-                      name={
-                        p === 'Urgent'
-                          ? 'alert-circle'
-                          : p === 'High'
-                          ? 'arrow-up-circle'
-                          : 'minus-circle'
-                      }
-                      size={14}
-                      color={active ? pc.text : '#9ca3af'}
-                    />
-                    <Text
-                      style={[
-                        styles.chipText,
-                        active && { color: pc.text, fontWeight: '600' },
-                      ]}
-                    >
-                      {p}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <View style={styles.modalActions}>
+        <View style={[styles.chipsWrap, { marginTop: 4 }]}>
+          {PRIORITY_OPTIONS.map(p => {
+            const active = bulkPriorityValue === p;
+            const pc = getPriorityColor(p);
+            return (
               <TouchableOpacity
-                style={styles.modalBtnCancel}
-                onPress={() => {
-                  setShowPriorityModal(false);
-                  setBulkPriorityValue('');
-                }}
-              >
-                <Text style={styles.modalBtnCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+                key={p}
                 style={[
-                  styles.modalBtnPrimary,
-                  (!bulkPriorityValue || bulkLoading) && { opacity: 0.5 },
+                  styles.chip,
+                  { borderColor: colors.border },
+                  active && { backgroundColor: pc.bg, borderColor: pc.text },
                 ]}
-                disabled={!bulkPriorityValue || bulkLoading}
-                onPress={handleBulkPriorityChange}
+                onPress={() => setBulkPriorityValue(p)}
               >
-                {bulkLoading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.modalBtnPrimaryText}>Update</Text>
-                )}
+                <Icon
+                  name={
+                    p === 'Urgent'
+                      ? 'alert-circle'
+                      : p === 'High'
+                      ? 'arrow-up-circle'
+                      : 'minus-circle'
+                  }
+                  size={14}
+                  color={active ? pc.text : colors.textTertiary}
+                />
+                <Text
+                  style={[
+                    styles.chipText,
+                    {
+                      color: active ? pc.text : colors.textSecondary,
+                      fontWeight: active ? '600' : '500',
+                    },
+                  ]}
+                >
+                  {p}
+                </Text>
               </TouchableOpacity>
-            </View>
-          </View>
+            );
+          })}
         </View>
-      </Modal>
+      </BottomSheet>
 
       {/* ── Delete single ── */}
-      {deleteLeadModal && (
-        <DeleteModal
-          isOpen
-          onClose={() => setDeleteLeadModal(null)}
-          onConfirm={confirmDeleteLead}
-          title="Delete Lead"
-          message="Are you sure you want to delete this lead? This action cannot be undone."
-        />
-      )}
+      <ConfirmDialog
+        visible={!!deleteLeadModal}
+        onClose={() => setDeleteLeadModal(null)}
+        onConfirm={confirmDeleteLead}
+        title="Delete Lead"
+        message="Are you sure you want to delete this lead? This action cannot be undone."
+        loading={bulkLoading}
+      />
 
       {/* ── Bulk delete ── */}
-      <DeleteModal
-        isOpen={showBulkDeleteModal}
+      <ConfirmDialog
+        visible={showBulkDeleteModal}
         onClose={() => setShowBulkDeleteModal(false)}
         onConfirm={handleBulkDelete}
         title="Delete Selected Leads"
         message={`Delete ${selectedIds.size} selected lead(s)? This cannot be undone.`}
+        loading={bulkLoading}
       />
 
       {/* ── Lead Form ── */}
@@ -2100,532 +1935,155 @@ const LeadsScreen = () => {
 };
 
 // ─────────────────────────────────────────────────────────────
-const createStyles = colors =>
-  StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: colors.bg },
-    container: { flex: 1 },
-
-    // Header
-    header: {
-      backgroundColor: colors.surface,
-      paddingHorizontal: 14,
-      paddingTop: 12,
-      paddingBottom: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      gap: 10,
-    },
-    headerTop: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    headerTitle: { fontSize: 22, fontWeight: '700', color: colors.textPrimary },
-    headerSubtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    iconBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    iconBtnActive: {
-      backgroundColor: colors.accent,
-      borderColor: colors.accent,
-    },
-    addBtn: {
-      height: 38,
-      paddingHorizontal: 14,
-      borderRadius: 10,
-      backgroundColor: colors.accent,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 4,
-    },
-    addBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
-
-    // Search
-    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    searchBox: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      height: 40,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surfaceAlt,
-      paddingHorizontal: 10,
-      gap: 6,
-    },
-    searchInput: {
-      flex: 1,
-      fontSize: 14,
-      color: colors.textPrimary,
-      paddingVertical: 0,
-    },
-    filterIconBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    filterIconBtnActive: {
-      backgroundColor: colors.accent,
-      borderColor: colors.accent,
-    },
-    filterBadge: {
-      position: 'absolute',
-      top: -4,
-      right: -4,
-      width: 18,
-      height: 18,
-      borderRadius: 9,
-      backgroundColor: colors.danger,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    filterBadgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
-
-    // Active badges
-    activeBadgesRow: { gap: 8, paddingTop: 2, alignItems: 'center' },
-    activeBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 5,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      borderRadius: 16,
-      backgroundColor: colors.surfaceAlt,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    badgeDot: { width: 8, height: 8, borderRadius: 4 },
-    activeBadgeText: { fontSize: 11, fontWeight: '600', color: colors.accent },
-    clearAllBadge: { paddingHorizontal: 6, paddingVertical: 5 },
-    clearAllBadgeText: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: colors.danger,
-    },
-
-    // Toolbar
-    toolbar: {
-      backgroundColor: colors.surfaceAlt,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      minHeight: 40,
-      justifyContent: 'center',
-    },
-    toolbarNormal: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 14,
-      paddingVertical: 6,
-      gap: 10,
-    },
-    bulkBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 14,
-      paddingVertical: 6,
-      gap: 8,
-    },
-    selectedBadge: {
-      backgroundColor: colors.surfaceAlt,
-      borderRadius: 20,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-    },
-    selectedBadgeText: {
-      fontSize: 12,
-      fontWeight: '600',
-      color: colors.accent,
-    },
-    bulkBtn: {
-      paddingHorizontal: 12,
-      paddingVertical: 5,
-      borderRadius: 8,
-      borderWidth: 1,
-    },
-    bulkBtnBlue: {
-      borderColor: colors.accent,
-      backgroundColor: colors.surfaceAlt,
-    },
-    bulkBtnRed: {
-      borderColor: 'rgba(220,38,38,0.2)',
-      backgroundColor: 'rgba(255,240,240,0.7)',
-    },
-    bulkBtnGreen: {
-      borderColor: 'rgba(16,185,129,0.2)',
-      backgroundColor: 'rgba(240,255,248,0.7)',
-    },
-    bulkBtnOrange: {
-      borderColor: 'rgba(250,184,118,0.2)',
-      backgroundColor: 'rgba(255,247,237,0.7)',
-    },
-    bulkBtnBlueText: { fontSize: 12, fontWeight: '500', color: colors.accent },
-    bulkBtnRedText: { fontSize: 12, fontWeight: '500', color: colors.danger },
-    bulkBtnGreenText: {
-      fontSize: 12,
-      fontWeight: '500',
-      color: colors.success,
-    },
-    bulkBtnOrangeText: { fontSize: 12, fontWeight: '500', color: '#ea580c' },
-    selectAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    checkbox: {
-      width: 18,
-      height: 18,
-      borderRadius: 4,
-      borderWidth: 1.5,
-      borderColor: colors.inputBorder,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    checkboxSelected: {
-      backgroundColor: colors.accent,
-      borderColor: colors.accent,
-    },
-    checkmark: { color: '#fff', fontSize: 11, fontWeight: '700' },
-    selectAllText: { fontSize: 12, color: colors.textSecondary },
-    totalText: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      marginLeft: 'auto',
-    },
-    clearFiltersText: { fontSize: 12, color: colors.danger, fontWeight: '500' },
-
-    listContainer: { flex: 1 },
-
-    // Shared modal
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 20,
-    },
-    modalCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 20,
-      width: '100%',
-      maxWidth: 380,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 16,
-      elevation: 8,
-    },
-    modalTitle: {
-      fontSize: 16,
-      fontWeight: '700',
-      color: colors.textPrimary,
-      marginBottom: 12,
-    },
-    modalMessage: {
-      fontSize: 13,
-      color: colors.textSecondary,
-      marginBottom: 20,
-      lineHeight: 20,
-    },
-    modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
-    modalBtnCancel: {
-      flex: 1,
-      height: 42,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.inputBorder,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    modalBtnCancelText: {
-      fontSize: 13,
-      fontWeight: '500',
-      color: colors.textPrimary,
-    },
-    modalBtnDanger: {
-      flex: 1,
-      height: 42,
-      borderRadius: 10,
-      backgroundColor: colors.danger,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    modalBtnDangerText: { fontSize: 13, fontWeight: '600', color: '#fff' },
-    modalBtnPrimary: {
-      flex: 1,
-      height: 42,
-      borderRadius: 10,
-      backgroundColor: colors.accent,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    modalBtnPrimaryText: { fontSize: 13, fontWeight: '600', color: '#fff' },
-
-    // Bottom sheet
-    sheetOverlay: {
-      flex: 1,
-      justifyContent: 'flex-end',
-      backgroundColor: 'rgba(0,0,0,0.4)',
-    },
-    sheetBackdrop: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-    },
-    sheet: {
-      backgroundColor: colors.surface,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      maxHeight: '88%',
-      paddingBottom: Platform.OS === 'ios' ? 30 : 16,
-    },
-    sheetHandle: {
-      width: 40,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: colors.inputBorder,
-      alignSelf: 'center',
-      marginTop: 10,
-      marginBottom: 4,
-    },
-    sheetHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    sheetHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-    sheetTitle: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
-    clearAllText: { fontSize: 12, fontWeight: '500', color: colors.danger },
-    sheetBody: { paddingHorizontal: 16, paddingTop: 8 },
-    sheetFooter: { paddingHorizontal: 16, paddingTop: 12 },
-    applyBtn: {
-      height: 46,
-      borderRadius: 12,
-      backgroundColor: colors.accent,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    applyBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
-
-    filterLabel: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: colors.textMuted,
-      letterSpacing: 0.8,
-      marginBottom: 8,
-      marginTop: 20,
-    },
-
-    // Chips
-    chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    chip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 5,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-    },
-    chipActive: {
-      borderColor: colors.accent,
-      backgroundColor: colors.surfaceAlt,
-    },
-    chipText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
-    chipTextActive: { color: colors.accent, fontWeight: '600' },
-    chipDot: { width: 8, height: 8, borderRadius: 4 },
-
-    // Date row
-    dateRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginTop: 4,
-    },
-    dateBtn: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      height: 44,
-      paddingHorizontal: 12,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surfaceAlt,
-    },
-    dateBtnActive: {
-      borderColor: colors.accent,
-      backgroundColor: colors.surfaceAlt,
-    },
-    dateBtnText: { fontSize: 13, color: colors.textMuted },
-    dateBtnTextActive: {
-      fontSize: 13,
-      color: colors.textPrimary,
-      fontWeight: '500',
-    },
-
-    dateRangeInfo: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginTop: 10,
-    },
-    dateRangeDisplay: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      paddingHorizontal: 12,
-      paddingVertical: 7,
-      backgroundColor: colors.surfaceAlt,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    dateRangeText: { fontSize: 12, color: colors.accent, fontWeight: '500' },
-    clearDateBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      padding: 4,
-    },
-    clearDateText: { fontSize: 12, color: colors.danger, fontWeight: '500' },
-
-    // Date modal
-    dateModalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 24,
-    },
-    dateModalCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 20,
-      width: '100%',
-      maxWidth: 340,
-    },
-    dateModalTitle: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: colors.textPrimary,
-      textAlign: 'center',
-      marginBottom: 8,
-    },
-    dateModalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-    dateModalBtnCancel: {
-      flex: 1,
-      height: 42,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.inputBorder,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    dateModalBtnCancelText: {
-      fontSize: 14,
-      fontWeight: '500',
-      color: colors.textPrimary,
-    },
-    dateModalBtnDone: {
-      flex: 1,
-      height: 42,
-      borderRadius: 10,
-      backgroundColor: colors.accent,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    dateModalBtnDoneText: { fontSize: 14, fontWeight: '600', color: '#fff' },
-
-    // User list
-    userSearchBox: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      height: 38,
-      paddingHorizontal: 10,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surfaceAlt,
-      marginBottom: 6,
-    },
-    userSearchInput: {
-      flex: 1,
-      fontSize: 13,
-      color: colors.textPrimary,
-      paddingVertical: 0,
-    },
-    userList: {
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.closeIconBg || colors.border,
-      overflow: 'hidden',
-      backgroundColor: colors.surface,
-      maxHeight: 220,
-    },
-    userItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      gap: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.surfaceAlt,
-    },
-    userItemActive: { backgroundColor: colors.surfaceAlt },
-    userItemText: { fontSize: 13, color: colors.textPrimary },
-    userItemTextActive: { color: colors.accent, fontWeight: '600' },
-    userItemEmail: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
-    userAvatar: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: colors.closeIconBg,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    userAvatarText: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: colors.textSecondary,
-    },
-    emptySearch: { padding: 16, alignItems: 'center' },
-    emptySearchText: { fontSize: 13, color: colors.textMuted },
-
-    // Sort sheet
-    sortOption: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.surfaceAlt,
-    },
-    sortOptionActive: { backgroundColor: colors.surfaceAlt },
-    sortOptionText: { fontSize: 14, color: colors.textPrimary },
-    sortOptionTextActive: { color: colors.accent, fontWeight: '600' },
-  });
+const styles = StyleSheet.create({
+  safeArea: { flex: 1 },
+  container: { flex: 1 },
+  header: {
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    gap: 10,
+  },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  searchBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 40,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    gap: 6,
+  },
+  searchInput: { flex: 1, paddingVertical: 0 },
+  filterIconBtn: {
+    width: 40,
+    height: 40,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+  activeBadgesRow: { gap: 8, paddingTop: 2, alignItems: 'center' },
+  toolbar: { borderBottomWidth: 1, minHeight: 40, justifyContent: 'center' },
+  toolbarNormal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    gap: 10,
+  },
+  bulkBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    gap: 8,
+  },
+  selectedBadge: {
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  selectAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkmark: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  listContainer: { flex: 1 },
+  // Filter sheet
+  filterLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    marginTop: 20,
+  },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  chipText: { fontSize: 13, fontWeight: '500' },
+  chipDot: { width: 8, height: 8, borderRadius: 4 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  dateBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 44,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+  },
+  dateRangeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  dateRangeDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1,
+  },
+  clearDateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 4,
+  },
+  userSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 38,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    marginBottom: 6,
+  },
+  userSearchInput: { flex: 1, fontSize: 13, paddingVertical: 0 },
+  userList: { borderWidth: 1, overflow: 'hidden', maxHeight: 220 },
+  userItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+    borderBottomWidth: 1,
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+});
 
 export default LeadsScreen;

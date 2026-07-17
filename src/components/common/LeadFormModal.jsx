@@ -12,36 +12,46 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
+  Pressable,
   StyleSheet,
   Alert,
   ActivityIndicator,
   Platform,
   Linking,
-  Dimensions,
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useTheme } from '../../contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { pick } from '@react-native-documents/picker';
 import Video from 'react-native-video';
 import axios from 'axios';
 
+// ── UI Kit ──
+import { useUISystem } from '../../hooks/useUISystem';
+import { FormField, FieldBlock, FormRow } from '../ui/FormField';
+import FormSection from '../ui/FormSection';
+import ImprovedTextInput from '../ui/ImprovedTextInput';
+import ImprovedButton from '../ui/ImprovedButton';
+import ImprovedDropdown from '../ui/ImprovedDropdown';
+import CheckboxRow from '../ui/CheckboxRow';
+import DateField, { DateTimeFieldTrigger } from '../ui/DateField';
+import EmptyState from '../ui/EmptyState';
+import IconButton from '../ui/IconButton';
+import Avatar from '../ui/Avatar';
+
+// ── App components ──
 import CustomPhoneInput from '../ui/PhoneInput.jsx';
-import CustomDropdown from '../ui/CustomDropdown.jsx';
 import MultiSelect from '../ui/MultiSelect';
 import CrossSellTab from './Crossselltab';
 import PaymentHistoryItem from '../common/LeadFormModel/PaymentHistoryItem.jsx';
 import api from '../../services/api.js';
 import CallLogCard from '../../services/callLogCard.js';
 
-// ── Shims ──
-const toast = {
-  success: msg => Alert.alert('Success', String(msg)),
-  error: msg => Alert.alert('Error', String(msg)),
-};
+// ── Toast (uses CustomToast via useToast hook) ──
+// Fallback to Alert.alert if ToastProvider is not wrapped
+import { useToast as useKitToast } from '../ui/CustomToast';
 
 // ── Constants ──
 const DEFAULT_STATUS_OPTIONS = [
@@ -86,7 +96,6 @@ const ALL_CROSS_SELL_SERVICES = [
   'Trade Mark',
   'IEC Code',
 ];
-
 const TABS = [
   'Profile',
   'Assign',
@@ -111,6 +120,7 @@ const toInputDate = d => {
   const day = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 };
+
 const toInputTime = d => {
   const date = new Date(d);
   return `${String(date.getHours()).padStart(2, '0')}:${String(
@@ -119,72 +129,8 @@ const toInputTime = d => {
 };
 
 // ════════════════════════════════════════════════════════════════
-//  FORM HELPERS - DEFINED OUTSIDE TO PREVENT RE-CREATION
+// DateTimeField — uses kit DateField internally
 // ════════════════════════════════════════════════════════════════
-const FormRow = React.memo(({ children, columns = 1 }) => (
-  <View
-    style={[
-      { gap: 14 },
-      columns === 2 && { flexDirection: 'row', gap: 14 },
-      columns === 3 && { flexDirection: 'row', gap: 10 },
-    ]}
-  >
-    {children}
-  </View>
-));
-
-const FieldBlock = React.memo(({ label, required = false, children }) => {
-  const { isDark } = useTheme();
-  const labelColor = isDark ? '#f1f5f9' : '#374151';
-  const requiredColor = '#ef4444';
-  return (
-    <View style={{ flex: 1 }}>
-      <Text
-        style={{
-          fontSize: 13,
-          fontWeight: '600',
-          color: labelColor,
-          marginBottom: 6,
-        }}
-      >
-        {label}{' '}
-        {required ? <Text style={{ color: requiredColor }}>*</Text> : null}
-      </Text>
-      {children}
-    </View>
-  );
-});
-
-// ════════════════════════════════════════════════════════════════
-//  Native FieldPicker replaced by shared CustomDropdown wrapper
-// ════════════════════════════════════════════════════════════════
-const FieldPicker = React.memo(
-  ({ value, options, onChange, emptyLabel, disabled }) => {
-    const normalizedOptions = Array.isArray(options)
-      ? options.map(opt => {
-          const val = typeof opt === 'object' ? opt.value ?? opt : opt;
-          const label =
-            typeof opt === 'object'
-              ? opt.label ?? opt.value ?? opt
-              : String(opt);
-          return { value: val, label };
-        })
-      : [];
-
-    return (
-      <CustomDropdown
-        value={value}
-        onChange={onChange}
-        options={normalizedOptions}
-        placeholder={emptyLabel || 'Select'}
-        disabled={disabled}
-        searchable={false}
-        showSelectedCount={false}
-      />
-    );
-  },
-);
-
 const DateTimeField = React.memo(
   ({
     value,
@@ -208,32 +154,11 @@ const DateTimeField = React.memo(
 
     return (
       <View>
-        <TouchableOpacity
+        <DateField
+          value={value}
+          mode={mode}
           onPress={() => setPickerTargets(p => ({ ...p, [openKey]: mode }))}
-          style={[
-            dtfStyles.btn,
-            {
-              borderColor: useTheme().isDark
-                ? 'rgba(255,255,255,0.06)'
-                : '#d1d5db',
-              backgroundColor: useTheme().isDark ? '#111827' : '#fff',
-            },
-          ]}
-        >
-          <Text
-            style={[
-              dtfStyles.text,
-              { color: useTheme().isDark ? '#f1f5f9' : '#111827' },
-            ]}
-          >
-            {value || (mode === 'time' ? 'Select time' : 'Select date')}
-          </Text>
-          <Icon
-            name={mode === 'time' ? 'clock-outline' : 'calendar'}
-            size={16}
-            color={useTheme().isDark ? '#94a3b8' : '#64748b'}
-          />
-        </TouchableOpacity>
+        />
         {open ? (
           <DateTimePicker
             value={parseValue()}
@@ -258,25 +183,11 @@ const DateTimeField = React.memo(
   },
 );
 
-const dtfStyles = StyleSheet.create({
-  btn: {
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  text: { fontSize: 13, color: '#111827' },
-});
-
 // ════════════════════════════════════════════════════════════════
-// SuccessServiceSelector (same as before - no changes)
+// SuccessServiceSelector
 // ════════════════════════════════════════════════════════════════
-const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
+const SuccessServiceSelector = ({ lead, onSaved, isSuccess, toast }) => {
+  const { colors, typography, spacing, borderRadius } = useUISystem();
   const [availableServices, setAvailableServices] = useState(
     ALL_CROSS_SELL_SERVICES,
   );
@@ -287,9 +198,6 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
   const [reactivationTime, setReactivationTime] = useState('09:00');
   const [saving, setSaving] = useState(false);
   const [pickerTarget, setPickerTarget] = useState(null);
-
-  const { isDark } = useTheme();
-  const ss = useMemo(() => createSs(isDark), [isDark]);
 
   useEffect(() => {
     if (!lead?._id) return;
@@ -357,58 +265,42 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
   };
 
   return (
-    <View style={ss.container}>
-      <View>
-        <Text style={ss.sectionTitle}>Select Services</Text>
-        <View style={ss.servicesList}>
-          {availableServices.map(svc => {
-            const checked = selectedServices.includes(svc);
-            return (
-              <TouchableOpacity
-                key={svc}
-                onPress={() => toggleService(svc)}
-                style={[ss.serviceRow, checked && ss.serviceRowChecked]}
-                activeOpacity={0.8}
-              >
-                <View style={[ss.checkbox, checked && ss.checkboxChecked]}>
-                  {checked ? (
-                    <Icon name="check" size={11} color="#fff" />
-                  ) : null}
-                </View>
-                <Text style={ss.serviceLabel}>{svc}</Text>
-              </TouchableOpacity>
-            );
-          })}
+    <View style={{ gap: spacing.lg }}>
+      <FormSection title="Select Services">
+        <View style={{ gap: spacing.sm }}>
+          {availableServices.map(svc => (
+            <CheckboxRow
+              key={svc}
+              label={svc}
+              checked={selectedServices.includes(svc)}
+              onPress={() => toggleService(svc)}
+            />
+          ))}
         </View>
-      </View>
+      </FormSection>
 
-      <View>
-        <Text style={ss.sectionTitle}>Reactivation Date & Time</Text>
-        <Text style={ss.sectionHint}>
-          On this date and time, the lead will automatically move to "New".
-        </Text>
-        <View style={ss.dateTimeRow}>
-          <TouchableOpacity
-            onPress={() => setPickerTarget('date')}
-            style={ss.dateTimeBtn}
-          >
-            <Icon name="calendar" size={16} color="#64748b" />
-            <Text style={ss.dateTimeText}>
-              {reactivationDate || 'Select date'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setPickerTarget('time')}
-            style={[ss.dateTimeBtn, { width: 128 }]}
-          >
-            <Icon name="clock-outline" size={16} color="#64748b" />
-            <Text style={ss.dateTimeText}>
-              {reactivationTime || 'Select time'}
-            </Text>
-          </TouchableOpacity>
+      <FormSection
+        title="Reactivation Date & Time"
+        description="On this date and time, the lead will automatically move to 'New'."
+      >
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <View style={{ flex: 1 }}>
+            <DateField
+              value={reactivationDate}
+              placeholder="Select date"
+              onPress={() => setPickerTarget('date')}
+            />
+          </View>
+          <View style={{ width: 128 }}>
+            <DateField
+              value={reactivationTime}
+              mode="time"
+              placeholder="Select time"
+              onPress={() => setPickerTarget('time')}
+            />
+          </View>
         </View>
-
-        {pickerTarget === 'date' ? (
+        {pickerTarget === 'date' && (
           <DateTimePicker
             value={
               reactivationDate
@@ -427,8 +319,8 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
               if (selectedDate) setReactivationDate(toInputDate(selectedDate));
             }}
           />
-        ) : null}
-        {pickerTarget === 'time' ? (
+        )}
+        {pickerTarget === 'time' && (
           <DateTimePicker
             value={
               reactivationTime
@@ -446,102 +338,25 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess }) => {
               if (selectedDate) setReactivationTime(toInputTime(selectedDate));
             }}
           />
-        ) : null}
-      </View>
-
-      <TouchableOpacity
-        disabled={saving || selectedServices.length === 0 || !reactivationDate}
-        onPress={handleSave}
-        style={[
-          ss.saveBtn,
-          (saving || selectedServices.length === 0 || !reactivationDate) &&
-            ss.disabled,
-        ]}
-      >
-        {saving ? (
-          <ActivityIndicator color="#fff" size="small" />
-        ) : (
-          <Text style={ss.saveBtnText}>
-            {selectedServices.length > 0
-              ? `Save (${selectedServices.length} service${
-                  selectedServices.length > 1 ? 's' : ''
-                })`
-              : 'Please select services first'}
-          </Text>
         )}
-      </TouchableOpacity>
+      </FormSection>
+
+      <ImprovedButton
+        title={
+          selectedServices.length > 0
+            ? `Save (${selectedServices.length} service${
+                selectedServices.length > 1 ? 's' : ''
+              })`
+            : 'Please select services first'
+        }
+        onPress={handleSave}
+        loading={saving}
+        disabled={saving || selectedServices.length === 0 || !reactivationDate}
+        fullWidth
+        size="large"
+      />
     </View>
   );
-};
-
-const createSs = isDark => {
-  const textPrimary = isDark ? '#f1f5f9' : '#0f172a';
-  const textSecondary = isDark ? '#94a3b8' : '#6b7280';
-  const inputBg = isDark ? '#111827' : '#fff';
-  const inputBorder = isDark ? 'rgba(255,255,255,0.06)' : '#d1d5db';
-  const closeIconBg = isDark ? '#0f172a' : '#f3f4f6';
-  const tabActive = '#5a7bf6';
-  return StyleSheet.create({
-    container: { gap: 16 },
-    sectionTitle: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: textPrimary,
-      marginBottom: 10,
-    },
-    sectionHint: { fontSize: 11, color: textSecondary, marginBottom: 8 },
-    servicesList: { gap: 8 },
-    serviceRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      paddingVertical: 10,
-      paddingHorizontal: 14,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: inputBorder,
-    },
-    serviceRowChecked: {
-      borderColor: tabActive,
-      borderWidth: 1.5,
-      backgroundColor: 'rgba(37,99,235,0.06)',
-    },
-    checkbox: {
-      width: 18,
-      height: 18,
-      borderRadius: 5,
-      borderWidth: 2,
-      borderColor: inputBorder,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    checkboxChecked: { borderColor: tabActive, backgroundColor: tabActive },
-    serviceLabel: { fontSize: 13, fontWeight: '500', color: textPrimary },
-    dateTimeRow: { flexDirection: 'row', gap: 8 },
-    dateTimeBtn: {
-      flex: 1,
-      height: 44,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: inputBorder,
-      backgroundColor: inputBg,
-      paddingHorizontal: 12,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    dateTimeText: { fontSize: 13, color: textPrimary },
-    saveBtn: {
-      borderRadius: 12,
-      backgroundColor: tabActive,
-      paddingVertical: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: 8,
-    },
-    saveBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-    disabled: { opacity: 0.5 },
-  });
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -563,6 +378,13 @@ const LeadFormModal = ({
   settings = {},
   initialTab = 'Profile',
 }) => {
+  const { colors, typography, spacing, borderRadius, elevation, isDark } =
+    useUISystem();
+  const insets = useSafeAreaInsets();
+
+  // Toast — uses CustomToast (ToastProvider must be in App.js)
+  const toast = useKitToast();
+
   const [activeTab, setActiveTab] = useState(initialTab || 'Profile');
   const [submitting, setSubmitting] = useState(false);
   const [activeActivityType, setActiveActivityType] = useState('Note');
@@ -570,7 +392,6 @@ const LeadFormModal = ({
   const [uploadingRec, setUploadingRec] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [savedRecordings, setSavedRecordings] = useState([]);
-
   const [playingUrl, setPlayingUrl] = useState(null);
   const [paymentHistory, setPaymentHistory] = useState(
     Array.isArray(lead?.payments) ? lead.payments : [],
@@ -591,26 +412,6 @@ const LeadFormModal = ({
     Task: { _id: '', text: '', dueDate: '', assignedTo: '', notify: '' },
   });
 
-  const insets = useSafeAreaInsets();
-
-  const { isDark } = useTheme();
-  const colors = useMemo(
-    () => ({
-      modalBg: isDark ? '#0f172a' : '#fff',
-      border: isDark ? '#334155' : '#e5e7eb',
-      textPrimary: isDark ? '#f1f5f9' : '#111827',
-      textSecondary: isDark ? '#94a3b8' : '#6b7280',
-      textMuted: isDark ? '#9ca3af' : '#9ca3af',
-      inputBg: isDark ? '#111827' : '#fff',
-      inputBorder: isDark ? 'rgba(255,255,255,0.06)' : '#d1d5db',
-      closeIconBg: isDark ? '#0f172a' : '#f3f4f6',
-      tabActive: '#5a7bf6',
-    }),
-    [isDark],
-  );
-
-  const styles = useMemo(() => createStyles(colors), [colors]);
-
   const customColumns = Array.isArray(settings?.customColumns)
     ? settings.customColumns
     : [];
@@ -621,6 +422,14 @@ const LeadFormModal = ({
     ? sourceOptions
     : DEFAULT_SOURCE_OPTIONS;
   const canManageAssignment = canAssignLead || canChangeLeadOwner;
+
+  const statusItems = defaultStatusOptions.map(s => ({ value: s, label: s }));
+  const sourceItems = defaultSourceOptions.map(s => ({ value: s, label: s }));
+  const priorityItems = PRIORITY_OPTIONS.map(p => ({ value: p, label: p }));
+  const userItems = users.map(u => ({ value: u._id, label: u.name }));
+  const paymentModeItems = PAYMENT_MODES.map(m => ({ value: m, label: m }));
+  const paymentStatusItems = PAYMENT_STATUS.map(s => ({ value: s, label: s }));
+  const reminderTypeItems = REMINDER_TYPES.map(r => ({ value: r, label: r }));
 
   const [form, setForm] = useState({
     name: '',
@@ -723,14 +532,15 @@ const LeadFormModal = ({
           const aDate = new Date(a.reminderDate || a.createdAt || 0);
           const bDate = new Date(b.reminderDate || b.createdAt || 0);
           if (bDate.getTime() !== aDate.getTime()) return bDate - aDate;
-          const aTime = a.reminderTime || '00:00';
-          const bTime = b.reminderTime || '00:00';
-          return bTime.localeCompare(aTime);
+          return (b.reminderTime || '00:00').localeCompare(
+            a.reminderTime || '00:00',
+          );
         })[0]
       : null;
 
     const getUserId = user =>
       typeof user === 'string' ? user : user?._id || user?.id || '';
+
     const typeMap = {};
     if (Array.isArray(lead.activities)) {
       [...lead.activities]
@@ -826,6 +636,7 @@ const LeadFormModal = ({
           ? getUserId(latestReminder.notifyUsers[0])
           : '',
     });
+
     setSavedRecordings(lead.recordings?.length ? lead.recordings : []);
     setActiveTab(initialTab || 'Profile');
   }, [visible, lead]);
@@ -842,13 +653,11 @@ const LeadFormModal = ({
     );
   };
 
-  // ✅ useCallback se wrap kiya - reference same rahega
   const handleChange = useCallback((key, value) => {
     setForm(prev => {
       const nextForm = { ...prev, [key]: value };
-      if (key === 'assignedTo') {
+      if (key === 'assignedTo')
         nextForm.coAssignees = prev.coAssignees.filter(id => id !== value);
-      }
       return nextForm;
     });
   }, []);
@@ -864,6 +673,7 @@ const LeadFormModal = ({
     setActivities(prev => ({ ...prev, [type]: { ...prev[type], [key]: val } }));
   }, []);
 
+  // ── buildPayload (unchanged logic) ──
   const buildPayload = () => {
     const payload = {
       name: form.name.trim(),
@@ -889,7 +699,6 @@ const LeadFormModal = ({
         ? form.coAssignees
         : undefined,
     };
-
     if (!lead) payload.assignedTo = form.assignedTo || undefined;
     else {
       const originalAssignee = getLeadAssignee(lead);
@@ -898,19 +707,18 @@ const LeadFormModal = ({
     }
 
     const activitiesPayload = [];
-    if (activities.Note.text.trim() || activities.Note._id) {
+    if (activities.Note.text.trim() || activities.Note._id)
       activitiesPayload.push({
         _id: activities.Note._id || undefined,
         type: 'Note',
         text: activities.Note.text.trim(),
         notifiedUsers: activities.Note.notify ? [activities.Note.notify] : [],
       });
-    }
     if (
       activities.Call.text.trim() ||
       activities.Call.duration.trim() ||
       activities.Call._id
-    ) {
+    )
       activitiesPayload.push({
         _id: activities.Call._id || undefined,
         type: 'Call',
@@ -920,16 +728,14 @@ const LeadFormModal = ({
         callOutcome: activities.Call.outcome,
         notifiedUsers: activities.Call.notify ? [activities.Call.notify] : [],
       });
-    }
-    if (activities.Email.text.trim() || activities.Email._id) {
+    if (activities.Email.text.trim() || activities.Email._id)
       activitiesPayload.push({
         _id: activities.Email._id || undefined,
         type: 'Email',
         text: activities.Email.text.trim(),
         notifiedUsers: activities.Email.notify ? [activities.Email.notify] : [],
       });
-    }
-    if (activities.Meeting.text.trim() || activities.Meeting._id) {
+    if (activities.Meeting.text.trim() || activities.Meeting._id)
       activitiesPayload.push({
         _id: activities.Meeting._id || undefined,
         type: 'Meeting',
@@ -938,12 +744,11 @@ const LeadFormModal = ({
           ? [activities.Meeting.notify]
           : [],
       });
-    }
     if (
       activities.Task.text.trim() ||
       activities.Task.dueDate ||
       activities.Task._id
-    ) {
+    )
       activitiesPayload.push({
         _id: activities.Task._id || undefined,
         type: 'Task',
@@ -952,15 +757,13 @@ const LeadFormModal = ({
         taskAssignedTo: activities.Task.assignedTo || undefined,
         notifiedUsers: activities.Task.notify ? [activities.Task.notify] : [],
       });
-    }
     if (activitiesPayload.length > 0) payload.activities = activitiesPayload;
 
     payload.recording = {
       label: form.recordingLabel.trim() || '',
       url: form.recordingUrl.trim() || '',
     };
-
-    if (form.paymentAmount.trim()) {
+    if (form.paymentAmount.trim())
       payload.payment = {
         amount: Number(form.paymentAmount),
         paymentMode: form.paymentMode,
@@ -968,10 +771,9 @@ const LeadFormModal = ({
         reference: form.paymentReference.trim() || undefined,
         paymentDate: form.paymentDate || undefined,
       };
-    }
-
     if (customColumns.length) payload.customFields = { ...form.customFields };
 
+    // Reminder logic
     const existingReminder = lead?.reminders?.find(r => !r.isDone) || null;
     const existingReminderDate = existingReminder?.reminderDate
       ? new Date(existingReminder.reminderDate).toISOString().split('T')[0]
@@ -986,11 +788,8 @@ const LeadFormModal = ({
       existingReminder?.notifyUsers?.length > 0
         ? typeof existingReminder.notifyUsers[0] === 'string'
           ? existingReminder.notifyUsers[0]
-          : existingReminder.notifyUsers[0]?._id ||
-            existingReminder.notifyUsers[0]?.id ||
-            ''
+          : existingReminder.notifyUsers[0]?._id || ''
         : '';
-
     const reminderChanged = !lead
       ? Boolean(form.reminderDate)
       : String(form.reminderType || 'Call') !==
@@ -1005,7 +804,6 @@ const LeadFormModal = ({
           String(existingReminder?.note || '') ||
         String(form.reminderNotify || '') !==
           String(existingReminderNotify || '');
-
     if (form.reminderDate && reminderChanged) {
       payload.reminder = {
         _id: existingReminder?._id || undefined,
@@ -1023,6 +821,7 @@ const LeadFormModal = ({
     return payload;
   };
 
+  // ── Recording handlers ──
   const handlePickRecordingFile = async () => {
     try {
       const result = await pick({
@@ -1104,18 +903,9 @@ const LeadFormModal = ({
       const token = await AsyncStorage.getItem('accessToken');
       await axios.delete(
         `/api/v1/leads/${lead._id}/recordings/${rec.filename}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       setSavedRecordings(prev => prev.filter(r => r.filename !== rec.filename));
-      if (lead.recordings)
-        lead.recordings = lead.recordings.filter(
-          r => r.filename !== rec.filename,
-        );
-      if (lead.recording?.url && rec.url && lead.recording.url === rec.url) {
-        lead.recording = { label: '', url: '' };
-      }
       toast.success('Recording deleted successfully.');
     } catch (err) {
       toast.error(
@@ -1124,6 +914,7 @@ const LeadFormModal = ({
     }
   };
 
+  // ── Submit ──
   const handleSubmit = async () => {
     if (lead && !canEditAnyLead) {
       toast.error('You do not have permission to edit this lead.');
@@ -1133,7 +924,6 @@ const LeadFormModal = ({
       toast.error('You do not have permission to create leads.');
       return;
     }
-
     const phoneRegex = /^\+?[1-9][0-9]{9,14}$/;
     const rawDigitsOnly = form.phone.replace(/\D/g, '');
     if (
@@ -1145,20 +935,15 @@ const LeadFormModal = ({
       setActiveTab('Profile');
       return;
     }
-
     const altRaw = form.alternatePhone
       ? String(form.alternatePhone).trim()
       : '';
     const altDigits = altRaw.replace(/\D/g, '');
-    const isOnlyCountryCode = altDigits.length <= 2;
-    if (altDigits.length > 0 && !isOnlyCountryCode && altDigits.length < 10) {
-      toast.error(
-        'Please enter a valid alternate phone number with country code.',
-      );
+    if (altDigits.length > 0 && altDigits.length > 2 && altDigits.length < 10) {
+      toast.error('Please enter a valid alternate phone number.');
       setActiveTab('Profile');
       return;
     }
-
     if (!form.name.trim()) {
       toast.error('Lead name is required.');
       setActiveTab('Profile');
@@ -1185,7 +970,6 @@ const LeadFormModal = ({
       setActiveTab('Reminder');
       return;
     }
-
     if (activeTab === 'Cross-Sell') return;
 
     const payload = buildPayload();
@@ -1205,9 +989,7 @@ const LeadFormModal = ({
           await axios.post(
             `/api/v1/leads/${savedLead._id}/recordings/upload`,
             fd,
-            {
-              headers: { Authorization: `Bearer ${token}` },
-            },
+            { headers: { Authorization: `Bearer ${token}` } },
           );
         } catch {
           toast.error('Lead created but recording upload failed.');
@@ -1229,592 +1011,541 @@ const LeadFormModal = ({
   ];
   const activeAct = activities[activeActivityType];
 
+  // ── RENDER ──
   return (
     <Modal
       visible={visible}
-      transparent
       animationType="slide"
-      statusBarTranslucent={true}
+      transparent={false}
       onRequestClose={onClose}
+      statusBarTranslucent
     >
       <StatusBar
         translucent
         backgroundColor="transparent"
         barStyle={isDark ? 'light-content' : 'dark-content'}
       />
-      <View style={styles.overlay}>
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={onClose}
-        />
-        <View
-          style={[
-            styles.modalSafeArea,
-            {
-              paddingTop: insets.top,
-              paddingBottom: insets.bottom,
-              backgroundColor: colors.modalBg,
-            },
-          ]}
-        >
+      <View
+        style={[
+          styles.modalSafeArea,
+          {
+            paddingTop: insets.top,
+            paddingBottom: insets.bottom,
+            backgroundColor: colors.background,
+          },
+        ]}
+      >
+        <View style={[styles.modalBody, { backgroundColor: colors.surface }]}>
+          {/* Header */}
           <View
             style={[
-              styles.modalBody,
-              { backgroundColor: colors.modalBg, borderColor: colors.border },
+              styles.headerBar,
+              {
+                borderBottomColor: colors.border,
+                paddingHorizontal: spacing.lg,
+                paddingTop: spacing.lg,
+                paddingBottom: spacing.md,
+              },
             ]}
           >
-            {/* Header */}
-            <View style={[styles.header, { borderBottomColor: colors.border }]}>
-              <View style={styles.headerTextWrap}>
-                <Text
-                  style={[styles.headerTitle, { color: colors.textPrimary }]}
-                >
-                  {lead ? 'Edit Lead' : 'Add New Lead'}
-                </Text>
-                <Text
-                  style={[
-                    styles.headerSubtitle,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  Complete profile, assignment, activity, recording, payment and
-                  reminder sections.
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={onClose}
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text
+                style={[typography.h3, { color: colors.textPrimary }]}
+                numberOfLines={1}
+              >
+                {lead ? 'Edit Lead' : 'Add New Lead'}
+              </Text>
+              <Text
                 style={[
-                  styles.closeBtn,
-                  { backgroundColor: colors.closeIconBg },
+                  typography.body2,
+                  { color: colors.textSecondary, marginTop: 4 },
                 ]}
+                numberOfLines={2}
               >
-                <Icon name="close" size={20} color={colors.textMuted} />
-              </TouchableOpacity>
+                Complete profile, assignment, activity, recording, payment and
+                reminder sections.
+              </Text>
             </View>
-
-            {/* Tabs */}
-            <View style={styles.tabsContainer}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.tabsInner}
-              >
-                {allTabs.map(tab => {
-                  const active = activeTab === tab;
-                  return (
-                    <TouchableOpacity
-                      key={tab}
-                      onPress={() => setActiveTab(tab)}
-                      style={styles.tabBtn}
-                    >
-                      <Text
-                        style={[
-                          styles.tabText,
-                          {
-                            color: active
-                              ? colors.tabActive
-                              : colors.textSecondary,
-                          },
-                        ]}
-                      >
-                        {tab}
-                      </Text>
-                      {active ? <View style={styles.tabIndicator} /> : null}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-
-            {/* Form Body */}
-            <ScrollView
-              contentContainerStyle={styles.formScroll}
-              keyboardShouldPersistTaps="handled"
+            <Pressable
+              onPress={onClose}
+              hitSlop={10}
               style={[
-                styles.formScrollView,
-                { backgroundColor: colors.modalBg },
+                styles.closeBtn,
+                {
+                  backgroundColor: colors.backgroundSecondary,
+                  borderRadius: borderRadius.full,
+                },
               ]}
             >
-              {/* PROFILE TAB */}
-              {activeTab === 'Profile' ? (
-                <View style={styles.formContainer}>
-                  <FieldBlock label="Full Name" required>
-                    <TextInput
-                      value={form.name}
-                      onChangeText={v => handleChange('name', v)}
-                      placeholder="Contact name"
-                      placeholderTextColor={colors.textMuted}
+              <Icon name="close" size={18} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+
+          {/* Tabs */}
+          <View
+            style={[styles.tabsContainer, { borderBottomColor: colors.border }]}
+          >
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.tabsInner}
+            >
+              {allTabs.map(tab => {
+                const active = activeTab === tab;
+                return (
+                  <TouchableOpacity
+                    key={tab}
+                    onPress={() => setActiveTab(tab)}
+                    style={styles.tabBtn}
+                  >
+                    <Text
                       style={[
-                        styles.input,
+                        typography.label,
                         {
-                          borderColor: colors.inputBorder,
-                          backgroundColor: colors.inputBg,
-                          color: colors.textPrimary,
+                          color: active ? colors.primary : colors.textSecondary,
+                          fontSize: 14,
                         },
                       ]}
+                    >
+                      {tab}
+                    </Text>
+                    {active ? (
+                      <View
+                        style={[
+                          styles.tabIndicator,
+                          { backgroundColor: colors.primary },
+                        ]}
+                      />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          <ScrollView
+            contentContainerStyle={{ paddingBottom: 24, flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            style={{ flex: 1, backgroundColor: colors.surface }}
+          >
+            {/* PROFILE TAB */}
+            {activeTab === 'Profile' && (
+              <View style={styles.formContainer}>
+                <FormField label="Full Name" required>
+                  <ImprovedTextInput
+                    value={form.name}
+                    onChangeText={v => handleChange('name', v)}
+                    placeholder="Contact name"
+                    size="medium"
+                    containerStyle={{ marginBottom: 0 }}
+                  />
+                </FormField>
+                <FormRow columns={2}>
+                  <FormField label="Primary Phone" required>
+                    <CustomPhoneInput
+                      value={form.phone}
+                      onChange={fullNumber => handleChange('phone', fullNumber)}
+                      defaultCountry="IN"
                     />
-                  </FieldBlock>
-
-                  <FormRow columns={2}>
-                    <FieldBlock label="Primary Phone" required>
-                      <CustomPhoneInput
-                        value={form.phone}
-                        onChange={fullNumber =>
-                          handleChange('phone', fullNumber)
+                  </FormField>
+                  <FormField label="Status">
+                    <ImprovedDropdown
+                      items={statusItems}
+                      selectedValue={form.status}
+                      onValueChange={v => handleChange('status', v)}
+                      placeholder="Select status"
+                      searchable={false}
+                    />
+                  </FormField>
+                </FormRow>
+                <FormRow columns={2}>
+                  <FormField label="Priority">
+                    <ImprovedDropdown
+                      items={priorityItems}
+                      selectedValue={form.priority}
+                      onValueChange={v => handleChange('priority', v)}
+                      placeholder="Priority"
+                      searchable={false}
+                    />
+                  </FormField>
+                  <FormField label="Deal Value (₹)">
+                    <ImprovedTextInput
+                      keyboardType="numeric"
+                      value={form.dealValue}
+                      onChangeText={v => handleChange('dealValue', v)}
+                      placeholder="Deal value"
+                      containerStyle={{ marginBottom: 0 }}
+                    />
+                  </FormField>
+                </FormRow>
+                <FormRow columns={2}>
+                  <FormField label="City">
+                    <ImprovedTextInput
+                      value={form.city}
+                      onChangeText={v => handleChange('city', v)}
+                      placeholder="City"
+                      containerStyle={{ marginBottom: 0 }}
+                    />
+                  </FormField>
+                  <FormField label="Alternate Phone (Optional)">
+                    <CustomPhoneInput
+                      value={form.alternatePhone || ''}
+                      onChange={fullNumber =>
+                        handleChange('alternatePhone', fullNumber)
+                      }
+                      defaultCountry="IN"
+                    />
+                  </FormField>
+                </FormRow>
+                <FormRow columns={2}>
+                  <FormField label="Source">
+                    <ImprovedDropdown
+                      items={sourceItems}
+                      selectedValue={form.source}
+                      onValueChange={v => handleChange('source', v)}
+                      placeholder="Source"
+                      searchable={false}
+                    />
+                  </FormField>
+                  <FormField label="Product">
+                    <ImprovedTextInput
+                      value={form.product}
+                      onChangeText={v => handleChange('product', v)}
+                      placeholder="Product"
+                      containerStyle={{ marginBottom: 0 }}
+                    />
+                  </FormField>
+                </FormRow>
+                <FormRow columns={2}>
+                  <FormField label="Email">
+                    <ImprovedTextInput
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      value={form.email}
+                      onChangeText={v => handleChange('email', v)}
+                      placeholder="Email address"
+                      containerStyle={{ marginBottom: 0 }}
+                    />
+                  </FormField>
+                  <FormField label="Close Date">
+                    <DateTimeField
+                      value={form.closeDate}
+                      onChange={v => handleChange('closeDate', v)}
+                      openKey="closeDate"
+                      pickerTargets={pickerTargets}
+                      setPickerTargets={setPickerTargets}
+                    />
+                  </FormField>
+                </FormRow>
+                {customColumns
+                  .filter(c => c.formVisible !== false)
+                  .map(column => (
+                    <FormField key={column.key} label={column.label}>
+                      <ImprovedTextInput
+                        value={form.customFields?.[column.key] || ''}
+                        onChangeText={v =>
+                          handleCustomFieldChange(column.key, v)
                         }
-                        defaultCountry="IN"
+                        placeholder={`Enter ${column.label}`}
+                        containerStyle={{ marginBottom: 0 }}
                       />
-                    </FieldBlock>
-                    <FieldBlock label="Status">
-                      <FieldPicker
-                        value={form.status}
-                        options={defaultStatusOptions}
-                        onChange={v => handleChange('status', v)}
-                      />
-                    </FieldBlock>
-                  </FormRow>
+                    </FormField>
+                  ))}
+                <FormField label="Initial Note">
+                  <ImprovedTextInput
+                    multiline
+                    value={form.note}
+                    onChangeText={v => handleChange('note', v)}
+                    placeholder="Initial note or lead details"
+                    containerStyle={{ marginBottom: 0 }}
+                  />
+                </FormField>
+              </View>
+            )}
 
-                  <FormRow columns={2}>
-                    <FieldBlock label="Priority">
-                      <FieldPicker
-                        value={form.priority}
-                        options={PRIORITY_OPTIONS}
-                        onChange={v => handleChange('priority', v)}
-                      />
-                    </FieldBlock>
-                    <FieldBlock label="Deal Value (₹)">
-                      <TextInput
-                        keyboardType="numeric"
-                        value={form.dealValue}
-                        onChangeText={v => handleChange('dealValue', v)}
-                        placeholder="Deal value"
-                        placeholderTextColor={colors.textMuted}
-                        style={[
-                          styles.input,
-                          {
-                            borderColor: colors.inputBorder,
-                            backgroundColor: colors.inputBg,
-                            color: colors.textPrimary,
-                          },
-                        ]}
-                      />
-                    </FieldBlock>
-                  </FormRow>
+            {/* ASSIGN TAB */}
+            {activeTab === 'Assign' && (
+              <View style={styles.formContainer}>
+                <FormField label="Primary Lead Owner" required>
+                  <ImprovedDropdown
+                    items={userItems}
+                    selectedValue={form.assignedTo}
+                    onValueChange={v => handleChange('assignedTo', v)}
+                    placeholder="Select owner"
+                    disabled={!canManageAssignment}
+                  />
+                  {!canManageAssignment && (
+                    <Text
+                      style={[
+                        typography.caption,
+                        { color: colors.warning, marginTop: spacing.xs },
+                      ]}
+                    >
+                      You do not have permission to change assignment.
+                    </Text>
+                  )}
+                </FormField>
+                <FormSection title="Co-Assignees">
+                  <MultiSelect
+                    options={users
+                      .filter(u => u._id !== form.assignedTo)
+                      .map(u => ({
+                        value: u._id,
+                        label: u.name || u.email || 'Unknown user',
+                      }))}
+                    value={users
+                      .filter(u => u._id !== form.assignedTo)
+                      .map(u => ({
+                        value: u._id,
+                        label: u.name || u.email || 'Unknown user',
+                      }))
+                      .filter(opt => form.coAssignees.includes(opt.value))}
+                    onChange={selected => {
+                      const ids = Array.isArray(selected)
+                        ? selected.map(item => item.value)
+                        : [];
+                      handleChange('coAssignees', ids);
+                    }}
+                    placeholder="Select one or more co-assignees"
+                    disabled={!canManageAssignment}
+                    isSearchable
+                    closeMenuOnSelect={false}
+                    hideSelectedOptions={false}
+                    isMulti
+                    isClearable
+                    maxMenuHeight={280}
+                  />
+                  {!canManageAssignment && (
+                    <Text
+                      style={[
+                        typography.caption,
+                        { color: colors.warning, marginTop: spacing.xs },
+                      ]}
+                    >
+                      Co-assignee assignment is restricted for your role.
+                    </Text>
+                  )}
+                </FormSection>
+              </View>
+            )}
 
-                  <FormRow columns={2}>
-                    <FieldBlock label="City">
-                      <TextInput
-                        value={form.city}
-                        onChangeText={v => handleChange('city', v)}
-                        placeholder="City"
-                        placeholderTextColor={colors.textMuted}
-                        style={[
-                          styles.input,
-                          {
-                            borderColor: colors.inputBorder,
-                            backgroundColor: colors.inputBg,
-                            color: colors.textPrimary,
-                          },
-                        ]}
-                      />
-                    </FieldBlock>
-                    <FieldBlock label="Alternate Phone (Optional)">
-                      <CustomPhoneInput
-                        value={form.alternatePhone || ''}
-                        onChange={fullNumber =>
-                          handleChange('alternatePhone', fullNumber)
-                        }
-                        defaultCountry="IN"
-                      />
-                    </FieldBlock>
-                  </FormRow>
-
-                  <FormRow columns={2}>
-                    <FieldBlock label="Source">
-                      <FieldPicker
-                        value={form.source}
-                        options={defaultSourceOptions}
-                        onChange={v => handleChange('source', v)}
-                      />
-                    </FieldBlock>
-                    <FieldBlock label="Product">
-                      <TextInput
-                        value={form.product}
-                        onChangeText={v => handleChange('product', v)}
-                        placeholder="Product"
-                        placeholderTextColor={colors.textMuted}
-                        style={[
-                          styles.input,
-                          {
-                            borderColor: colors.inputBorder,
-                            backgroundColor: colors.inputBg,
-                            color: colors.textPrimary,
-                          },
-                        ]}
-                      />
-                    </FieldBlock>
-                  </FormRow>
-
-                  <FormRow columns={2}>
-                    <FieldBlock label="Email">
-                      <TextInput
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        value={form.email}
-                        onChangeText={v => handleChange('email', v)}
-                        placeholder="Email address"
-                        placeholderTextColor={colors.textMuted}
-                        style={[
-                          styles.input,
-                          {
-                            borderColor: colors.inputBorder,
-                            backgroundColor: colors.inputBg,
-                            color: colors.textPrimary,
-                          },
-                        ]}
-                      />
-                    </FieldBlock>
-                    <FieldBlock label="Close Date">
-                      <DateTimeField
-                        value={form.closeDate}
-                        onChange={v => handleChange('closeDate', v)}
-                        openKey="closeDate"
-                        pickerTargets={pickerTargets}
-                        setPickerTargets={setPickerTargets}
-                      />
-                    </FieldBlock>
-                  </FormRow>
-
-                  {customColumns.length > 0
-                    ? customColumns
-                        .filter(column => column.formVisible !== false)
-                        .map(column => (
-                          <FieldBlock key={column.key} label={column.label}>
-                            <TextInput
-                              value={form.customFields?.[column.key] || ''}
-                              onChangeText={v =>
-                                handleCustomFieldChange(column.key, v)
-                              }
-                              placeholder={`Enter ${column.label}`}
-                              placeholderTextColor={colors.textMuted}
+            {/* ACTIVITY TAB */}
+            {activeTab === 'Activity' && (
+              <View style={styles.formContainer}>
+                <Text
+                  style={[
+                    typography.label,
+                    { color: colors.textPrimary, marginBottom: spacing.sm },
+                  ]}
+                >
+                  Activity Type
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                    {Object.keys(ACTIVITY_TYPE_META).map(type => {
+                      const meta = ACTIVITY_TYPE_META[type];
+                      const act = activities[type];
+                      const hasData =
+                        act.text?.trim() || act.duration?.trim() || act.dueDate;
+                      const isActive = activeActivityType === type;
+                      return (
+                        <TouchableOpacity
+                          key={type}
+                          onPress={() => setActiveActivityType(type)}
+                          style={[
+                            styles.typePill,
+                            {
+                              backgroundColor: isActive
+                                ? meta.color
+                                : colors.backgroundSecondary,
+                              borderRadius: borderRadius.full,
+                            },
+                          ]}
+                        >
+                          <Icon
+                            name={meta.icon}
+                            size={14}
+                            color={isActive ? '#fff' : colors.textSecondary}
+                          />
+                          <Text
+                            style={[
+                              typography.label,
+                              {
+                                color: isActive ? '#fff' : colors.textPrimary,
+                                fontSize: 13,
+                              },
+                            ]}
+                          >
+                            {type}
+                          </Text>
+                          {hasData ? (
+                            <View
                               style={[
-                                styles.input,
+                                styles.typePillDot,
                                 {
-                                  borderColor: colors.inputBorder,
-                                  backgroundColor: colors.inputBg,
-                                  color: colors.textPrimary,
+                                  borderColor: isActive
+                                    ? meta.color
+                                    : colors.surface,
                                 },
                               ]}
                             />
-                          </FieldBlock>
-                        ))
-                    : null}
+                          ) : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
 
-                  <FieldBlock label="Initial Note">
-                    <TextInput
-                      multiline
-                      numberOfLines={3}
-                      value={form.note}
-                      onChangeText={v => handleChange('note', v)}
-                      placeholder="Initial note or lead details"
-                      placeholderTextColor={colors.textMuted}
-                      style={[
-                        styles.input,
-                        styles.textarea,
-                        {
-                          borderColor: colors.inputBorder,
-                          backgroundColor: colors.inputBg,
-                          color: colors.textPrimary,
-                        },
-                      ]}
-                    />
-                  </FieldBlock>
-                </View>
-              ) : null}
+                <View
+                  style={[
+                    styles.activityForm,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                      borderRadius: borderRadius.lg,
+                    },
+                  ]}
+                >
+                  <Text style={[typography.h4, { color: colors.textPrimary }]}>
+                    {activeActivityType} Activity
+                  </Text>
+                  <ImprovedTextInput
+                    multiline
+                    value={activeAct.text}
+                    onChangeText={v =>
+                      updateActivity(activeActivityType, 'text', v)
+                    }
+                    placeholder={
+                      activeActivityType === 'Call'
+                        ? 'Call summary — what was discussed?'
+                        : 'Add details...'
+                    }
+                    containerStyle={{ marginBottom: 0 }}
+                  />
 
-              {/* ASSIGN TAB */}
-              {activeTab === 'Assign' ? (
-                <View style={styles.formContainer}>
-                  <FieldBlock label="Primary Lead Owner" required>
-                    <FieldPicker
-                      value={form.assignedTo}
-                      options={users.map(u => ({
-                        value: u._id,
-                        label: u.name,
-                      }))}
-                      onChange={v => handleChange('assignedTo', v)}
-                      emptyLabel="Select owner"
-                      disabled={!canManageAssignment}
-                    />
-                    {!canManageAssignment ? (
-                      <Text style={styles.warningText}>
-                        You do not have permission to change assignment for this
-                        lead.
-                      </Text>
-                    ) : null}
-                  </FieldBlock>
-
-                  <View style={styles.coAssignBox}>
-                    <Text style={styles.fieldLabel}>Co-Assignees</Text>
-                    <View style={{ marginTop: 12 }}>
-                      <MultiSelect
-                        options={users
-                          .filter(u => u._id !== form.assignedTo)
-                          .map(u => ({
-                            value: u._id,
-                            label: u.name || u.email || 'Unknown user',
+                  {activeActivityType === 'Call' && (
+                    <FormRow columns={3}>
+                      <FormField label="Duration">
+                        <ImprovedTextInput
+                          value={activeAct.duration}
+                          onChangeText={v =>
+                            updateActivity('Call', 'duration', v)
+                          }
+                          placeholder="3m 42s"
+                          containerStyle={{ marginBottom: 0 }}
+                        />
+                      </FormField>
+                      <FormField label="Direction">
+                        <ImprovedDropdown
+                          items={['Outgoing', 'Incoming', 'Missed'].map(d => ({
+                            value: d,
+                            label: d,
                           }))}
-                        value={users
-                          .filter(u => u._id !== form.assignedTo)
-                          .map(u => ({
-                            value: u._id,
-                            label: u.name || u.email || 'Unknown user',
-                          }))
-                          .filter(opt => form.coAssignees.includes(opt.value))}
-                        onChange={selected => {
-                          const ids = Array.isArray(selected)
-                            ? selected.map(item => item.value)
-                            : [];
-                          handleChange('coAssignees', ids);
-                        }}
-                        placeholder="Select one or more co-assignees"
-                        disabled={!canManageAssignment}
-                        isSearchable
-                        closeMenuOnSelect={false}
-                        hideSelectedOptions={false}
-                        noOptionsMessage={() => 'No users available'}
-                        isMulti
-                        isClearable
-                        maxMenuHeight={280}
-                      />
-                    </View>
-                    {!canManageAssignment ? (
-                      <Text style={styles.warningText}>
-                        Co-assignee assignment is restricted for your role.
-                      </Text>
-                    ) : null}
-                  </View>
-                </View>
-              ) : null}
-
-              {/* ACTIVITY TAB */}
-              {activeTab === 'Activity' ? (
-                <View style={styles.formContainer}>
-                  <View style={styles.activityTypeHeader}>
-                    <Text style={styles.fieldLabel}>Activity Type</Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      style={styles.typeScroll}
-                    >
-                      <View style={styles.typeRow}>
-                        {Object.keys(ACTIVITY_TYPE_META).map(type => {
-                          const meta = ACTIVITY_TYPE_META[type];
-                          const act = activities[type];
-                          const hasData =
-                            act.text?.trim() ||
-                            act.duration?.trim() ||
-                            act.dueDate;
-                          const isActive = activeActivityType === type;
-                          return (
-                            <TouchableOpacity
-                              key={type}
-                              onPress={() => setActiveActivityType(type)}
-                              style={[
-                                styles.typePill,
-                                isActive
-                                  ? { backgroundColor: meta.color }
-                                  : styles.typePillInactive,
-                              ]}
-                            >
-                              <Icon
-                                name={meta.icon}
-                                size={14}
-                                color={isActive ? '#fff' : '#4b5563'}
-                              />
-                              <Text
-                                style={[
-                                  styles.typePillText,
-                                  isActive && styles.typePillTextActive,
-                                ]}
-                              >
-                                {type}
-                              </Text>
-                              {hasData ? (
-                                <View style={styles.typePillDot} />
-                              ) : null}
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    </ScrollView>
-                  </View>
-
-                  <View style={styles.activityForm}>
-                    <Text style={styles.activityFormTitle}>
-                      {activeActivityType} Activity
-                    </Text>
-                    <TextInput
-                      multiline
-                      numberOfLines={2}
-                      value={activeAct.text}
-                      onChangeText={v =>
-                        updateActivity(activeActivityType, 'text', v)
+                          selectedValue={activeAct.direction}
+                          onValueChange={v =>
+                            updateActivity('Call', 'direction', v)
+                          }
+                          searchable={false}
+                        />
+                      </FormField>
+                      <FormField label="Outcome">
+                        <ImprovedDropdown
+                          items={['Spoke', 'No Answer', 'Left Voicemail'].map(
+                            o => ({ value: o, label: o }),
+                          )}
+                          selectedValue={activeAct.outcome}
+                          onValueChange={v =>
+                            updateActivity('Call', 'outcome', v)
+                          }
+                          searchable={false}
+                        />
+                      </FormField>
+                    </FormRow>
+                  )}
+                  {activeActivityType === 'Task' && (
+                    <FormRow columns={2}>
+                      <FormField label="Due Date" required>
+                        <DateTimeField
+                          value={activeAct.dueDate}
+                          onChange={v => updateActivity('Task', 'dueDate', v)}
+                          openKey="taskDueDate"
+                          pickerTargets={pickerTargets}
+                          setPickerTargets={setPickerTargets}
+                        />
+                      </FormField>
+                      <FormField label="Assign To">
+                        <ImprovedDropdown
+                          items={userItems}
+                          selectedValue={activeAct.assignedTo}
+                          onValueChange={v =>
+                            updateActivity('Task', 'assignedTo', v)
+                          }
+                        />
+                      </FormField>
+                    </FormRow>
+                  )}
+                  <FormField label="Notify">
+                    <ImprovedDropdown
+                      items={[{ value: '', label: 'No one' }, ...userItems]}
+                      selectedValue={activeAct.notify}
+                      onValueChange={v =>
+                        updateActivity(activeActivityType, 'notify', v)
                       }
-                      placeholder={
-                        activeActivityType === 'Call'
-                          ? 'Call summary — what was discussed?'
-                          : 'Add details...'
-                      }
-                      style={[
-                        styles.input,
-                        styles.textarea,
-                        {
-                          borderColor: colors.inputBorder,
-                          backgroundColor: colors.inputBg,
-                          color: colors.textPrimary,
-                        },
-                      ]}
-                      placeholderTextColor={colors.textMuted}
+                      searchable={false}
                     />
+                  </FormField>
 
-                    {activeActivityType === 'Call' ? (
-                      <View style={styles.callGrid}>
-                        <FieldBlock label="DURATION">
-                          <TextInput
-                            value={activeAct.duration}
-                            onChangeText={v =>
-                              updateActivity('Call', 'duration', v)
-                            }
-                            placeholder="3m 42s"
-                            placeholderTextColor={colors.textMuted}
-                            style={[
-                              styles.input,
-                              {
-                                borderColor: colors.inputBorder,
-                                backgroundColor: colors.inputBg,
-                                color: colors.textPrimary,
-                              },
-                            ]}
-                          />
-                        </FieldBlock>
-                        <FieldBlock label="DIRECTION">
-                          <FieldPicker
-                            value={activeAct.direction}
-                            options={['Outgoing', 'Incoming', 'Missed']}
-                            onChange={v =>
-                              updateActivity('Call', 'direction', v)
-                            }
-                          />
-                        </FieldBlock>
-                        <FieldBlock label="OUTCOME">
-                          <FieldPicker
-                            value={activeAct.outcome}
-                            options={['Spoke', 'No Answer', 'Left Voicemail']}
-                            onChange={v => updateActivity('Call', 'outcome', v)}
-                          />
-                        </FieldBlock>
-                      </View>
-                    ) : null}
-
-                    {activeActivityType === 'Task' ? (
-                      <View style={styles.taskGrid}>
-                        <FieldBlock label="DUE DATE" required>
-                          <DateTimeField
-                            value={activeAct.dueDate}
-                            onChange={v => updateActivity('Task', 'dueDate', v)}
-                            openKey="taskDueDate"
-                            pickerTargets={pickerTargets}
-                            setPickerTargets={setPickerTargets}
-                          />
-                        </FieldBlock>
-                        <FieldBlock label="ASSIGN TO">
-                          <FieldPicker
-                            value={activeAct.assignedTo}
-                            options={users.map(u => ({
-                              value: u._id,
-                              label: u.name,
-                            }))}
-                            onChange={v =>
-                              updateActivity('Task', 'assignedTo', v)
-                            }
-                          />
-                        </FieldBlock>
-                      </View>
-                    ) : null}
-
-                    <FieldBlock label="NOTIFY">
-                      <FieldPicker
-                        value={activeAct.notify}
-                        options={[
-                          { value: '', label: 'No one' },
-                          ...users.map(u => ({ value: u._id, label: u.name })),
-                        ]}
-                        onChange={v =>
-                          updateActivity(activeActivityType, 'notify', v)
-                        }
-                      />
-                    </FieldBlock>
-
-                    {activeAct.text?.trim() ||
+                  {(activeAct.text?.trim() ||
                     activeAct.duration?.trim() ||
-                    activeAct.dueDate ? (
-                      <TouchableOpacity
-                        onPress={() => {
-                          const base =
-                            activeActivityType === 'Call'
-                              ? {
-                                  _id: activeAct._id || '',
-                                  text: '',
-                                  duration: '',
-                                  direction: 'Outgoing',
-                                  outcome: 'Spoke',
-                                  notify: '',
-                                }
-                              : activeActivityType === 'Task'
-                              ? {
-                                  _id: activeAct._id || '',
-                                  text: '',
-                                  dueDate: '',
-                                  assignedTo: users[0]?._id || '',
-                                  notify: '',
-                                }
-                              : {
-                                  _id: activeAct._id || '',
-                                  text: '',
-                                  notify: '',
-                                };
-                          setActivities(prev => ({
-                            ...prev,
-                            [activeActivityType]: base,
-                          }));
-                        }}
+                    activeAct.dueDate) && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        const base =
+                          activeActivityType === 'Call'
+                            ? {
+                                _id: activeAct._id || '',
+                                text: '',
+                                duration: '',
+                                direction: 'Outgoing',
+                                outcome: 'Spoke',
+                                notify: '',
+                              }
+                            : activeActivityType === 'Task'
+                            ? {
+                                _id: activeAct._id || '',
+                                text: '',
+                                dueDate: '',
+                                assignedTo: users[0]?._id || '',
+                                notify: '',
+                              }
+                            : {
+                                _id: activeAct._id || '',
+                                text: '',
+                                notify: '',
+                              };
+                        setActivities(prev => ({
+                          ...prev,
+                          [activeActivityType]: base,
+                        }));
+                      }}
+                    >
+                      <Text
+                        style={[typography.caption, { color: colors.danger }]}
                       >
-                        <Text style={styles.clearLink}>
-                          ✕ Clear {activeActivityType} data
-                        </Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
+                        ✕ Clear {activeActivityType} data
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
 
-                  {lead &&
+                {/* Recent Interactions */}
+                {lead &&
                   Array.isArray(lead.activities) &&
-                  lead.activities.length > 0 ? (
-                    <View style={styles.recentBlock}>
-                      <View style={styles.recentHeader}>
-                        <Text style={styles.recentTitle}>
-                          Recent Interactions
-                        </Text>
-                        <View style={styles.recentDivider} />
-                        <View style={styles.recentCount}>
-                          <Text style={styles.recentCountText}>
-                            {lead.activities.length} total
-                          </Text>
-                        </View>
-                      </View>
+                  lead.activities.length > 0 && (
+                    <FormSection title="Recent Interactions">
                       {lead.activities.map((item, idx) => {
-                        if (item.isAutoTracked) {
+                        if (item.isAutoTracked)
                           return (
                             <View
                               key={item._id || idx}
@@ -1823,7 +1554,6 @@ const LeadFormModal = ({
                               <CallLogCard callLog={item} />
                             </View>
                           );
-                        }
                         const iconMap = {
                           Note: {
                             bg: '#f3e8ff',
@@ -1861,35 +1591,7 @@ const LeadFormModal = ({
                             icon: 'bell-outline',
                           },
                         };
-                        const style = iconMap[item.type] || iconMap.Status;
-                        const getCallOutcomeBadge = outcome => {
-                          if (outcome === 'Spoke')
-                            return {
-                              label: 'Spoke',
-                              dot: '#22c55e',
-                              bg: '#dcfce7',
-                              text: '#15803d',
-                            };
-                          if (outcome === 'No Answer')
-                            return {
-                              label: 'No Answer',
-                              dot: '#ef4444',
-                              bg: '#fee2e2',
-                              text: '#b91c1c',
-                            };
-                          if (outcome === 'Left Voicemail')
-                            return {
-                              label: 'Left Voicemail',
-                              dot: '#eab308',
-                              bg: '#fef9c3',
-                              text: '#a16207',
-                            };
-                          return null;
-                        };
-                        const callOutcomeBadge =
-                          item.type === 'Call'
-                            ? getCallOutcomeBadge(item.callOutcome)
-                            : null;
+                        const st = iconMap[item.type] || iconMap.Status;
                         const userName =
                           typeof item.user === 'string'
                             ? item.user
@@ -1898,61 +1600,76 @@ const LeadFormModal = ({
                               item.userName ||
                               '—';
                         return (
-                          <View key={item._id || idx} style={styles.recentItem}>
+                          <View
+                            key={item._id || idx}
+                            style={[
+                              styles.recentItem,
+                              {
+                                borderColor: colors.border,
+                                backgroundColor: colors.surface,
+                                borderRadius: borderRadius.lg,
+                              },
+                            ]}
+                          >
                             <View style={styles.recentItemTop}>
                               <View
                                 style={[
                                   styles.recentIcon,
-                                  { backgroundColor: style.bg },
+                                  { backgroundColor: st.bg },
                                 ]}
                               >
                                 <Icon
-                                  name={style.icon}
+                                  name={st.icon}
                                   size={13}
-                                  color={style.text}
+                                  color={st.text}
                                 />
                               </View>
-                              <Text style={styles.recentType}>
+                              <Text
+                                style={[
+                                  typography.label,
+                                  { color: colors.textPrimary, fontSize: 13 },
+                                ]}
+                              >
                                 {item.type || 'Interaction'}
                               </Text>
-                              {callOutcomeBadge ? (
+                              {idx === 0 && (
                                 <View
                                   style={[
-                                    styles.outcomeBadge,
-                                    {
-                                      backgroundColor: callOutcomeBadge.bg,
-                                      borderColor: callOutcomeBadge.dot,
-                                    },
+                                    styles.recentBadge,
+                                    { backgroundColor: colors.successSoft },
                                   ]}
                                 >
-                                  <View
-                                    style={[
-                                      styles.outcomeDot,
-                                      { backgroundColor: callOutcomeBadge.dot },
-                                    ]}
-                                  />
                                   <Text
                                     style={[
-                                      styles.outcomeText,
-                                      { color: callOutcomeBadge.text },
+                                      typography.caption,
+                                      {
+                                        color: colors.success,
+                                        fontWeight: '700',
+                                        fontSize: 10,
+                                      },
                                     ]}
                                   >
-                                    {callOutcomeBadge.label}
-                                  </Text>
-                                </View>
-                              ) : null}
-                              {idx === 0 ? (
-                                <View style={styles.recentBadge}>
-                                  <Text style={styles.recentBadgeText}>
                                     Recent
                                   </Text>
                                 </View>
-                              ) : null}
+                              )}
                             </View>
                             {item.text ? (
-                              <Text style={styles.recentText}>{item.text}</Text>
+                              <Text
+                                style={[
+                                  typography.body2,
+                                  { color: colors.textSecondary, fontSize: 12 },
+                                ]}
+                              >
+                                {item.text}
+                              </Text>
                             ) : null}
-                            <Text style={styles.recentMeta}>
+                            <Text
+                              style={[
+                                typography.caption,
+                                { color: colors.textTertiary, marginTop: 4 },
+                              ]}
+                            >
                               {userName}
                               {item.createdAt
                                 ? ` · ${new Date(item.createdAt).toLocaleString(
@@ -1971,505 +1688,506 @@ const LeadFormModal = ({
                           </View>
                         );
                       })}
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
+                    </FormSection>
+                  )}
+              </View>
+            )}
 
-              {/* RECORDING TAB */}
-              {activeTab === 'Recording' ? (
-                <View style={styles.formContainer}>
-                  <View style={styles.recordingBlock}>
-                    <Text style={styles.sectionTitle}>Add New Recording</Text>
-                    <FieldBlock label="Label">
-                      <TextInput
-                        value={form.recordingLabel}
-                        onChangeText={v => handleChange('recordingLabel', v)}
-                        placeholder="First call · 30 Apr"
-                        placeholderTextColor={colors.textMuted}
-                        style={[
-                          styles.input,
-                          {
-                            borderColor: colors.inputBorder,
-                            backgroundColor: colors.inputBg,
-                            color: colors.textPrimary,
-                          },
-                        ]}
-                      />
-                    </FieldBlock>
-                    <FieldBlock label="Recording URL">
-                      <TextInput
-                        value={form.recordingUrl}
-                        onChangeText={v => {
-                          handleChange('recordingUrl', v);
-                          if (recordingFile) setRecordingFile(null);
-                        }}
-                        placeholder="https://drive.google.com/..."
-                        placeholderTextColor={colors.textMuted}
-                        autoCapitalize="none"
-                        style={[
-                          styles.input,
-                          {
-                            borderColor: colors.inputBorder,
-                            backgroundColor: colors.inputBg,
-                            color: colors.textPrimary,
-                          },
-                        ]}
-                      />
-                    </FieldBlock>
+            {/* RECORDING TAB */}
+            {activeTab === 'Recording' && (
+              <View style={styles.formContainer}>
+                <FormSection title="Add New Recording">
+                  <FormField label="Label">
+                    <ImprovedTextInput
+                      value={form.recordingLabel}
+                      onChangeText={v => handleChange('recordingLabel', v)}
+                      placeholder="First call · 30 Apr"
+                      containerStyle={{ marginBottom: 0 }}
+                    />
+                  </FormField>
+                  <FormField label="Recording URL">
+                    <ImprovedTextInput
+                      value={form.recordingUrl}
+                      onChangeText={v => {
+                        handleChange('recordingUrl', v);
+                        if (recordingFile) setRecordingFile(null);
+                      }}
+                      placeholder="https://drive.google.com/..."
+                      autoCapitalize="none"
+                      containerStyle={{ marginBottom: 0 }}
+                    />
+                  </FormField>
 
-                    <View style={styles.orDivider}>
-                      <View style={styles.orLine} />
-                      <Text style={styles.orText}>or upload a file</Text>
-                      <View style={styles.orLine} />
-                    </View>
-
-                    <TouchableOpacity
-                      onPress={handlePickRecordingFile}
-                      style={styles.uploadZone}
+                  <View style={styles.orDivider}>
+                    <View
+                      style={[
+                        styles.orLine,
+                        { backgroundColor: colors.border },
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        typography.overline,
+                        { color: colors.textTertiary },
+                      ]}
                     >
-                      {recordingFile ? (
-                        <View style={styles.fileRow}>
-                          <Icon
-                            name="microphone"
-                            size={24}
-                            color={colors.tabActive}
-                          />
-                          <View style={styles.fileInfo}>
-                            <Text style={styles.fileName} numberOfLines={1}>
-                              {recordingFile.name}
-                            </Text>
-                            <Text style={styles.fileSize}>
-                              {(
-                                (recordingFile.size || 0) /
-                                (1024 * 1024)
-                              ).toFixed(2)}{' '}
-                              MB
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            onPress={() => setRecordingFile(null)}
-                            style={styles.fileRemove}
-                          >
-                            <Icon name="close" size={16} color="#ef4444" />
-                          </TouchableOpacity>
-                        </View>
-                      ) : (
-                        <>
-                          <View style={styles.uploadIconCircle}>
-                            <Icon name="upload" size={24} color="#9ca3af" />
-                          </View>
-                          <Text style={styles.uploadTitle}>
-                            Tap to select a file
-                          </Text>
-                          <Text style={styles.uploadHint}>
-                            MP3, MP4, WAV, OGG, M4A, WebM · max 100MB
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-
-                    {uploadingRec ? (
-                      <View style={styles.progressWrap}>
-                        <View style={styles.progressTopRow}>
-                          <Text style={styles.progressLabel}>Uploading...</Text>
-                          <Text style={styles.progressLabel}>
-                            {uploadProgress}%
-                          </Text>
-                        </View>
-                        <View style={styles.progressTrack}>
-                          <View
-                            style={[
-                              styles.progressFill,
-                              { width: `${uploadProgress}%` },
-                            ]}
-                          />
-                        </View>
-                      </View>
-                    ) : null}
-
-                    {(recordingFile || form.recordingUrl.trim()) &&
-                    lead?._id ? (
-                      <TouchableOpacity
-                        disabled={uploadingRec}
-                        onPress={handleRecordingUpload}
-                        style={[
-                          styles.uploadBtn,
-                          uploadingRec && styles.disabled,
-                        ]}
-                      >
-                        <Text style={styles.uploadBtnText}>
-                          {uploadingRec ? 'Uploading...' : 'Save Recording'}
-                        </Text>
-                      </TouchableOpacity>
-                    ) : null}
-
-                    {!lead?._id &&
-                    (recordingFile || form.recordingUrl.trim()) ? (
-                      <Text style={styles.warningTextCenter}>
-                        ⚠️ Recording will be saved after the lead is created
-                      </Text>
-                    ) : null}
+                      or upload a file
+                    </Text>
+                    <View
+                      style={[
+                        styles.orLine,
+                        { backgroundColor: colors.border },
+                      ]}
+                    />
                   </View>
 
-                  {savedRecordings.length > 0 ? (
-                    <View style={styles.savedRecsBlock}>
-                      <View style={styles.savedRecsHeader}>
-                        <Icon name="microphone" size={16} color="#5a7bf6" />
-                        <Text style={styles.savedRecsTitle}>
-                          {' '}
-                          Saved Recordings ({savedRecordings.length})
-                        </Text>
-                      </View>
-                      {savedRecordings.map((rec, idx) => {
-                        const isVideo = /\.(mp4|webm|mov|avi|mkv)/i.test(
-                          rec.url || '',
-                        );
-                        const isPlaying = playingUrl === rec.url;
-                        return (
-                          <View
-                            key={rec._id || rec.url || idx}
-                            style={styles.savedRecItem}
+                  <TouchableOpacity
+                    onPress={handlePickRecordingFile}
+                    style={[
+                      styles.uploadZone,
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: colors.surface,
+                        borderRadius: borderRadius.xl,
+                      },
+                    ]}
+                  >
+                    {recordingFile ? (
+                      <View style={styles.fileRow}>
+                        <Icon
+                          name="microphone"
+                          size={24}
+                          color={colors.primary}
+                        />
+                        <View style={styles.fileInfo}>
+                          <Text
+                            style={[
+                              typography.label,
+                              { color: colors.textPrimary },
+                            ]}
+                            numberOfLines={1}
                           >
-                            <View style={styles.savedRecTopRow}>
-                              <View style={styles.savedRecIcon}>
-                                <Icon
-                                  name={isVideo ? 'video-outline' : 'music'}
-                                  size={16}
-                                  color="#5a7bf6"
-                                />
-                              </View>
-                              <View style={styles.savedRecInfo}>
+                            {recordingFile.name}
+                          </Text>
+                          <Text
+                            style={[
+                              typography.caption,
+                              { color: colors.textTertiary },
+                            ]}
+                          >
+                            {(
+                              (recordingFile.size || 0) /
+                              (1024 * 1024)
+                            ).toFixed(2)}{' '}
+                            MB
+                          </Text>
+                        </View>
+                        <IconButton
+                          name="close"
+                          size={16}
+                          color={colors.danger}
+                          onPress={() => setRecordingFile(null)}
+                        />
+                      </View>
+                    ) : (
+                      <>
+                        <View
+                          style={[
+                            styles.uploadIconCircle,
+                            { backgroundColor: colors.backgroundSecondary },
+                          ]}
+                        >
+                          <Icon
+                            name="upload"
+                            size={24}
+                            color={colors.textTertiary}
+                          />
+                        </View>
+                        <Text
+                          style={[
+                            typography.label,
+                            { color: colors.textPrimary },
+                          ]}
+                        >
+                          Tap to select a file
+                        </Text>
+                        <Text
+                          style={[
+                            typography.caption,
+                            { color: colors.textTertiary, textAlign: 'center' },
+                          ]}
+                        >
+                          MP3, MP4, WAV, OGG, M4A, WebM · max 100MB
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  {(recordingFile || form.recordingUrl.trim()) && lead?._id && (
+                    <ImprovedButton
+                      title={uploadingRec ? 'Uploading...' : 'Save Recording'}
+                      onPress={handleRecordingUpload}
+                      loading={uploadingRec}
+                      disabled={uploadingRec}
+                      fullWidth
+                    />
+                  )}
+                  {!lead?._id &&
+                    (recordingFile || form.recordingUrl.trim()) && (
+                      <Text
+                        style={[
+                          typography.caption,
+                          {
+                            color: colors.warning,
+                            textAlign: 'center',
+                            marginTop: spacing.sm,
+                          },
+                        ]}
+                      >
+                        ⚠️ Recording will be saved after the lead is created
+                      </Text>
+                    )}
+                </FormSection>
+
+                {savedRecordings.length > 0 && (
+                  <FormSection
+                    title={`Saved Recordings (${savedRecordings.length})`}
+                  >
+                    {savedRecordings.map((rec, idx) => {
+                      const isVideo = /\.(mp4|webm|mov|avi|mkv)/i.test(
+                        rec.url || '',
+                      );
+                      const isPlaying = playingUrl === rec.url;
+                      return (
+                        <View
+                          key={rec._id || rec.url || idx}
+                          style={[
+                            styles.savedRecItem,
+                            {
+                              borderColor: colors.border,
+                              backgroundColor: colors.surface,
+                              borderRadius: borderRadius.xl,
+                            },
+                          ]}
+                        >
+                          <View style={styles.savedRecTopRow}>
+                            <View
+                              style={[
+                                styles.savedRecIcon,
+                                { backgroundColor: colors.primarySoft },
+                              ]}
+                            >
+                              <Icon
+                                name={isVideo ? 'video-outline' : 'music'}
+                                size={16}
+                                color={colors.primary}
+                              />
+                            </View>
+                            <View style={styles.savedRecInfo}>
+                              <Text
+                                style={[
+                                  typography.label,
+                                  { color: colors.textPrimary },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {rec.label ||
+                                  rec.originalName ||
+                                  `Recording ${idx + 1}`}
+                              </Text>
+                              {rec.uploadedAt && (
                                 <Text
-                                  style={styles.savedRecLabel}
-                                  numberOfLines={1}
+                                  style={[
+                                    typography.caption,
+                                    { color: colors.textTertiary },
+                                  ]}
                                 >
-                                  {rec.label ||
-                                    rec.originalName ||
-                                    `Recording ${idx + 1}`}
-                                </Text>
-                                {rec.uploadedAt ? (
-                                  <Text style={styles.savedRecMeta}>
-                                    {new Date(
-                                      rec.uploadedAt,
-                                    ).toLocaleDateString('en-IN', {
+                                  {new Date(rec.uploadedAt).toLocaleDateString(
+                                    'en-IN',
+                                    {
                                       day: 'numeric',
                                       month: 'short',
                                       year: 'numeric',
-                                    })}
-                                    {rec.size
-                                      ? ` · ${(
-                                          rec.size /
-                                          (1024 * 1024)
-                                        ).toFixed(2)} MB`
-                                      : ''}
-                                  </Text>
-                                ) : null}
-                              </View>
-                              <View style={styles.savedRecActions}>
-                                <TouchableOpacity
-                                  onPress={() =>
-                                    setPlayingUrl(isPlaying ? null : rec.url)
-                                  }
-                                  style={styles.recActionBtn}
-                                >
-                                  <Icon
-                                    name={
-                                      isPlaying
-                                        ? 'stop-circle-outline'
-                                        : 'play-circle-outline'
-                                    }
-                                    size={20}
-                                    color="#5a7bf6"
-                                  />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  onPress={() => Linking.openURL(rec.url)}
-                                  style={styles.recActionBtnGray}
-                                >
-                                  <Icon
-                                    name="download"
-                                    size={16}
-                                    color="#6b7280"
-                                  />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  onPress={() => handleDeleteRecording(rec)}
-                                  style={styles.recActionBtnRed}
-                                >
-                                  <Icon
-                                    name="trash-can-outline"
-                                    size={16}
-                                    color="#ef4444"
-                                  />
-                                </TouchableOpacity>
-                              </View>
+                                    },
+                                  )}
+                                  {rec.size
+                                    ? ` · ${(rec.size / (1024 * 1024)).toFixed(
+                                        2,
+                                      )} MB`
+                                    : ''}
+                                </Text>
+                              )}
                             </View>
-                            {isPlaying ? (
-                              <View style={styles.mediaContainer}>
-                                <Video
-                                  source={{ uri: rec.url }}
-                                  resizeMode="contain"
-                                  style={styles.mediaPlayer}
-                                  controls
-                                  paused={!isPlaying}
-                                  playInBackground={false}
-                                  playWhenInactive={false}
-                                  ignoreSilentSwitch="ignore"
-                                />
-                              </View>
-                            ) : null}
-                          </View>
-                        );
-                      })}
-                    </View>
-                  ) : null}
-
-                  {savedRecordings.length === 0 &&
-                  !recordingFile &&
-                  !form.recordingUrl ? (
-                    <View style={styles.emptyRecording}>
-                      <Icon name="microphone" size={40} color="#d1d5db" />
-                      <Text style={styles.emptyRecordingText}>
-                        No recordings saved yet
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
-
-              {/* PAYMENT TAB */}
-              {activeTab === 'Payment' ? (
-                <View style={styles.formContainer}>
-                  <FormRow columns={3}>
-                    <FieldBlock label="Amount (₹)">
-                      <TextInput
-                        keyboardType="numeric"
-                        value={form.paymentAmount}
-                        onChangeText={v => handleChange('paymentAmount', v)}
-                        placeholder="0"
-                        placeholderTextColor={colors.textMuted}
-                        style={[
-                          styles.input,
-                          {
-                            borderColor: colors.inputBorder,
-                            backgroundColor: colors.inputBg,
-                            color: colors.textPrimary,
-                          },
-                        ]}
-                      />
-                    </FieldBlock>
-                    <FieldBlock label="Date">
-                      <DateTimeField
-                        value={form.paymentDate}
-                        onChange={v => handleChange('paymentDate', v)}
-                        openKey="paymentDate"
-                        pickerTargets={pickerTargets}
-                        setPickerTargets={setPickerTargets}
-                      />
-                    </FieldBlock>
-                    <FieldBlock label="Mode">
-                      <FieldPicker
-                        value={form.paymentMode}
-                        options={PAYMENT_MODES}
-                        onChange={v => handleChange('paymentMode', v)}
-                      />
-                    </FieldBlock>
-                  </FormRow>
-                  <FormRow columns={2}>
-                    <FieldBlock label="Status">
-                      <FieldPicker
-                        value={form.paymentStatus}
-                        options={PAYMENT_STATUS}
-                        onChange={v => handleChange('paymentStatus', v)}
-                      />
-                    </FieldBlock>
-                    <FieldBlock label="Reference">
-                      <TextInput
-                        value={form.paymentReference}
-                        onChangeText={v => handleChange('paymentReference', v)}
-                        placeholder="Transaction ID / UTR"
-                        placeholderTextColor={colors.textMuted}
-                        style={[
-                          styles.input,
-                          {
-                            borderColor: colors.inputBorder,
-                            backgroundColor: colors.inputBg,
-                            color: colors.textPrimary,
-                          },
-                        ]}
-                      />
-                    </FieldBlock>
-                  </FormRow>
-
-                  {paymentHistory.length > 0 ? (
-                    <View style={styles.paymentHistoryBlock}>
-                      <View style={styles.paymentHistoryHeader}>
-                        <Text style={styles.paymentHistoryTitle}>
-                          Payment history
-                        </Text>
-                        <View style={styles.recentDivider} />
-                        <View style={styles.recentCount}>
-                          <Text style={styles.recentCountText}>
-                            {paymentHistory.length} entries
-                          </Text>
-                        </View>
-                      </View>
-                      <ScrollView style={{ maxHeight: 256 }}>
-                        <View style={{ gap: 12 }}>
-                          {[...paymentHistory]
-                            .sort(
-                              (a, b) =>
-                                new Date(b.paymentDate || b.createdAt) -
-                                new Date(a.paymentDate || a.createdAt),
-                            )
-                            .map(payment => (
-                              <PaymentHistoryItem
-                                key={
-                                  payment._id ||
-                                  payment.createdAt ||
-                                  payment.paymentDate
+                            <View
+                              style={{ flexDirection: 'row', gap: spacing.sm }}
+                            >
+                              <IconButton
+                                name={
+                                  isPlaying
+                                    ? 'stop-circle-outline'
+                                    : 'play-circle-outline'
                                 }
-                                payment={payment}
-                                onUpdated={handlePaymentUpdated}
+                                size={20}
+                                color={colors.primary}
+                                onPress={() =>
+                                  setPlayingUrl(isPlaying ? null : rec.url)
+                                }
+                                backgroundColor={colors.primarySoft}
+                                style={{
+                                  borderRadius: 18,
+                                  width: 36,
+                                  height: 36,
+                                }}
                               />
-                            ))}
+                              <IconButton
+                                name="download"
+                                size={16}
+                                color={colors.textSecondary}
+                                onPress={() => Linking.openURL(rec.url)}
+                                backgroundColor={colors.backgroundSecondary}
+                                style={{
+                                  borderRadius: 18,
+                                  width: 36,
+                                  height: 36,
+                                }}
+                              />
+                              <IconButton
+                                name="trash-can-outline"
+                                size={16}
+                                color={colors.danger}
+                                onPress={() => handleDeleteRecording(rec)}
+                                backgroundColor={colors.dangerSoft}
+                                style={{
+                                  borderRadius: 18,
+                                  width: 36,
+                                  height: 36,
+                                }}
+                              />
+                            </View>
+                          </View>
+                          {isPlaying && (
+                            <View
+                              style={{
+                                paddingHorizontal: 12,
+                                paddingBottom: 12,
+                              }}
+                            >
+                              <Video
+                                source={{ uri: rec.url }}
+                                resizeMode="contain"
+                                style={{
+                                  width: '100%',
+                                  height: 180,
+                                  backgroundColor: '#000',
+                                  borderRadius: borderRadius.lg,
+                                }}
+                                controls
+                                paused={!isPlaying}
+                                playInBackground={false}
+                                playWhenInactive={false}
+                                ignoreSilentSwitch="ignore"
+                              />
+                            </View>
+                          )}
                         </View>
-                      </ScrollView>
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
+                      );
+                    })}
+                  </FormSection>
+                )}
 
-              {/* REMINDER TAB */}
-              {activeTab === 'Reminder' ? (
-                <View style={styles.formContainer}>
-                  <FormRow columns={2}>
-                    <FieldBlock label="Type">
-                      <FieldPicker
-                        value={form.reminderType}
-                        options={REMINDER_TYPES}
-                        onChange={v => handleChange('reminderType', v)}
-                      />
-                    </FieldBlock>
-                    <FieldBlock label="Assign To">
-                      <FieldPicker
-                        value={form.reminderAssignedTo}
-                        options={[
-                          { value: '', label: 'Select Assignee' },
-                          ...users.map(u => ({ value: u._id, label: u.name })),
-                        ]}
-                        onChange={v => handleChange('reminderAssignedTo', v)}
-                      />
-                    </FieldBlock>
-                  </FormRow>
-                  <FormRow columns={2}>
-                    <FieldBlock label="Date">
-                      <DateTimeField
-                        value={form.reminderDate}
-                        onChange={v => handleChange('reminderDate', v)}
-                        openKey="reminderDate"
-                        pickerTargets={pickerTargets}
-                        setPickerTargets={setPickerTargets}
-                      />
-                    </FieldBlock>
-                    <FieldBlock label="Time">
-                      <DateTimeField
-                        value={form.reminderTime}
-                        onChange={v => handleChange('reminderTime', v)}
-                        openKey="reminderTime"
-                        pickerTargets={pickerTargets}
-                        setPickerTargets={setPickerTargets}
-                        mode="time"
-                      />
-                    </FieldBlock>
-                  </FormRow>
-                  <FieldBlock label="Note">
-                    <TextInput
-                      value={form.reminderNote}
-                      onChangeText={v => handleChange('reminderNote', v)}
-                      placeholder="Reminder note"
-                      placeholderTextColor={colors.textMuted}
-                      style={[
-                        styles.input,
-                        {
-                          borderColor: colors.inputBorder,
-                          backgroundColor: colors.inputBg,
-                          color: colors.textPrimary,
-                        },
-                      ]}
+                {savedRecordings.length === 0 &&
+                  !recordingFile &&
+                  !form.recordingUrl && (
+                    <EmptyState
+                      icon="microphone"
+                      title="No recordings saved yet"
                     />
-                  </FieldBlock>
-                  <FieldBlock label="Also notify">
-                    <FieldPicker
-                      value={form.reminderNotify}
-                      options={[
-                        { value: '', label: 'None' },
-                        ...users.map(u => ({ value: u._id, label: u.name })),
-                      ]}
-                      onChange={v => handleChange('reminderNotify', v)}
-                    />
-                  </FieldBlock>
-                </View>
-              ) : null}
-
-              {/* CROSS-SELL TAB */}
-              {activeTab === 'Cross-Sell' ? (
-                <SuccessServiceSelector
-                  lead={lead}
-                  onSaved={onClose}
-                  isSuccess
-                />
-              ) : null}
-
-              {/* Footer */}
-              <View
-                style={[
-                  styles.footer,
-                  {
-                    borderTopColor: colors.border,
-                    backgroundColor: colors.modalBg,
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  onPress={onClose}
-                  style={[
-                    styles.cancelBtn,
-                    {
-                      borderColor: colors.inputBorder,
-                      backgroundColor: colors.modalBg,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.cancelBtnText,
-                      { color: colors.textSecondary },
-                    ]}
-                  >
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  disabled={submitting}
-                  onPress={handleSubmit}
-                  style={[
-                    styles.submitBtn,
-                    submitting && styles.disabled,
-                    { backgroundColor: colors.tabActive },
-                  ]}
-                >
-                  <Text style={styles.submitBtnText}>
-                    {submitting
-                      ? 'Saving...'
-                      : lead
-                      ? 'Update Lead'
-                      : 'Create Lead'}
-                  </Text>
-                </TouchableOpacity>
+                  )}
               </View>
-            </ScrollView>
+            )}
+
+            {/* PAYMENT TAB */}
+            {activeTab === 'Payment' && (
+              <View style={styles.formContainer}>
+                <FormRow columns={3}>
+                  <FormField label="Amount (₹)">
+                    <ImprovedTextInput
+                      keyboardType="numeric"
+                      value={form.paymentAmount}
+                      onChangeText={v => handleChange('paymentAmount', v)}
+                      placeholder="0"
+                      containerStyle={{ marginBottom: 0 }}
+                    />
+                  </FormField>
+                  <FormField label="Date">
+                    <DateTimeField
+                      value={form.paymentDate}
+                      onChange={v => handleChange('paymentDate', v)}
+                      openKey="paymentDate"
+                      pickerTargets={pickerTargets}
+                      setPickerTargets={setPickerTargets}
+                    />
+                  </FormField>
+                  <FormField label="Mode">
+                    <ImprovedDropdown
+                      items={paymentModeItems}
+                      selectedValue={form.paymentMode}
+                      onValueChange={v => handleChange('paymentMode', v)}
+                      searchable={false}
+                    />
+                  </FormField>
+                </FormRow>
+                <FormRow columns={2}>
+                  <FormField label="Status">
+                    <ImprovedDropdown
+                      items={paymentStatusItems}
+                      selectedValue={form.paymentStatus}
+                      onValueChange={v => handleChange('paymentStatus', v)}
+                      searchable={false}
+                    />
+                  </FormField>
+                  <FormField label="Reference">
+                    <ImprovedTextInput
+                      value={form.paymentReference}
+                      onChangeText={v => handleChange('paymentReference', v)}
+                      placeholder="Transaction ID / UTR"
+                      containerStyle={{ marginBottom: 0 }}
+                    />
+                  </FormField>
+                </FormRow>
+                {paymentHistory.length > 0 && (
+                  <FormSection title="Payment History">
+                    <ScrollView style={{ maxHeight: 256 }}>
+                      <View style={{ gap: 12 }}>
+                        {[...paymentHistory]
+                          .sort(
+                            (a, b) =>
+                              new Date(b.paymentDate || b.createdAt) -
+                              new Date(a.paymentDate || a.createdAt),
+                          )
+                          .map(payment => (
+                            <PaymentHistoryItem
+                              key={
+                                payment._id ||
+                                payment.createdAt ||
+                                payment.paymentDate
+                              }
+                              payment={payment}
+                              onUpdated={handlePaymentUpdated}
+                            />
+                          ))}
+                      </View>
+                    </ScrollView>
+                  </FormSection>
+                )}
+              </View>
+            )}
+
+            {/* REMINDER TAB */}
+            {activeTab === 'Reminder' && (
+              <View style={styles.formContainer}>
+                <FormRow columns={2}>
+                  <FormField label="Type">
+                    <ImprovedDropdown
+                      items={reminderTypeItems}
+                      selectedValue={form.reminderType}
+                      onValueChange={v => handleChange('reminderType', v)}
+                      searchable={false}
+                    />
+                  </FormField>
+                  <FormField label="Assign To">
+                    <ImprovedDropdown
+                      items={[
+                        { value: '', label: 'Select Assignee' },
+                        ...userItems,
+                      ]}
+                      selectedValue={form.reminderAssignedTo}
+                      onValueChange={v => handleChange('reminderAssignedTo', v)}
+                    />
+                  </FormField>
+                </FormRow>
+                <FormRow columns={2}>
+                  <FormField label="Date">
+                    <DateTimeField
+                      value={form.reminderDate}
+                      onChange={v => handleChange('reminderDate', v)}
+                      openKey="reminderDate"
+                      pickerTargets={pickerTargets}
+                      setPickerTargets={setPickerTargets}
+                    />
+                  </FormField>
+                  <FormField label="Time">
+                    <DateTimeField
+                      value={form.reminderTime}
+                      onChange={v => handleChange('reminderTime', v)}
+                      openKey="reminderTime"
+                      pickerTargets={pickerTargets}
+                      setPickerTargets={setPickerTargets}
+                      mode="time"
+                    />
+                  </FormField>
+                </FormRow>
+                <FormField label="Note">
+                  <ImprovedTextInput
+                    value={form.reminderNote}
+                    onChangeText={v => handleChange('reminderNote', v)}
+                    placeholder="Reminder note"
+                    containerStyle={{ marginBottom: 0 }}
+                  />
+                </FormField>
+                <FormField label="Also notify">
+                  <ImprovedDropdown
+                    items={[{ value: '', label: 'None' }, ...userItems]}
+                    selectedValue={form.reminderNotify}
+                    onValueChange={v => handleChange('reminderNotify', v)}
+                    searchable={false}
+                  />
+                </FormField>
+              </View>
+            )}
+
+            {/* CROSS-SELL TAB */}
+            {activeTab === 'Cross-Sell' && (
+              <SuccessServiceSelector
+                lead={lead}
+                onSaved={onClose}
+                isSuccess
+                toast={toast}
+              />
+            )}
+          </ScrollView>
+
+          {/* Footer */}
+          <View
+            style={[
+              styles.footerBar,
+              {
+                borderTopColor: colors.border,
+                backgroundColor: colors.surface,
+                padding: spacing.lg,
+                gap: spacing.sm,
+              },
+            ]}
+          >
+            <ImprovedButton
+              title={
+                submitting ? 'Saving...' : lead ? 'Update Lead' : 'Create Lead'
+              }
+              onPress={handleSubmit}
+              variant="primary"
+              size="large"
+              fullWidth
+              loading={submitting}
+              disabled={submitting}
+            />
+            <ImprovedButton
+              title="Cancel"
+              onPress={onClose}
+              variant="secondary"
+              size="medium"
+              fullWidth
+              disabled={submitting}
+            />
           </View>
         </View>
       </View>
@@ -2477,442 +2195,129 @@ const LeadFormModal = ({
   );
 };
 
-// ── Styles factory ──
-const createStyles = colors =>
-  StyleSheet.create({
-    overlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.4)',
-      justifyContent: 'flex-start',
-    },
-    backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-    modalSafeArea: { flex: 1, backgroundColor: colors.modalBg },
-    modalBody: {
-      flex: 1,
-      alignSelf: 'stretch',
-      backgroundColor: colors.modalBg,
-      width: '100%',
-      height: '100%',
-      marginHorizontal: 0,
-      marginTop: 0,
-      marginBottom: 0,
-      borderRadius: 0,
-      borderWidth: 0,
-      shadowColor: '#000',
-      shadowOpacity: 0.15,
-      shadowRadius: 20,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 10,
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-    },
-    formScrollView: { flex: 1, backgroundColor: colors.modalBg },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
-      padding: 20,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      gap: 12,
-    },
-    headerTextWrap: { flex: 1, paddingRight: 12 },
-    headerTitle: { fontSize: 20, fontWeight: '600', color: colors.textPrimary },
-    headerSubtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
-    closeBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.closeIconBg,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    tabsContainer: {
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      maxHeight: 48,
-      flexGrow: 0,
-      flexShrink: 0,
-    },
-    tabsInner: {
-      flexDirection: 'row',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      gap: 4,
-      alignItems: 'center',
-    },
-    tabBtn: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderBottomWidth: 2,
-      borderBottomColor: 'transparent',
-    },
-    tabText: { fontSize: 14, fontWeight: '500', color: colors.textSecondary },
-    tabTextActive: { color: colors.tabActive },
-    tabIndicator: {
-      position: 'absolute',
-      bottom: -1,
-      left: 0,
-      right: 0,
-      height: 2,
-      backgroundColor: colors.tabActive,
-      borderRadius: 2,
-    },
-    formScroll: { paddingBottom: 24, flexGrow: 1 },
-    formContainer: {
-      paddingHorizontal: 20,
-      paddingTop: 16,
-      paddingBottom: 24,
-      gap: 12,
-    },
-    fieldLabel: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: colors.textPrimary,
-      marginBottom: 6,
-    },
-    input: {
-      minHeight: 44,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.inputBorder,
-      backgroundColor: colors.inputBg,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      fontSize: 14,
-      color: colors.textPrimary,
-    },
-    textarea: { minHeight: 80, textAlignVertical: 'top' },
-    warningText: { marginTop: 8, fontSize: 13, color: '#d97706' },
-    warningTextCenter: {
-      marginTop: 10,
-      fontSize: 12,
-      color: '#d97706',
-      textAlign: 'center',
-    },
-    coAssignBox: {
-      borderRadius: 24,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.inputBg,
-      padding: 16,
-      marginTop: 6,
-    },
-    activityTypeHeader: { marginBottom: 14, gap: 8 },
-    typeScroll: { marginTop: 4 },
-    typeRow: { flexDirection: 'row', gap: 8 },
-    typePill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      borderRadius: 999,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      position: 'relative',
-    },
-    typePillInactive: { backgroundColor: colors.closeIconBg },
-    typePillText: {
-      fontSize: 13,
-      fontWeight: '500',
-      color: colors.textPrimary,
-    },
-    typePillTextActive: { color: '#fff' },
-    typePillDot: {
-      position: 'absolute',
-      top: -2,
-      right: -2,
-      width: 10,
-      height: 10,
-      borderRadius: 999,
-      backgroundColor: '#10b981',
-      borderWidth: 2,
-      borderColor: '#fff',
-    },
-    activityForm: {
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.inputBg,
-      padding: 16,
-      gap: 14,
-    },
-    activityFormTitle: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: colors.textPrimary,
-    },
-    callGrid: { flexDirection: 'row', gap: 10 },
-    taskGrid: { flexDirection: 'row', gap: 14 },
-    clearLink: { color: '#f87171', fontSize: 12 },
-    recentBlock: { marginTop: 16, gap: 12, maxHeight: 256 },
-    recentHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    recentTitle: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: colors.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-    },
-    recentDivider: { flex: 1, height: 1, backgroundColor: colors.border },
-    recentCount: {
-      backgroundColor: colors.closeIconBg,
-      borderRadius: 999,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-    },
-    recentCountText: { fontSize: 11, color: colors.textSecondary },
-    recentItem: {
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.inputBg,
-      padding: 12,
-      gap: 6,
-    },
-    recentItemTop: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      flexWrap: 'wrap',
-    },
-    recentIcon: {
-      width: 24,
-      height: 24,
-      borderRadius: 6,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    recentType: { fontSize: 13, fontWeight: '500', color: colors.textPrimary },
-    outcomeBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      borderRadius: 999,
-      paddingHorizontal: 8,
-      paddingVertical: 2,
-      borderWidth: 1,
-    },
-    outcomeDot: { width: 6, height: 6, borderRadius: 999 },
-    outcomeText: { fontSize: 10, fontWeight: '600' },
-    recentBadge: {
-      backgroundColor: '#dcfce7',
-      borderRadius: 999,
-      paddingHorizontal: 8,
-      paddingVertical: 2,
-    },
-    recentBadgeText: { fontSize: 10, fontWeight: '700', color: '#15803d' },
-    recentText: { fontSize: 12, color: colors.textSecondary, lineHeight: 17 },
-    recentMeta: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
-    recordingBlock: { gap: 14 },
-    sectionTitle: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: colors.textPrimary,
-    },
-    orDivider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    orLine: { flex: 1, height: 1, backgroundColor: colors.border },
-    orText: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: colors.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-    },
-    uploadZone: {
-      borderRadius: 16,
-      borderWidth: 2,
-      borderColor: colors.inputBorder,
-      borderStyle: 'dashed',
-      padding: 20,
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      minHeight: 100,
-      backgroundColor: colors.inputBg,
-    },
-    uploadIconCircle: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: colors.closeIconBg,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    uploadTitle: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
-    uploadHint: { fontSize: 12, color: colors.textMuted, textAlign: 'center' },
-    fileRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      width: '100%',
-    },
-    fileInfo: { flex: 1 },
-    fileName: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
-    fileSize: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-    fileRemove: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      backgroundColor: 'rgba(254,226,226,0.8)',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    progressWrap: { gap: 6 },
-    progressTopRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    progressLabel: { fontSize: 11, color: colors.textSecondary },
-    progressTrack: {
-      height: 6,
-      borderRadius: 999,
-      backgroundColor: colors.border,
-      overflow: 'hidden',
-    },
-    progressFill: {
-      height: 6,
-      borderRadius: 999,
-      backgroundColor: colors.tabActive,
-    },
-    uploadBtn: {
-      borderRadius: 12,
-      backgroundColor: colors.tabActive,
-      paddingVertical: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    uploadBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-    disabled: { opacity: 0.5 },
-    savedRecsBlock: { marginTop: 20, gap: 12 },
-    savedRecsHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    savedRecsTitle: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: colors.textPrimary,
-    },
-    savedRecItem: {
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.inputBg,
-      overflow: 'hidden',
-    },
-    savedRecTopRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      padding: 12,
-    },
-    savedRecIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: 'rgba(90,123,246,0.06)',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    savedRecInfo: { flex: 1 },
-    savedRecLabel: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: colors.textPrimary,
-    },
-    savedRecMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-    savedRecActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    recActionBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: 'rgba(90,123,246,0.1)',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    recActionBtnGray: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.closeIconBg,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    recActionBtnRed: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: 'rgba(239,68,68,0.1)',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    mediaContainer: { paddingHorizontal: 12, paddingBottom: 12 },
-    mediaPlayer: {
-      width: '100%',
-      height: 180,
-      backgroundColor: '#000',
-      borderRadius: 12,
-    },
-    emptyRecording: {
-      borderRadius: 16,
-      borderWidth: 1,
-      borderStyle: 'dashed',
-      borderColor: colors.border,
-      paddingVertical: 40,
-      alignItems: 'center',
-      gap: 8,
-    },
-    emptyRecordingText: { fontSize: 13, color: colors.textMuted },
-    paymentHistoryBlock: {
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.inputBg,
-      padding: 16,
-      marginTop: 6,
-    },
-    paymentHistoryHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 16,
-    },
-    paymentHistoryTitle: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: colors.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-    },
-    footer: {
-      flexDirection: 'row',
-      justifyContent: 'flex-end',
-      gap: 12,
-      padding: 16,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      backgroundColor: colors.modalBg,
-    },
-    cancelBtn: {
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.inputBorder,
-      backgroundColor: colors.modalBg,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-    },
-    cancelBtnText: {
-      fontSize: 14,
-      fontWeight: '500',
-      color: colors.textSecondary,
-    },
-    submitBtn: {
-      borderRadius: 12,
-      backgroundColor: colors.tabActive,
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      shadowColor: '#818cf8',
-      shadowOpacity: 0.25,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 5,
-    },
-    submitBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
-  });
+// ── Styles ──
+const styles = StyleSheet.create({
+  modalSafeArea: { flex: 1 },
+  modalBody: { flex: 1, overflow: 'hidden' },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerBar: { borderTopWidth: StyleSheet.hairlineWidth },
+  tabsContainer: {
+    borderBottomWidth: 1,
+    maxHeight: 48,
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  tabsInner: {
+    flexDirection: 'row',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 4,
+    alignItems: 'center',
+  },
+  tabBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabIndicator: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    right: 0,
+    height: 2,
+    borderRadius: 2,
+  },
+  formContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
+    gap: 12,
+  },
+  typePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    position: 'relative',
+  },
+  typePillDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#10b981',
+    borderWidth: 2,
+  },
+  activityForm: { borderWidth: 1, padding: 16, gap: 14 },
+  recentItem: { borderWidth: 1, padding: 12, gap: 6 },
+  recentItemTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  recentIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recentBadge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  orDivider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  orLine: { flex: 1, height: 1 },
+  uploadZone: {
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 100,
+  },
+  uploadIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+  },
+  fileInfo: { flex: 1 },
+  savedRecItem: { borderWidth: 1, overflow: 'hidden' },
+  savedRecTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+  },
+  savedRecIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  savedRecInfo: { flex: 1 },
+});
 
 export default LeadFormModal;

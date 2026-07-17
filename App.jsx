@@ -20,10 +20,11 @@ import {
   registerOverlayCloseHandler,
 } from './src/services/callTrackerService';
 import { useLocationTracker } from './src/hooks/useLocationTracker';
+import { ToastProvider } from './src/components/ui/CustomToast';
+import { ThemeProvider } from './src/contexts/ThemeContext';
 
 import AppNavigator from './src/navigation/AppNavigator';
 import OverlayCloseAlternatePhoneModal from './src/components/common/OverlayCloseAlternatePhoneModal';
-import { ToastContainer } from './src/hooks/useToast';
 import { initSocket } from './src/services/socket';
 import { useIncomingCallTrigger } from './src/hooks/useIncomingCallTrigger';
 
@@ -31,8 +32,9 @@ const BRAND = '#5a7bf6';
 
 const AppContent = () => {
   const dispatch = useDispatch();
-  const { isAuthenticated, isInitializing, user  } = useSelector(state => state.auth);
-  // const { isAuthenticated, isInitializing } = useSelector(state => state.auth);
+  const { isAuthenticated, isInitializing, user } = useSelector(
+    state => state.auth,
+  );
   const [overlayCloseModalVisible, setOverlayCloseModalVisible] =
     useState(false);
   const [overlayClosePhone, setOverlayClosePhone] = useState('');
@@ -59,13 +61,14 @@ const AppContent = () => {
     };
     initializeAuth();
   }, [dispatch]);
-  
-useEffect(() => {
-  if (!isAuthenticated || !user?._id) return;
-  initSocket(user._id);
-}, [isAuthenticated, user]);
 
-useIncomingCallTrigger();
+  useEffect(() => {
+    if (!isAuthenticated || !user?._id) return;
+    initSocket(user._id);
+  }, [isAuthenticated, user]);
+
+  useIncomingCallTrigger();
+
   useEffect(() => {
     if (!isAuthenticated) return;
     dispatch(fetchSettings());
@@ -96,7 +99,7 @@ useIncomingCallTrigger();
 
       const overlayOk = await hasOverlayPermission();
       if (!overlayOk) {
-        await requestOverlayPermission(); // Settings screen khulegi, user ek baar "Allow" karega
+        await requestOverlayPermission();
       }
     };
 
@@ -119,7 +122,6 @@ useIncomingCallTrigger();
         phoneNumber={overlayClosePhone}
         onClose={() => setOverlayCloseModalVisible(false)}
       />
-      <ToastContainer />
     </NavigationContainer>
   );
 };
@@ -129,8 +131,12 @@ export default function App() {
     <Provider store={store}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
-          <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-          <AppContent />
+          <ThemeProvider>
+            <ToastProvider>
+              <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+              <AppContent />
+            </ToastProvider>
+          </ThemeProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </Provider>

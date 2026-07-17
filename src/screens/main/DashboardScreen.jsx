@@ -5,20 +5,26 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   FlatList,
-  Dimensions,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Feather from 'react-native-vector-icons/Feather';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useUISystem } from '../../hooks/useUISystem';
 import { dashboardService } from '../../services/dashboardService';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const IS_SMALL = SCREEN_WIDTH < 640;
-const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 12) / 2;
+// ─── UI Kit imports ────────────────────────────────────────────────────────
+import PageHeader from '../../components/ui/PageHeader';
+import FilterChip from '../../components/ui/FilterChip';
+import MetricCard from '../../components/ui/MetricCard';
+import ImprovedCard from '../../components/ui/ImprovedCard';
+import ImprovedButton from '../../components/ui/ImprovedButton';
+import Avatar from '../../components/ui/Avatar';
+import OwnerChip from '../../components/ui/OwnerChip';
+import CountBadge from '../../components/ui/CountBadge';
+import ListDivider from '../../components/ui/ListDivider';
+import EmptyState from '../../components/ui/EmptyState';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -29,28 +35,20 @@ const formatCurrency = value =>
     maximumFractionDigits: 0,
   }).format(value || 0);
 
-const getInitials = (name = '') =>
-  name
-    .split(' ')
-    .slice(0, 2)
-    .map(n => n[0])
-    .join('')
-    .toUpperCase();
-
 const statusConfig = {
   Won: { bg: 'successSoft', text: 'success', label: 'Won' },
-  Active: { bg: 'warnSoft', text: 'warn', label: 'Active' },
-  Lost: { bg: 'redSoft', text: 'red', label: 'Lost' },
+  Active: { bg: 'warningSoft', text: 'warning', label: 'Active' },
+  Lost: { bg: 'dangerSoft', text: 'danger', label: 'Lost' },
   Pipeline: { bg: 'purpleSoft', text: 'purple', label: 'Pipeline' },
-  New: { bg: 'accentSoft', text: 'accent', label: 'New' },
+  New: { bg: 'primarySoft', text: 'primary', label: 'New' },
 };
 
 const reminderIcon = (type = '') => {
   const t = type.toLowerCase();
-  if (t.includes('call')) return { icon: 'phone', color: 'accent' };
-  if (t.includes('email')) return { icon: 'mail', color: 'success' };
-  if (t.includes('meet')) return { icon: 'video', color: 'warn' };
-  return { icon: 'clock', color: 'purple' };
+  if (t.includes('call')) return { icon: 'phone', colorKey: 'primary' };
+  if (t.includes('email')) return { icon: 'mail', colorKey: 'success' };
+  if (t.includes('meet')) return { icon: 'video', colorKey: 'warning' };
+  return { icon: 'clock', colorKey: 'purple' };
 };
 
 const getCurrentUser = async () => {
@@ -93,12 +91,12 @@ const getDateParams = activeFilter => {
   return {};
 };
 
-// ─── Components ───────────────────────────────────────────────────────────
+// ─── Sub-components ────────────────────────────────────────────────────────
 
 const StatusPill = ({ status, colors }) => {
   const cfg = statusConfig[status] || {
-    bg: 'accentSoft',
-    text: 'accent',
+    bg: 'primarySoft',
+    text: 'primary',
     label: status || '—',
   };
   return (
@@ -110,17 +108,6 @@ const StatusPill = ({ status, colors }) => {
   );
 };
 
-const OwnerAvatar = ({ name, colors }) => (
-  <View style={styles.ownerChip}>
-    <View style={[styles.avatar, { backgroundColor: colors.gradientStart }]}>
-      <Text style={styles.avatarText}>{getInitials(name)}</Text>
-    </View>
-    <Text style={[styles.ownerName, { color: colors.text1 }]}>
-      {name?.split(' ')[0] || '—'}
-    </Text>
-  </View>
-);
-
 const PerfBar = ({ ratio, colors }) => (
   <View style={[styles.perfBarWrap, { backgroundColor: colors.border }]}>
     <View
@@ -128,97 +115,11 @@ const PerfBar = ({ ratio, colors }) => (
         styles.perfBar,
         {
           width: `${Math.round(Math.min(ratio, 1) * 100)}%`,
-          backgroundColor: colors.accent,
+          backgroundColor: colors.primary,
         },
       ]}
     />
   </View>
-);
-
-const MetricCard = ({ item, colors, onPress, fullWidth }) => (
-  <TouchableOpacity
-    activeOpacity={onPress ? 0.85 : 1}
-    onPress={onPress}
-    style={[
-      styles.mCard,
-         fullWidth && styles.mCardFull, 
-      {
-        backgroundColor: colors.cardBg,
-        borderColor: colors.border,
-        borderTopColor:
-          item.color === 'yellow'
-            ? colors.warn
-            : item.color === 'green'
-            ? colors.success
-            : item.color === 'purple'
-            ? colors.purple
-            : item.color === 'cyan'
-            ? colors.cyan
-            : colors.accent,
-      },
-    ]}
-  >
-    <View
-      style={[
-        styles.mIcon,
-        {
-          backgroundColor:
-            item.color === 'yellow'
-              ? colors.warnSoft
-              : item.color === 'green'
-              ? colors.successSoft
-              : item.color === 'purple'
-              ? colors.purpleSoft
-              : item.color === 'cyan'
-              ? colors.cyanSoft
-              : colors.accentSoft,
-        },
-      ]}
-    >
-      <Feather
-        name={item.icon}
-        size={18}
-        color={
-          item.color === 'yellow'
-            ? colors.warn
-            : item.color === 'green'
-            ? colors.success
-            : item.color === 'purple'
-            ? colors.purple
-            : item.color === 'cyan'
-            ? colors.cyan
-            : colors.accent
-        }
-      />
-    </View>
-    <Text style={[styles.mLabel, { color: colors.text2 }]}>{item.label}</Text>
-    <Text
-      style={[
-        styles.mValue,
-        { color: colors.text1, fontSize: item.label === 'Collected' ? 22 : 26 },
-      ]}
-    >
-      {item.value}
-    </Text>
-  </TouchableOpacity>
-);
-
-const FilterBadge = ({ label, active, colors, onPress }) => (
-  <TouchableOpacity
-    activeOpacity={0.85}
-    onPress={onPress}
-    style={[
-      styles.badge,
-      active
-        ? { backgroundColor: colors.accent }
-        : { backgroundColor: colors.cardBg },
-      { borderColor: colors.border },
-    ]}
-  >
-    <Text style={[styles.badgeText, { color: active ? '#fff' : colors.text2 }]}>
-      {label}
-    </Text>
-  </TouchableOpacity>
 );
 
 // ─── Skeleton components ───────────────────────────────────────────────────
@@ -230,21 +131,27 @@ const SkeletonBox = ({ width, height, colors, style }) => (
       {
         width,
         height,
-        backgroundColor: colors.cardBg,
+        backgroundColor: colors.skeletonBase,
       },
       style,
       { overflow: 'hidden' },
     ]}
   >
-    <View style={[styles.shimmer, { backgroundColor: colors.accentSoft }]} />
+    <View
+      style={[styles.shimmer, { backgroundColor: colors.skeletonHighlight }]}
+    />
   </View>
 );
 
-const SkeletonMetricCard = ({ colors }) => (
+const SkeletonMetricCard = ({ colors, borderRadius: br }) => (
   <View
     style={[
       styles.skeletonCard,
-      { backgroundColor: colors.cardBg, borderColor: colors.border },
+      {
+        backgroundColor: colors.cardBg,
+        borderColor: colors.border,
+        borderRadius: br.xl,
+      },
     ]}
   >
     <SkeletonBox
@@ -263,7 +170,7 @@ const SkeletonMetricCard = ({ colors }) => (
       width={36}
       height={36}
       colors={colors}
-      style={{ position: 'absolute', top: 16, right: 16, borderRadius: 10 }}
+      style={{ position: 'absolute', top: 16, right: 16, borderRadius: br.md }}
     />
   </View>
 );
@@ -278,32 +185,8 @@ const DashboardScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState(null);
 
-const { isDark } = useTheme();
-
-  const colors = {
-    accent: '#5a7bf6',
-    accentDark: '#4a68e0',
-    accentSoft: isDark ? 'rgba(90,123,246,0.15)' : 'rgba(90,123,246,0.10)',
-    accentBorder: isDark ? 'rgba(90,123,246,0.22)' : 'rgba(90,123,246,0.20)',
-    accentShadow: 'rgba(90,123,246,0.25)',
-    success: '#12B76A',
-    successSoft: isDark ? 'rgba(18,183,106,0.13)' : 'rgba(18,183,106,0.10)',
-    warn: '#F79009',
-    warnSoft: isDark ? 'rgba(247,144,9,0.13)' : 'rgba(247,144,9,0.10)',
-    purple: '#7A5AF8',
-    purpleSoft: isDark ? 'rgba(122,90,248,0.13)' : 'rgba(122,90,248,0.10)',
-    cyan: '#0BA5EC',
-    cyanSoft: isDark ? 'rgba(11,165,236,0.13)' : 'rgba(11,165,236,0.10)',
-    red: '#F04438',
-    redSoft: isDark ? 'rgba(240,68,56,0.13)' : 'rgba(240,68,56,0.10)',
-    text1: isDark ? '#F8FAFC' : '#111827',
-    text2: isDark ? '#94A3B8' : '#6B7280',
-    text3: isDark ? '#64748B' : '#9CA3AF',
-    border: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.09)',
-    cardBg: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-    gradientStart: '#5a7bf6',
-    gradientEnd: '#7A5AF8',
-  };
+  const { colors, typography, spacing, borderRadius, elevation, isDark } =
+    useUISystem();
 
   const filterMap = {
     All: 'all',
@@ -323,11 +206,11 @@ const { isDark } = useTheme();
     };
   }, []);
 
- useEffect(() => {
-  let mounted = true;
-  setLoading(true);
-  setOverview(null); // ← ye line add karo
-  (async () => {
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    setOverview(null);
+    (async () => {
       try {
         const data = await dashboardService.getOverview({
           filter: filterMap[activeFilter],
@@ -346,7 +229,7 @@ const { isDark } = useTheme();
     };
   }, [activeFilter]);
 
-const handleRefresh = async () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
     try {
       const data = await dashboardService.getOverview({
@@ -362,17 +245,17 @@ const handleRefresh = async () => {
     }
   };
 
-const handleNavigate = (path, params = {}) => {
-  if (navigation && typeof navigation.navigate === 'function') {
-    const screenMap = {
-      leads: 'Leads',
-      payments: 'Payments',
-      reports: 'Reports',
-    };
-    const key = path.replace(/^\//, '');
-    navigation.navigate(screenMap[key] || key, params);
-  }
-};
+  const handleNavigate = (path, params = {}) => {
+    if (navigation && typeof navigation.navigate === 'function') {
+      const screenMap = {
+        leads: 'Leads',
+        payments: 'Payments',
+        reports: 'Reports',
+      };
+      const key = path.replace(/^\//, '');
+      navigation.navigate(screenMap[key] || key, params);
+    }
+  };
 
   const buildLeadParams = filterValue => {
     const dateParams = getDateParams(activeFilter);
@@ -383,177 +266,111 @@ const handleNavigate = (path, params = {}) => {
     return params;
   };
 
+  // ─── Loading State ───────────────────────────────────────────────────────
   if (loading) {
     return (
       <SafeAreaView
-  edges={['bottom']}
-  style={[styles.root, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}  // ← same as main return
->
+        edges={['bottom']}
+        style={[styles.root, { backgroundColor: colors.background }]}
+      >
         <ScrollView contentContainerStyle={styles.container}>
-          <View style={styles.header}>
-            <View>
-              <Text style={[styles.title, { color: colors.text1 }]}>
-                Dashboard Overview
-              </Text>
-              <Text style={[styles.sub, { color: colors.text2 }]}>
-                Loading dashboard data…
-              </Text>
-            </View>
-          </View>
+          <PageHeader
+            title="Dashboard Overview"
+            subtitle="Loading dashboard data…"
+            style={{ marginBottom: spacing.md }}
+          />
 
-          <View style={styles.filtersRow}>
-            {['All', 'Today', 'This Week', 'This Month'].map(f => (
-              <View
-                key={f}
-                style={[
-                  styles.badge,
-                  {
-                    backgroundColor: colors.cardBg,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <Text style={[styles.badgeText, { color: colors.text3 }]}>
-                  {f}
-                </Text>
-              </View>
-            ))}
-          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginBottom: spacing.md }}
+          >
+            <View style={styles.filtersRow}>
+              {['All', 'Today', 'This Week', 'This Month'].map(f => (
+                <FilterChip key={f} label={f} active={false} disabled />
+              ))}
+            </View>
+          </ScrollView>
 
           <View style={styles.metricsGrid}>
             {[1, 2, 3, 4, 5].map(i => (
-              <SkeletonMetricCard key={i} colors={colors} />
+              <SkeletonMetricCard
+                key={i}
+                colors={colors}
+                borderRadius={borderRadius}
+              />
             ))}
           </View>
 
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: colors.cardBg, borderColor: colors.border },
-            ]}
-          >
-            <SkeletonBox
-              width="35%"
-              height={18}
-              colors={colors}
-              style={{ marginBottom: 6 }}
-            />
-            <SkeletonBox
-              width="50%"
-              height={12}
-              colors={colors}
-              style={{ marginBottom: 20 }}
-            />
-            {[1, 2, 3, 4].map(i => (
-              <View key={i} style={styles.skeletonRow}>
-                <SkeletonBox width="45%" height={14} colors={colors} />
-                <SkeletonBox width="30%" height={14} colors={colors} />
-                <SkeletonBox width="25%" height={14} colors={colors} />
-              </View>
-            ))}
-          </View>
-
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: colors.cardBg, borderColor: colors.border },
-            ]}
-          >
-            <SkeletonBox
-              width="35%"
-              height={18}
-              colors={colors}
-              style={{ marginBottom: 6 }}
-            />
-            <SkeletonBox
-              width="50%"
-              height={12}
-              colors={colors}
-              style={{ marginBottom: 20 }}
-            />
-            {[1, 2, 3].map(i => (
-              <View key={i} style={styles.skeletonRow}>
-                <SkeletonBox
-                  width={40}
-                  height={40}
-                  colors={colors}
-                  style={{ borderRadius: 12 }}
-                />
-                <View style={{ flex: 1, marginLeft: 12 }}>
+          {/* Skeleton cards for sections */}
+          {[1, 2, 3].map(section => (
+            <ImprovedCard
+              key={section}
+              variant="outline"
+              style={{ marginBottom: spacing.xl }}
+            >
+              <SkeletonBox
+                width="35%"
+                height={18}
+                colors={colors}
+                style={{ marginBottom: 6 }}
+              />
+              <SkeletonBox
+                width="50%"
+                height={12}
+                colors={colors}
+                style={{ marginBottom: 20 }}
+              />
+              {[1, 2, 3].map(i => (
+                <View key={i} style={styles.skeletonRow}>
                   <SkeletonBox
-                    width="55%"
-                    height={14}
+                    width={40}
+                    height={40}
                     colors={colors}
-                    style={{ marginBottom: 6 }}
+                    style={{ borderRadius: borderRadius.md }}
                   />
-                  <SkeletonBox width="40%" height={12} colors={colors} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <SkeletonBox
+                      width="55%"
+                      height={14}
+                      colors={colors}
+                      style={{ marginBottom: 6 }}
+                    />
+                    <SkeletonBox width="40%" height={12} colors={colors} />
+                  </View>
                 </View>
-              </View>
-            ))}
-          </View>
-
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: colors.cardBg, borderColor: colors.border },
-            ]}
-          >
-            <SkeletonBox
-              width="35%"
-              height={18}
-              colors={colors}
-              style={{ marginBottom: 6 }}
-            />
-            <SkeletonBox
-              width="50%"
-              height={12}
-              colors={colors}
-              style={{ marginBottom: 20 }}
-            />
-            {[1, 2, 3, 4].map(i => (
-              <View key={i} style={styles.skeletonRow}>
-                <SkeletonBox
-                  width={36}
-                  height={36}
-                  colors={colors}
-                  style={{ borderRadius: 10 }}
-                />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <SkeletonBox
-                    width="60%"
-                    height={14}
-                    colors={colors}
-                    style={{ marginBottom: 6 }}
-                  />
-                  <SkeletonBox
-                    width="50%"
-                    height={12}
-                    colors={colors}
-                    style={{ marginBottom: 6 }}
-                  />
-                  <SkeletonBox width="40%" height={12} colors={colors} />
-                </View>
-              </View>
-            ))}
-          </View>
+              ))}
+            </ImprovedCard>
+          ))}
         </ScrollView>
       </SafeAreaView>
     );
   }
 
+  // ─── Error State ─────────────────────────────────────────────────────────
   if (error) {
     return (
       <SafeAreaView
         edges={['bottom']}
-        style={[styles.root, { backgroundColor: colors.cardBg }]}
+        style={[styles.root, { backgroundColor: colors.background }]}
       >
         <View style={styles.container}>
-          <Text style={[styles.title, { color: colors.text1 }]}>Dashboard</Text>
-          <Text style={[styles.errorText, { color: colors.red }]}>{error}</Text>
+          <PageHeader title="Dashboard" />
+          <EmptyState
+            icon="alert-circle-outline"
+            title="Something went wrong"
+            message={error}
+            actionLabel="Retry"
+            onAction={handleRefresh}
+          />
         </View>
       </SafeAreaView>
     );
   }
+
+  // ─── Data ready ──────────────────────────────────────────────────────────
+  const isAdmin = user?.role === 'admin';
+  const isManager = user?.role === 'manager';
 
   const metrics = [
     {
@@ -598,9 +415,6 @@ const handleNavigate = (path, params = {}) => {
     1,
   );
 
-  const isAdmin = user?.role === 'admin';
-  const isManager = user?.role === 'manager';
-
   const combinedItems = [
     ...(overview.todayReminders || []).map(r => ({
       ...r,
@@ -610,31 +424,36 @@ const handleNavigate = (path, params = {}) => {
     ...(overview.todayTasks || []).map(t => ({ ...t, _itemType: 'task' })),
   ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
+  // ─── Render helpers ──────────────────────────────────────────────────────
+
   const renderLeadItem = ({ item: lead }) => (
-    <View
-      style={[
-        styles.leadCard,
-        { backgroundColor: colors.cardBg, borderColor: colors.border },
-      ]}
-    >
+    <ImprovedCard variant="outline" padding="small" style={{ marginBottom: 0 }}>
       <View style={styles.leadCardRow}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.leadCardLabel, { color: colors.text3 }]}>
+          <Text style={[typography.overline, { color: colors.textTertiary }]}>
             LEAD NAME
           </Text>
-          <Text style={[styles.leadCardName, { color: colors.text1 }]}>
+          <Text
+            style={[
+              typography.label,
+              { color: colors.textPrimary, fontSize: 14 },
+            ]}
+          >
             {lead.name}
           </Text>
         </View>
         <View style={styles.leadCardRight}>
           <Text
             style={[
-              styles.leadCardDate,
+              typography.caption,
               {
-                color: colors.text2,
-                backgroundColor: isDark
-                  ? 'rgba(255,255,255,0.05)'
-                  : 'rgba(0,0,0,0.05)',
+                color: colors.textSecondary,
+                backgroundColor: colors.backgroundSecondary,
+                fontWeight: '600',
+                paddingVertical: 3,
+                paddingHorizontal: 8,
+                borderRadius: borderRadius.sm,
+                overflow: 'hidden',
               },
             ]}
           >
@@ -646,57 +465,99 @@ const handleNavigate = (path, params = {}) => {
           <StatusPill status={lead.status} colors={colors} />
         </View>
       </View>
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+      <ListDivider style={{ marginVertical: spacing.md }} />
+
       <View style={styles.leadCardRow}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.leadCardLabel, { color: colors.text3 }]}>
+          <Text style={[typography.overline, { color: colors.textTertiary }]}>
             ASSIGNED TO
           </Text>
-          <OwnerAvatar
-            name={lead.assignedTo?.name || 'Unassigned'}
-            colors={colors}
-          />
+          <OwnerChip name={lead.assignedTo?.name || 'Unassigned'} />
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[styles.leadCardLabel, { color: colors.text3 }]}>
+          <Text style={[typography.overline, { color: colors.textTertiary }]}>
             DEAL VALUE
           </Text>
-          <Text style={[styles.leadCardValue, { color: colors.accent }]}>
+          <Text
+            style={[
+              typography.label,
+              { color: colors.primary, fontSize: 14, marginTop: 2 },
+            ]}
+          >
             {lead.dealValue ? formatCurrency(lead.dealValue) : '—'}
           </Text>
         </View>
       </View>
-    </View>
+    </ImprovedCard>
   );
+
+  const renderActivityIcon = (iconName, colorKey) => {
+    const softKey = colorKey + 'Soft';
+    return (
+      <View
+        style={[
+          styles.rDot,
+          {
+            backgroundColor: colors[softKey] || colors.primarySoft,
+            borderRadius: borderRadius.md,
+          },
+        ]}
+      >
+        <Feather
+          name={iconName}
+          size={18}
+          color={colors[colorKey] || colors.primary}
+        />
+      </View>
+    );
+  };
 
   const renderReminderItem = ({ item }) => {
     if (item._itemType === 'event') {
       return (
         <View style={styles.reminderItem}>
-          <View style={[styles.rDot, { backgroundColor: colors.purpleSoft }]}>
-            <Feather name="calendar" size={18} color={colors.purple} />
-          </View>
+          {renderActivityIcon('calendar', 'purple')}
           <View style={{ flex: 1 }}>
-            <Text style={[styles.rType, { color: colors.text1 }]}>
+            <Text
+              style={[
+                typography.label,
+                { color: colors.textPrimary, fontSize: 14 },
+              ]}
+            >
               {item.title || 'Event'}
             </Text>
-            <Text style={[styles.rLead, { color: colors.text2 }]}>
+            <Text
+              style={[
+                typography.caption,
+                {
+                  color: colors.textSecondary,
+                  marginTop: 2,
+                  fontWeight: '500',
+                },
+              ]}
+            >
               {Array.isArray(item.assignedTo)
                 ? item.assignedTo.map(u => u?.name || u).join(', ')
                 : item.assignedTo?.name || ''}
             </Text>
             {item.note ? (
-              <Text style={[styles.rNote, { color: colors.text2 }]}>
+              <Text
+                style={[
+                  typography.body2,
+                  { color: colors.textSecondary, marginTop: 6, fontSize: 13 },
+                ]}
+              >
                 {item.note}
               </Text>
             ) : null}
             <Text
               style={[
-                styles.rTime,
+                styles.timeBadge,
                 {
-                  color: colors.accent,
-                  backgroundColor: colors.accentSoft,
-                  borderColor: colors.accentBorder,
+                  color: colors.primary,
+                  backgroundColor: colors.primarySoft,
+                  borderColor: colors.primaryBorder,
                 },
               ]}
             >
@@ -706,29 +567,49 @@ const handleNavigate = (path, params = {}) => {
         </View>
       );
     }
+
     if (item._itemType === 'task') {
       return (
         <View style={styles.reminderItem}>
-          <View style={[styles.rDot, { backgroundColor: colors.purpleSoft }]}>
-            <Feather name="check-circle" size={18} color={colors.purple} />
-          </View>
+          {renderActivityIcon('check-circle', 'purple')}
           <View style={{ flex: 1 }}>
-            <Text style={[styles.rType, { color: colors.text1 }]}>Task</Text>
-            <Text style={[styles.rLead, { color: colors.text2 }]}>
+            <Text
+              style={[
+                typography.label,
+                { color: colors.textPrimary, fontSize: 14 },
+              ]}
+            >
+              Task
+            </Text>
+            <Text
+              style={[
+                typography.caption,
+                {
+                  color: colors.textSecondary,
+                  marginTop: 2,
+                  fontWeight: '500',
+                },
+              ]}
+            >
               {item.leadId?.name || 'Lead Name'}
             </Text>
             {item.text ? (
-              <Text style={[styles.rNote, { color: colors.text2 }]}>
+              <Text
+                style={[
+                  typography.body2,
+                  { color: colors.textSecondary, marginTop: 6, fontSize: 13 },
+                ]}
+              >
                 {item.text}
               </Text>
             ) : null}
             <Text
               style={[
-                styles.rTime,
+                styles.timeBadge,
                 {
-                  color: colors.accent,
-                  backgroundColor: colors.accentSoft,
-                  borderColor: colors.accentBorder,
+                  color: colors.primary,
+                  backgroundColor: colors.primarySoft,
+                  borderColor: colors.primaryBorder,
                 },
               ]}
             >
@@ -744,57 +625,46 @@ const handleNavigate = (path, params = {}) => {
         </View>
       );
     }
-    const { icon, color } = reminderIcon(item.type);
+
+    // Reminder
+    const { icon, colorKey } = reminderIcon(item.type);
     return (
       <View style={styles.reminderItem}>
-        <View
-          style={[
-            styles.rDot,
-            {
-              backgroundColor:
-                color === 'success'
-                  ? colors.successSoft
-                  : color === 'warn'
-                  ? colors.warnSoft
-                  : color === 'purple'
-                  ? colors.purpleSoft
-                  : colors.accentSoft,
-            },
-          ]}
-        >
-          <Feather
-            name={icon}
-            size={18}
-            color={
-              color === 'success'
-                ? colors.success
-                : color === 'warn'
-                ? colors.warn
-                : color === 'purple'
-                ? colors.purple
-                : colors.accent
-            }
-          />
-        </View>
+        {renderActivityIcon(icon, colorKey)}
         <View style={{ flex: 1 }}>
-          <Text style={[styles.rType, { color: colors.text1 }]}>
+          <Text
+            style={[
+              typography.label,
+              { color: colors.textPrimary, fontSize: 14 },
+            ]}
+          >
             {item.type || 'Reminder'}
           </Text>
-          <Text style={[styles.rLead, { color: colors.text2 }]}>
+          <Text
+            style={[
+              typography.caption,
+              { color: colors.textSecondary, marginTop: 2, fontWeight: '500' },
+            ]}
+          >
             {item.leadId?.name || 'Lead Name'}
           </Text>
           {item.note ? (
-            <Text style={[styles.rNote, { color: colors.text2 }]}>
+            <Text
+              style={[
+                typography.body2,
+                { color: colors.textSecondary, marginTop: 6, fontSize: 13 },
+              ]}
+            >
               {item.note}
             </Text>
           ) : null}
           <Text
             style={[
-              styles.rTime,
+              styles.timeBadge,
               {
-                color: colors.accent,
-                backgroundColor: colors.accentSoft,
-                borderColor: colors.accentBorder,
+                color: colors.primary,
+                backgroundColor: colors.primarySoft,
+                borderColor: colors.primaryBorder,
               },
             ]}
           >
@@ -805,10 +675,48 @@ const handleNavigate = (path, params = {}) => {
     );
   };
 
+  // ─── Section Header helper ──────────────────────────────────────────────
+  const SectionHeader = ({
+    title,
+    subtitle,
+    actionLabel,
+    onAction,
+    rightNode,
+  }) => (
+    <View style={styles.cardHead}>
+      <View style={{ flex: 1, marginRight: spacing.md }}>
+        <Text style={[typography.h4, { color: colors.textPrimary }]}>
+          {title}
+        </Text>
+        {!!subtitle && (
+          <Text
+            style={[
+              typography.body2,
+              { color: colors.textSecondary, marginTop: 4, fontSize: 13 },
+            ]}
+          >
+            {subtitle}
+          </Text>
+        )}
+      </View>
+      {rightNode ? (
+        rightNode
+      ) : actionLabel && onAction ? (
+        <ImprovedButton
+          title={actionLabel}
+          variant="ghost"
+          size="small"
+          onPress={onAction}
+        />
+      ) : null}
+    </View>
+  );
+
+  // ─── Main Return ────────────────────────────────────────────────────────
   return (
     <SafeAreaView
       edges={['bottom']}
-      style={[styles.root, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}
+      style={[styles.root, { backgroundColor: colors.background }]}
     >
       <ScrollView
         contentContainerStyle={styles.container}
@@ -816,107 +724,91 @@ const handleNavigate = (path, params = {}) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={colors.accent}
-            colors={[colors.accent]}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
         }
       >
         {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={[styles.title, { color: colors.text1 }]}>
-              Dashboard Overview
-            </Text>
-            <Text style={[styles.sub, { color: colors.text2 }]}>
-              Welcome back{user?.name ? `, ${user.name.split(' ')[0]}` : ''}!{' '}
-              {isAdmin || isManager
-                ? "Here is the summary of your team's sales performance."
-                : 'Here is the summary of your personal sales performance.'}
-            </Text>
-          </View>
-        </View>
+        <PageHeader
+          title="Dashboard Overview"
+          subtitle={
+            `Welcome back${
+              user?.name ? `, ${user.name.split(' ')[0]}` : ''
+            }! ` +
+            (isAdmin || isManager
+              ? "Here is the summary of your team's sales performance."
+              : 'Here is the summary of your personal sales performance.')
+          }
+          style={{ marginBottom: spacing.md }}
+        />
 
         {/* Filters */}
-      <ScrollView 
-  horizontal 
-  showsHorizontalScrollIndicator={false}
-  style={{ marginBottom: 10 }}
-  contentContainerStyle={styles.filtersRow}
->
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: spacing.md }}
+          contentContainerStyle={styles.filtersRow}
+        >
           {['All', 'Today', 'This Week', 'This Month'].map(f => (
-            <FilterBadge
+            <FilterChip
               key={f}
               label={f}
               active={activeFilter === f}
-              colors={colors}
               onPress={() => setActiveFilter(f)}
             />
           ))}
         </ScrollView>
 
-{/* Metrics */}
-<View style={styles.metricsGrid}>
-  {metrics.slice(0, 4).map(m => (
-    <MetricCard
-      key={m.label}
-      item={m}
-      colors={colors}
-      onPress={() => {
-        if (m.filterValue !== null) {
-          handleNavigate('/leads', buildLeadParams(m.filterValue));
-        }
-      }}
-    />
-  ))}
-</View>
-<MetricCard
-  item={metrics[4]}
-  colors={colors}
-  fullWidth
-  onPress={() => handleNavigate('/payments')}
-/>
+        {/* Metrics — 2x2 grid + 1 full width */}
+        <View style={styles.metricsGrid}>
+          {metrics.slice(0, 4).map(m => (
+            <MetricCard
+              key={m.label}
+              label={m.label}
+              value={m.value}
+              icon={m.icon}
+              color={m.color}
+              onPress={() => {
+                if (m.filterValue !== null) {
+                  handleNavigate('/leads', buildLeadParams(m.filterValue));
+                }
+              }}
+            />
+          ))}
+        </View>
+        <MetricCard
+          label={metrics[4].label}
+          value={metrics[4].value}
+          icon={metrics[4].icon}
+          color={metrics[4].color}
+          fullWidth
+          onPress={() => handleNavigate('/payments')}
+        />
 
         {/* Recent Leads */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.cardBg, borderColor: colors.border },
-          ]}
+        <ImprovedCard
+          variant="outline"
+          style={{ marginBottom: spacing.xl, marginTop: spacing.md }}
         >
-          <View style={styles.cardHead}>
-             <View style={{ flex: 1, marginRight: 12 }}> 
-              <Text style={[styles.cardTitle, { color: colors.text1 }]}>
-                Recent Leads
-              </Text>
-              <Text style={[styles.cardSub, { color: colors.text2 }]}>
-                {isAdmin
-                  ? 'Latest lead entries from the entire team'
-                  : isManager
-                  ? 'Latest lead entries from your team'
-                  : 'Your personally assigned latest leads'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={[
-                styles.viewAll,
-                {
-                  backgroundColor: colors.accentSoft,
-                  borderColor: colors.accentBorder,
-                },
-              ]}
-              onPress={() => handleNavigate('/leads')}
-            >
-              <Text style={[styles.viewAllText, { color: colors.accent }]}>
-                View all
-              </Text>
-            </TouchableOpacity>
-          </View>
-
+          <SectionHeader
+            title="Recent Leads"
+            subtitle={
+              isAdmin
+                ? 'Latest lead entries from the entire team'
+                : isManager
+                ? 'Latest lead entries from your team'
+                : 'Your personally assigned latest leads'
+            }
+            actionLabel="View all"
+            onAction={() => handleNavigate('/leads')}
+          />
           {!overview.recentLeads?.length ? (
-            <Text style={[styles.emptyState, { color: colors.text3 }]}>
-              No recent leads found.
-            </Text>
+            <EmptyState
+              icon="account-search-outline"
+              title="No recent leads"
+              message="No recent leads found."
+            />
           ) : (
             <FlatList
               data={overview.recentLeads}
@@ -926,73 +818,59 @@ const handleNavigate = (path, params = {}) => {
               contentContainerStyle={{ gap: 10 }}
             />
           )}
-        </View>
+        </ImprovedCard>
 
         {/* Team Performance */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.cardBg, borderColor: colors.border },
-          ]}
-        >
-          <View style={styles.cardHead}>
-              <View style={{ flex: 1, marginRight: 12 }}>
-              <Text style={[styles.cardTitle, { color: colors.text1 }]}>
-                Team Performance
-              </Text>
-              <Text style={[styles.cardSub, { color: colors.text2 }]}>
-                Top contributors based on lead count
-              </Text>
-            </View>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={[
-                styles.viewAll,
-                {
-                  backgroundColor: colors.accentSoft,
-                  borderColor: colors.accentBorder,
-                },
-              ]}
-              onPress={() => handleNavigate('/reports')}
-            >
-              <Text style={[styles.viewAllText, { color: colors.accent }]}>
-                See report
-              </Text>
-            </TouchableOpacity>
-          </View>
-
+        <ImprovedCard variant="outline" style={{ marginBottom: spacing.xl }}>
+          <SectionHeader
+            title="Team Performance"
+            subtitle="Top contributors based on lead count"
+            actionLabel="See report"
+            onAction={() => handleNavigate('/reports')}
+          />
           {!overview.teamPerformance?.length ? (
-            <Text style={[styles.emptyState, { color: colors.text3 }]}>
-              No performance data available.
-            </Text>
+            <EmptyState
+              icon="chart-bar"
+              title="No data"
+              message="No performance data available."
+            />
           ) : (
             overview.teamPerformance.map(member => (
               <View key={member.userId || member.name} style={styles.perfItem}>
-                <View
-                  style={[
-                    styles.perfAvatar,
-                    {
-                      backgroundColor: colors.accentSoft,
-                      borderColor: colors.accentBorder,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[styles.perfAvatarText, { color: colors.accent }]}
-                  >
-                    {getInitials(member.name)}
-                  </Text>
-                </View>
+                <Avatar
+                  name={member.name}
+                  size={40}
+                  rounded={borderRadius.md}
+                />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.perfName, { color: colors.text1 }]}>
+                  <Text
+                    style={[
+                      typography.label,
+                      { color: colors.textPrimary, fontSize: 14 },
+                    ]}
+                  >
                     {member.name}
                   </Text>
-                  <Text style={[styles.perfMeta, { color: colors.text2 }]}>
+                  <Text
+                    style={[
+                      typography.caption,
+                      {
+                        color: colors.textSecondary,
+                        marginTop: 4,
+                        fontWeight: '500',
+                      },
+                    ]}
+                  >
                     {member.leadCount} leads assigned
                   </Text>
                 </View>
                 <View style={styles.perfRight}>
-                  <Text style={[styles.perfVal, { color: colors.text1 }]}>
+                  <Text
+                    style={[
+                      typography.label,
+                      { color: colors.textPrimary, fontSize: 15 },
+                    ]}
+                  >
                     {formatCurrency(member.totalDealValue)}
                   </Text>
                   <PerfBar
@@ -1003,45 +881,29 @@ const handleNavigate = (path, params = {}) => {
               </View>
             ))
           )}
-        </View>
+        </ImprovedCard>
 
         {/* Reminders, Events & Tasks */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.cardBg, borderColor: colors.border },
-          ]}
-        >
-          <View style={styles.cardHead}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.cardTitle, { color: colors.text1 }]}>
-                Today's Reminders, Events & Tasks
-              </Text>
-              <Text style={[styles.cardSub, { color: colors.text2 }]}>
-                Pending follow-ups for today
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.rCount,
-                {
-                  backgroundColor: colors.accentSoft,
-                  borderColor: colors.accentBorder,
-                },
-              ]}
-            >
-              <Text style={[styles.rCountText, { color: colors.accent }]}>
-                {(overview.todayReminders?.length || 0) +
+        <ImprovedCard variant="outline" style={{ marginBottom: spacing.xl }}>
+          <SectionHeader
+            title="Today's Reminders, Events & Tasks"
+            subtitle="Pending follow-ups for today"
+            rightNode={
+              <CountBadge
+                count={
+                  (overview.todayReminders?.length || 0) +
                   (overview.todayEvents?.length || 0) +
-                  (overview.todayTasks?.length || 0)}
-              </Text>
-            </View>
-          </View>
-
+                  (overview.todayTasks?.length || 0)
+                }
+              />
+            }
+          />
           {!combinedItems.length ? (
-            <Text style={[styles.emptyState, { color: colors.text3 }]}>
-              No pending reminders, events, or tasks for today.
-            </Text>
+            <EmptyState
+              icon="bell-off-outline"
+              title="All clear!"
+              message="No pending reminders, events, or tasks for today."
+            />
           ) : (
             <FlatList
               data={combinedItems}
@@ -1051,17 +913,10 @@ const handleNavigate = (path, params = {}) => {
               renderItem={renderReminderItem}
               scrollEnabled={false}
               contentContainerStyle={{ gap: 4 }}
-              ItemSeparatorComponent={() => (
-                <View
-                  style={[
-                    styles.itemSeparator,
-                    { backgroundColor: colors.border },
-                  ]}
-                />
-              )}
+              ItemSeparatorComponent={() => <ListDivider />}
             />
           )}
-        </View>
+        </ImprovedCard>
       </ScrollView>
     </SafeAreaView>
   );
@@ -1077,86 +932,15 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  header: {
-    marginBottom: 14,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-  },
-  sub: {
-    fontSize: 14,
-    marginTop: 6,
-    lineHeight: 20,
-  },
-  errorText: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginTop: 8,
-  },
   filtersRow: {
     flexDirection: 'row',
-    // flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 14,
-  },
-  badge: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  badgeText: {
-    fontSize: 13,
-    fontWeight: '500',
   },
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap:8 ,
+    gap: 8,
     marginBottom: 8,
-  },
-mCard: {
-  width: CARD_WIDTH,
-  borderRadius: 14,
-  paddingTop:2,
-  padding: 8,
-  borderWidth: 1,
-  borderTopWidth: 3,
-},
-mCardFull: {
-  width: '100%',
-  marginBottom: 12,
-},
-  mIcon: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 12,
-    marginTop: 8,
-  },
-  mValue: {
-    fontSize: 26,
-    fontWeight: '700',
-    lineHeight: 30,
-  },
-  card: {
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    marginBottom: 20,
   },
   cardHead: {
     flexDirection: 'row',
@@ -1164,69 +948,19 @@ mCardFull: {
     alignItems: 'flex-start',
     marginBottom: 18,
   },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  cardSub: {
-    fontSize: 13,
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  viewAll: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  viewAllText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  leadCard: {
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-  },
+  // Lead card
   leadCardRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
   },
-  leadCardLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  leadCardName: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
   leadCardRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  leadCardDate: {
-    fontSize: 11,
-    fontWeight: '600',
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-  },
-  leadCardValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  divider: {
-    height: 1,
-    marginVertical: 12,
-    opacity: 0.4,
-  },
+  // Status pill
   pill: {
     paddingVertical: 4,
     paddingHorizontal: 10,
@@ -1236,62 +970,15 @@ mCardFull: {
     fontSize: 12,
     fontWeight: '600',
   },
-  ownerChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  avatar: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  ownerName: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
+  // Performance
   perfItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'transparent',
-  },
-  perfAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-  perfAvatarText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  perfName: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  perfMeta: {
-    fontSize: 12,
-    marginTop: 4,
-    fontWeight: '500',
   },
   perfRight: {
     alignItems: 'flex-end',
-  },
-  perfVal: {
-    fontSize: 15,
-    fontWeight: '600',
   },
   perfBarWrap: {
     marginTop: 6,
@@ -1304,16 +991,7 @@ mCardFull: {
     height: '100%',
     borderRadius: 4,
   },
-  rCount: {
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  rCountText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
+  // Reminders
   reminderItem: {
     flexDirection: 'row',
     gap: 14,
@@ -1322,25 +1000,10 @@ mCardFull: {
   rDot: {
     width: 36,
     height: 36,
-    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rType: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  rLead: {
-    fontSize: 12,
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  rNote: {
-    fontSize: 13,
-    marginTop: 6,
-    lineHeight: 18,
-  },
-  rTime: {
+  timeBadge: {
     fontSize: 12,
     fontWeight: '600',
     marginTop: 6,
@@ -1349,25 +1012,15 @@ mCardFull: {
     borderRadius: 6,
     borderWidth: 1,
     alignSelf: 'flex-start',
+    overflow: 'hidden',
   },
-  itemSeparator: {
-    height: 1,
-    marginVertical: 2,
-  },
-  emptyState: {
-    fontSize: 14,
-    paddingVertical: 30,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
+  // Skeleton
   skeleton: {
     borderRadius: 6,
   },
   skeletonCard: {
-    width: IS_SMALL ? '47%' : '18.5%',
-    flex: IS_SMALL ? undefined : 1,
+    width: '48%',
     minWidth: 160,
-    borderRadius: 16,
     padding: 18,
     borderWidth: 1,
   },
