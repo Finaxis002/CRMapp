@@ -7,6 +7,8 @@ import {
   Text,
   TextInput,
   View,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useUISystem } from '../../hooks/useUISystem';
@@ -103,101 +105,112 @@ export default function ImprovedDropdown({
       />
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={close}>
-        <Pressable
-          style={[styles.backdrop, { backgroundColor: colors.overlay }]}
-          onPress={close}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.backdropWrap}
         >
           <Pressable
-            style={[
-              styles.sheet,
-              elevation.xl,
-              {
-                backgroundColor: colors.surface,
-                borderTopLeftRadius: borderRadius['2xl'],
-                borderTopRightRadius: borderRadius['2xl'],
-              },
-            ]}
-            onPress={(e) => e.stopPropagation?.()}
+            style={[styles.backdrop, { backgroundColor: colors.overlay }]}
+            onPress={close}
           >
-            <View style={[styles.handle, { backgroundColor: colors.border }]} />
+            <Pressable
+              style={[
+                styles.sheet,
+                elevation.xl,
+                {
+                  backgroundColor: colors.surface,
+                  borderTopLeftRadius: borderRadius['2xl'],
+                  borderTopRightRadius: borderRadius['2xl'],
+                },
+              ]}
+              onPress={(e) => e.stopPropagation?.()}
+            >
+              <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
-            <View style={[styles.sheetHeader, { paddingHorizontal: spacing.lg }]}>
-              <Text style={[typography.h4, { color: colors.textPrimary, flex: 1 }]}>
-                {label || 'Select'}
-              </Text>
-              <Pressable onPress={close} hitSlop={10}>
-                <Text style={{ color: colors.textSecondary, fontSize: 16 }}>
-                  Close
+              <View style={[styles.sheetHeader, { paddingHorizontal: spacing.lg }]}>
+                <Text style={[typography.h4, { color: colors.textPrimary, flex: 1 }]}>
+                  {label || 'Select'}
                 </Text>
-              </Pressable>
-            </View>
-
-            {searchable && (
-              <View
-                style={{
-                  paddingHorizontal: spacing.lg,
-                  marginBottom: spacing.sm,
-                }}
-              >
-                <View
-                  style={[
-                    styles.searchWrap,
-                    {
-                      backgroundColor: colors.backgroundSecondary,
-                      borderRadius: borderRadius.md,
-                      borderColor: colors.border,
-                    },
+                <Pressable
+                  onPress={close}
+                  hitSlop={10}
+                  style={({ pressed }) => [
+                    styles.closeButton,
+                    { backgroundColor: pressed ? colors.backgroundSecondary : 'transparent' },
                   ]}
                 >
-                  <Icon
-                    name="magnify"
-                    size={18}
-                    color={colors.textTertiary}
-                    style={{ marginRight: 8 }}
-                  />
-                  <TextInput
-                    value={query}
-                    onChangeText={setQuery}
-                    placeholder="Search..."
-                    placeholderTextColor={colors.placeholder}
-                    style={[
-                      styles.search,
-                      typography.body1,
-                      { color: colors.textPrimary },
-                    ]}
-                  />
-                </View>
+                  <Icon name="close" size={22} color={colors.textSecondary} />
+                </Pressable>
               </View>
-            )}
 
-            <FlatList
-              data={filtered}
-              keyExtractor={(item, index) => String(item.value ?? index)}
-              renderItem={
-                renderItem
-                  ? ({ item }) => renderItem(item, () => pick(item))
-                  : defaultRender
-              }
-              keyboardShouldPersistTaps="handled"
-              style={{ maxHeight: 360 }}
-              ListEmptyComponent={
-                <View style={{ padding: spacing.xl, alignItems: 'center' }}>
-                  <Text style={[typography.body2, { color: colors.textTertiary }]}>
-                    No options found
-                  </Text>
+              {searchable && (
+                <View
+                  style={{
+                    paddingHorizontal: spacing.lg,
+                    marginBottom: spacing.sm,
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.searchWrap,
+                      {
+                        backgroundColor: colors.backgroundSecondary,
+                        borderRadius: borderRadius.md,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <Icon
+                      name="magnify"
+                      size={18}
+                      color={colors.textTertiary}
+                      style={{ marginRight: 8 }}
+                    />
+                    <TextInput
+                      value={query}
+                      onChangeText={setQuery}
+                      placeholder="Search..."
+                      placeholderTextColor={colors.placeholder}
+                      style={[
+                        styles.search,
+                        typography.body1,
+                        { color: colors.textPrimary },
+                      ]}
+                    />
+                  </View>
                 </View>
-              }
-            />
+              )}
+
+              <FlatList
+                data={filtered}
+                keyExtractor={(item, index) => String(item.value ?? index)}
+                renderItem={
+                  renderItem
+                    ? ({ item }) => renderItem(item, () => pick(item))
+                    : defaultRender
+                }
+                keyboardShouldPersistTaps="handled"
+                style={{ maxHeight: 300 }}
+                ListEmptyComponent={
+                  <View style={{ padding: spacing.xl, alignItems: 'center' }}>
+                    <Text style={[typography.body2, { color: colors.textTertiary }]}>
+                      No options found
+                    </Text>
+                  </View>
+                }
+              />
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  backdropWrap: { flex: 1 },
   backdrop: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { maxHeight: '75%', paddingBottom: 24 },
+  sheet: { maxHeight: '80%', paddingBottom: 24 },
   handle: {
     alignSelf: 'center',
     width: 40,
@@ -210,6 +223,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  closeButton: {
+    padding: 4,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchWrap: {
     flexDirection: 'row',
