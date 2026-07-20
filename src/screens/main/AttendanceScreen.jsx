@@ -18,9 +18,17 @@ import {
 } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import axios from 'axios';
-import Icon from 'react-native-vector-icons/Ionicons';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { API_BASE_URL } from '../../config';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useUISystem } from '../../hooks/useUISystem';
+import { useToast as useKitToast } from '../../components/ui/CustomToast';
+
+// ─── UI Kit imports ────────────────────────────────────────────────────────
+import PageHeader from '../../components/ui/PageHeader';
+import ImprovedButton from '../../components/ui/ImprovedButton';
+import ImprovedCard from '../../components/ui/ImprovedCard';
+import Avatar from '../../components/ui/Avatar';
+import EmptyState from '../../components/ui/EmptyState';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 const API = API_BASE_URL;
@@ -54,41 +62,14 @@ const initials = (name = '') =>
     .map(w => w[0]?.toUpperCase() ?? '')
     .join('');
 
-// ─── theme tokens ─────────────────────────────────────────────────────────────
-const getTheme = isDark => ({
-  bg: isDark ? '#030712' : '#f9fafb',
-  cardBg: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
-  border: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-  borderLight: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-  hover: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)',
-  text1: isDark ? '#f1f5f9' : '#1e293b',
-  text2: isDark ? '#94a3b8' : '#475569',
-  text3: isDark ? '#64748b' : '#94a3b8',
-  accent: '#5a7bf6',
-  accentSoft: isDark ? 'rgba(90,123,246,0.18)' : 'rgba(90,123,246,0.08)',
-  accentBorder: isDark ? 'rgba(90,123,246,0.30)' : 'rgba(90,123,246,0.20)',
-  presentBg: isDark ? 'rgba(46,107,62,0.25)' : '#e8f5ec',
-  presentText: isDark ? '#4ade80' : '#2e6b3e',
-  presentDot: isDark ? '#4ade80' : '#3b8c4f',
-  absentBg: isDark ? 'rgba(163,45,45,0.25)' : '#fef2f2',
-  absentText: isDark ? '#f87171' : '#b91c1c',
-  absentDot: isDark ? '#f87171' : '#dc2626',
-  inputBg: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
-  avatarBg: isDark ? 'rgba(90,123,246,0.18)' : 'rgba(90,123,246,0.10)',
-  avatarColor: '#5a7bf6',
-  cellSelected: isDark ? 'rgba(90,123,246,0.18)' : 'rgba(90,123,246,0.10)',
-  cellToday: isDark ? 'rgba(90,123,246,0.10)' : 'rgba(90,123,246,0.06)',
-  cellEmpty: isDark ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.02)',
-  sundayColor: isDark ? '#f87171' : '#e05050',
-  tabBg: isDark ? 'rgba(15,23,42,0.97)' : 'rgba(255,255,255,0.97)',
-  tabBorder: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)',
-  white: '#ffffff',
-});
-
+// ══════════════════════════════════════════════════════════════════════
+//  MAIN SCREEN
+// ══════════════════════════════════════════════════════════════════════
 const AttendanceScreen = () => {
-  const { isDark } = useTheme();
-  const T = getTheme(isDark);
+  const { colors, typography, borderRadius, spacing } = useUISystem();
+
   const insets = useSafeAreaInsets();
+  const toast = useKitToast();
 
   const { user, accessToken: token } = useSelector(s => s.auth);
   const isAdmin = user?.role === 'admin';
@@ -355,13 +336,23 @@ const AttendanceScreen = () => {
   const cellWidth = Math.floor(screenW / 7);
   const cellHeight = 72;
 
+  // ─── Theme-derived tokens (replace T.accent etc with colors) ────────────
+  const accent = colors.primary;
+  const presentBg = colors.successSoft;
+  const presentText = colors.success;
+  const presentDot = colors.success;
+  const absentBg = colors.dangerSoft;
+  const absentText = colors.danger;
+  const absentDot = colors.danger;
+  const sundayColor = colors.danger;
+
   // ══════════════════════════════════════════════════════════════════════
-  // FUNCTIONS RETURN DIRECT JSX (Focus fix update)
+  //  RENDER FUNCTIONS
   // ══════════════════════════════════════════════════════════════════════
 
   const renderEmployeeBar = () => {
     if (isAdmin) return null;
-    const barColor = isCheckOut && otpStep === 'pending' ? '#dc2626' : T.accent;
+    const barColor = isCheckOut && otpStep === 'pending' ? '#dc2626' : accent;
     const dateLabel = new Date().toLocaleDateString('en-IN', {
       weekday: 'short',
       day: 'numeric',
@@ -384,13 +375,13 @@ const AttendanceScreen = () => {
           <View style={s.ebActionRow}>
             {checkedIn && (
               <View style={s.ebBadge}>
-                <Icon name="log-in-outline" size={12} color="#fff" />
+                <Icon name="login" size={12} color="#fff" />
                 <Text style={s.ebBadgeText}>In: {todayRecord.checkIn}</Text>
               </View>
             )}
             {checkedIn && checkedOut && (
               <View style={s.ebBadge}>
-                <Icon name="log-out-outline" size={12} color="#fff" />
+                <Icon name="logout" size={12} color="#fff" />
                 <Text style={s.ebBadgeText}>Out: {todayRecord.checkOut}</Text>
               </View>
             )}
@@ -401,11 +392,11 @@ const AttendanceScreen = () => {
                 style={[s.ebBtn, { backgroundColor: '#fff' }]}
               >
                 {markLoading ? (
-                  <ActivityIndicator size={13} color={T.accent} />
+                  <ActivityIndicator size={13} color={accent} />
                 ) : (
                   <>
-                    <Icon name="log-in-outline" size={14} color={T.accent} />
-                    <Text style={[s.ebBtnText, { color: T.accent }]}>
+                    <Icon name="login" size={14} color={accent} />
+                    <Text style={[s.ebBtnText, { color: accent }]}>
                       Mark Check In
                     </Text>
                   </>
@@ -422,7 +413,7 @@ const AttendanceScreen = () => {
                   <ActivityIndicator size={13} color="#dc2626" />
                 ) : (
                   <>
-                    <Icon name="log-out-outline" size={14} color="#dc2626" />
+                    <Icon name="logout" size={14} color="#dc2626" />
                     <Text style={[s.ebBtnText, { color: '#dc2626' }]}>
                       Mark Check Out
                     </Text>
@@ -437,7 +428,7 @@ const AttendanceScreen = () => {
           <View style={s.otpRow}>
             <View style={s.otpTimerBadge}>
               <Icon
-                name="time-outline"
+                name="clock-outline"
                 size={11}
                 color="rgba(255,255,255,0.8)"
               />
@@ -481,7 +472,7 @@ const AttendanceScreen = () => {
               disabled={markLoading}
               style={s.otpResendBtn}
             >
-              <Icon name="refresh-outline" size={11} color="#fff" />
+              <Icon name="refresh" size={11} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => {
@@ -499,7 +490,11 @@ const AttendanceScreen = () => {
 
         {otpStep === 'pending' && !otpError && (
           <View style={s.ebHintRow}>
-            <Icon name="mail-outline" size={11} color="rgba(255,255,255,0.7)" />
+            <Icon
+              name="email-outline"
+              size={11}
+              color="rgba(255,255,255,0.7)"
+            />
             <Text style={s.ebHintText}>
               {isCheckOut
                 ? 'Check-out OTP sent to admin.'
@@ -521,31 +516,33 @@ const AttendanceScreen = () => {
     <View
       style={[
         s.calHeader,
-        { backgroundColor: T.cardBg, borderBottomColor: T.border },
+        { backgroundColor: colors.surface, borderBottomColor: colors.border },
       ]}
     >
       <View style={s.calHeaderRow}>
-        <Text style={[s.calMonthText, { color: T.text1 }]}>
-          {MONTHS[month - 1]} <Text style={{ color: T.accent }}>{year}</Text>
+        <Text style={[s.calMonthText, { color: colors.textPrimary }]}>
+          {MONTHS[month - 1]} <Text style={{ color: accent }}>{year}</Text>
         </Text>
         <View style={s.calHeaderActions}>
           <TouchableOpacity
             onPress={prevMonth}
-            style={[s.navBtn, { backgroundColor: T.accent }]}
+            style={[s.navBtn, { backgroundColor: accent }]}
           >
-            <Icon name="chevron-back" size={16} color="#fff" />
+            <Icon name="chevron-left" size={16} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={goToday}
-            style={[s.todayBtn, { borderColor: T.border }]}
+            style={[s.todayBtn, { borderColor: colors.border }]}
           >
-            <Text style={[s.todayBtnText, { color: T.text2 }]}>Today</Text>
+            <Text style={[s.todayBtnText, { color: colors.textSecondary }]}>
+              Today
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={nextMonth}
-            style={[s.navBtn, { backgroundColor: T.accent }]}
+            style={[s.navBtn, { backgroundColor: accent }]}
           >
-            <Icon name="chevron-forward" size={16} color="#fff" />
+            <Icon name="chevron-right" size={16} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -553,22 +550,31 @@ const AttendanceScreen = () => {
         <View
           style={[
             s.userBadge,
-            { backgroundColor: T.accentSoft, borderColor: T.accentBorder },
+            {
+              backgroundColor: colors.primarySoft,
+              borderColor: colors.primaryBorder,
+            },
           ]}
         >
-          <View style={[s.userBadgeAvatar, { backgroundColor: T.accent }]}>
-            <Text style={s.userBadgeAvatarText}>
-              {initials(selectedUser.name)}
-            </Text>
-          </View>
-          <Text style={[s.userBadgeName, { color: T.accent }]}>
+          <Avatar
+            name={selectedUser.name}
+            size={24}
+            rounded={12}
+            variant="solid"
+          />
+          <Text style={[s.userBadgeName, { color: accent }]}>
             {selectedUser.name}
           </Text>
           <TouchableOpacity
             onPress={() => setSelectedUser(null)}
-            style={[s.userBadgeClear, { backgroundColor: T.hover }]}
+            style={[
+              s.userBadgeClear,
+              { backgroundColor: colors.backgroundSecondary },
+            ]}
           >
-            <Text style={[s.userBadgeClearText, { color: T.text3 }]}>
+            <Text
+              style={[s.userBadgeClearText, { color: colors.textTertiary }]}
+            >
               ✕ Clear
             </Text>
           </TouchableOpacity>
@@ -579,7 +585,7 @@ const AttendanceScreen = () => {
 
   const renderCalendarGrid = () => (
     <View style={{ flex: 1 }}>
-      <View style={[s.dayHeaderRow, { borderBottomColor: T.border }]}>
+      <View style={[s.dayHeaderRow, { borderBottomColor: colors.border }]}>
         {DAYS_SHORT.map((d, i) => (
           <View
             key={i}
@@ -589,14 +595,18 @@ const AttendanceScreen = () => {
               paddingVertical: 8,
             }}
           >
-            <Text style={[s.dayHeaderText, { color: T.text3 }]}>{d}</Text>
+            <Text style={[s.dayHeaderText, { color: colors.textTertiary }]}>
+              {d}
+            </Text>
           </View>
         ))}
       </View>
       {loading ? (
         <View style={s.loadingCenter}>
-          <ActivityIndicator size="small" color={T.accent} />
-          <Text style={[s.loadingText, { color: T.text3 }]}>Loading…</Text>
+          <ActivityIndicator size="small" color={accent} />
+          <Text style={[s.loadingText, { color: colors.textTertiary }]}>
+            Loading…
+          </Text>
         </View>
       ) : (
         <ScrollView>
@@ -612,9 +622,9 @@ const AttendanceScreen = () => {
               const hasCheckOut = data?.checkOut;
 
               let cellBg = 'transparent';
-              if (!date) cellBg = T.cellEmpty;
-              else if (isSelected) cellBg = T.cellSelected;
-              else if (isToday) cellBg = T.cellToday;
+              if (!date) cellBg = colors.backgroundSecondary;
+              else if (isSelected) cellBg = colors.primarySoft;
+              else if (isToday) cellBg = colors.primarySoft;
 
               return (
                 <TouchableOpacity
@@ -634,10 +644,10 @@ const AttendanceScreen = () => {
                       width: cellWidth,
                       minHeight: cellHeight,
                       backgroundColor: cellBg,
-                      borderBottomColor: T.borderLight,
-                      borderRightColor: T.borderLight,
+                      borderBottomColor: colors.border,
+                      borderRightColor: colors.border,
                     },
-                    isSelected && { borderWidth: 2, borderColor: T.accent },
+                    isSelected && { borderWidth: 2, borderColor: accent },
                   ]}
                 >
                   {date && (
@@ -648,10 +658,10 @@ const AttendanceScreen = () => {
                             s.cellDateNum,
                             {
                               color: isToday
-                                ? T.accent
+                                ? accent
                                 : isSunday
-                                ? T.sundayColor
-                                : T.text2,
+                                ? sundayColor
+                                : colors.textSecondary,
                             },
                           ]}
                         >
@@ -665,12 +675,15 @@ const AttendanceScreen = () => {
                             <View>
                               <View style={s.cellStatRow}>
                                 <Icon
-                                  name="checkmark-circle"
+                                  name="check-circle"
                                   size={10}
-                                  color={T.presentDot}
+                                  color={presentDot}
                                 />
                                 <Text
-                                  style={[s.cellStatText, { color: T.text1 }]}
+                                  style={[
+                                    s.cellStatText,
+                                    { color: colors.textPrimary },
+                                  ]}
                                 >
                                   {data.present}
                                 </Text>
@@ -679,10 +692,13 @@ const AttendanceScreen = () => {
                                 <Icon
                                   name="close-circle"
                                   size={10}
-                                  color={T.absentDot}
+                                  color={absentDot}
                                 />
                                 <Text
-                                  style={[s.cellStatText, { color: T.text2 }]}
+                                  style={[
+                                    s.cellStatText,
+                                    { color: colors.textSecondary },
+                                  ]}
                                 >
                                   {data.absent}
                                 </Text>
@@ -695,8 +711,8 @@ const AttendanceScreen = () => {
                                   s.cellChip,
                                   {
                                     backgroundColor: isPresentDay
-                                      ? T.presentBg
-                                      : T.absentBg,
+                                      ? presentBg
+                                      : absentBg,
                                   },
                                 ]}
                               >
@@ -705,8 +721,8 @@ const AttendanceScreen = () => {
                                     s.cellChipText,
                                     {
                                       color: isPresentDay
-                                        ? T.presentText
-                                        : T.absentText,
+                                        ? presentText
+                                        : absentText,
                                     },
                                   ]}
                                 >
@@ -718,7 +734,7 @@ const AttendanceScreen = () => {
                                   style={[
                                     s.cellChip,
                                     {
-                                      backgroundColor: T.absentBg,
+                                      backgroundColor: absentBg,
                                       marginTop: 2,
                                     },
                                   ]}
@@ -726,7 +742,7 @@ const AttendanceScreen = () => {
                                   <Text
                                     style={[
                                       s.cellChipText,
-                                      { color: T.absentText },
+                                      { color: absentText },
                                     ]}
                                   >
                                     Out
@@ -753,23 +769,19 @@ const AttendanceScreen = () => {
       return (
         <>
           <View style={s.detailSummaryRow}>
-            <View
-              style={[s.detailSummaryCard, { backgroundColor: T.presentBg }]}
-            >
-              <Text style={[s.detailSummaryNum, { color: T.presentText }]}>
+            <View style={[s.detailSummaryCard, { backgroundColor: presentBg }]}>
+              <Text style={[s.detailSummaryNum, { color: presentText }]}>
                 {dayDetail.presentCount}
               </Text>
-              <Text style={[s.detailSummaryLabel, { color: T.presentDot }]}>
+              <Text style={[s.detailSummaryLabel, { color: presentDot }]}>
                 Present
               </Text>
             </View>
-            <View
-              style={[s.detailSummaryCard, { backgroundColor: T.absentBg }]}
-            >
-              <Text style={[s.detailSummaryNum, { color: T.absentText }]}>
+            <View style={[s.detailSummaryCard, { backgroundColor: absentBg }]}>
+              <Text style={[s.detailSummaryNum, { color: absentText }]}>
                 {dayDetail.absentCount}
               </Text>
-              <Text style={[s.detailSummaryLabel, { color: T.absentDot }]}>
+              <Text style={[s.detailSummaryLabel, { color: absentDot }]}>
                 Absent
               </Text>
             </View>
@@ -777,22 +789,21 @@ const AttendanceScreen = () => {
 
           {dayDetail.present.length > 0 && (
             <>
-              <Text style={[s.sectionLabel, { color: T.text3 }]}>
+              <Text style={[s.sectionLabel, { color: colors.textTertiary }]}>
                 PRESENT TODAY
               </Text>
               {dayDetail.present.map(u => (
                 <View
                   key={u._id}
-                  style={[s.userRow, { backgroundColor: T.hover }]}
+                  style={[
+                    s.userRow,
+                    { backgroundColor: colors.backgroundSecondary },
+                  ]}
                 >
-                  <View style={[s.avatar, { backgroundColor: T.avatarBg }]}>
-                    <Text style={[s.avatarText, { color: T.avatarColor }]}>
-                      {initials(u.name)}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
+                  <Avatar name={u.name} size={32} rounded={16} variant="soft" />
+                  <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
                     <Text
-                      style={[s.userRowName, { color: T.text1 }]}
+                      style={[s.userRowName, { color: colors.textPrimary }]}
                       numberOfLines={1}
                     >
                       {u.name}
@@ -801,24 +812,25 @@ const AttendanceScreen = () => {
                       {u.checkIn && (
                         <View style={s.timeBadge}>
                           <Icon
-                            name="log-in-outline"
+                            name="login"
                             size={8}
-                            color={T.text3}
+                            color={colors.textTertiary}
                           />
-                          <Text style={[s.timeBadgeText, { color: T.text3 }]}>
+                          <Text
+                            style={[
+                              s.timeBadgeText,
+                              { color: colors.textTertiary },
+                            ]}
+                          >
                             {u.checkIn}
                           </Text>
                         </View>
                       )}
                       {u.checkOut && (
                         <View style={s.timeBadge}>
-                          <Icon
-                            name="log-out-outline"
-                            size={8}
-                            color={T.absentText}
-                          />
+                          <Icon name="logout" size={8} color={absentText} />
                           <Text
-                            style={[s.timeBadgeText, { color: T.absentText }]}
+                            style={[s.timeBadgeText, { color: absentText }]}
                           >
                             {u.checkOut}
                           </Text>
@@ -827,7 +839,7 @@ const AttendanceScreen = () => {
                     </View>
                   </View>
                   <View
-                    style={[s.statusDot, { backgroundColor: T.presentDot }]}
+                    style={[s.statusDot, { backgroundColor: presentDot }]}
                   />
                 </View>
               ))}
@@ -836,35 +848,40 @@ const AttendanceScreen = () => {
 
           {dayDetail.absent.length > 0 && (
             <>
-              <Text style={[s.sectionLabel, { color: T.text3, marginTop: 12 }]}>
+              <Text
+                style={[
+                  s.sectionLabel,
+                  { color: colors.textTertiary, marginTop: 12 },
+                ]}
+              >
                 NOT MARKED
               </Text>
               {dayDetail.absent.map(u => (
                 <View
                   key={u._id}
-                  style={[s.userRow, { backgroundColor: T.hover }]}
+                  style={[
+                    s.userRow,
+                    { backgroundColor: colors.backgroundSecondary },
+                  ]}
                 >
-                  <View style={[s.avatar, { backgroundColor: T.hover }]}>
-                    <Text style={[s.avatarText, { color: T.text3 }]}>
-                      {initials(u.name)}
-                    </Text>
-                  </View>
+                  <Avatar name={u.name} size={32} rounded={16} variant="soft" />
                   <Text
-                    style={[s.userRowName, { color: T.text3, flex: 1 }]}
+                    style={[
+                      s.userRowName,
+                      { color: colors.textTertiary, flex: 1, marginLeft: 10 },
+                    ]}
                     numberOfLines={1}
                   >
                     {u.name}
                   </Text>
-                  <View
-                    style={[s.statusDot, { backgroundColor: T.absentDot }]}
-                  />
+                  <View style={[s.statusDot, { backgroundColor: absentDot }]} />
                 </View>
               ))}
             </>
           )}
 
           {dayDetail.present.length === 0 && dayDetail.absent.length === 0 && (
-            <Text style={[s.emptyText, { color: T.text3 }]}>
+            <Text style={[s.emptyText, { color: colors.textTertiary }]}>
               No data for this date
             </Text>
           )}
@@ -878,20 +895,16 @@ const AttendanceScreen = () => {
         <View style={{ gap: 8 }}>
           {rec ? (
             <>
-              <View style={[s.recordRow, { backgroundColor: T.presentBg }]}>
-                <Icon name="log-in-outline" size={16} color={T.presentText} />
+              <View style={[s.recordRow, { backgroundColor: presentBg }]}>
+                <Icon name="login" size={16} color={presentText} />
                 <View style={{ marginLeft: 10 }}>
-                  <Text style={[s.recordLabel, { color: T.presentText }]}>
+                  <Text style={[s.recordLabel, { color: presentText }]}>
                     Check In
                   </Text>
                   {rec.checkIn && (
                     <View style={s.recordTimeRow}>
-                      <Icon
-                        name="time-outline"
-                        size={10}
-                        color={T.presentDot}
-                      />
-                      <Text style={[s.recordTime, { color: T.presentDot }]}>
+                      <Icon name="clock-outline" size={10} color={presentDot} />
+                      <Text style={[s.recordTime, { color: presentDot }]}>
                         {rec.checkIn}
                       </Text>
                     </View>
@@ -899,36 +912,44 @@ const AttendanceScreen = () => {
                 </View>
               </View>
               {rec.checkOut ? (
-                <View style={[s.recordRow, { backgroundColor: T.absentBg }]}>
-                  <Icon name="log-out-outline" size={16} color={T.absentText} />
+                <View style={[s.recordRow, { backgroundColor: absentBg }]}>
+                  <Icon name="logout" size={16} color={absentText} />
                   <View style={{ marginLeft: 10 }}>
-                    <Text style={[s.recordLabel, { color: T.absentText }]}>
+                    <Text style={[s.recordLabel, { color: absentText }]}>
                       Check Out
                     </Text>
                     <View style={s.recordTimeRow}>
-                      <Icon name="time-outline" size={10} color={T.absentDot} />
-                      <Text style={[s.recordTime, { color: T.absentDot }]}>
+                      <Icon name="clock-outline" size={10} color={absentDot} />
+                      <Text style={[s.recordTime, { color: absentDot }]}>
                         {rec.checkOut}
                       </Text>
                     </View>
                   </View>
                 </View>
               ) : selectedDate === today ? (
-                <View style={[s.recordRow, { backgroundColor: T.hover }]}>
-                  <Icon name="log-out-outline" size={16} color={T.text3} />
+                <View
+                  style={[
+                    s.recordRow,
+                    { backgroundColor: colors.backgroundSecondary },
+                  ]}
+                >
+                  <Icon name="logout" size={16} color={colors.textTertiary} />
                   <Text
-                    style={[s.recordLabel, { color: T.text3, marginLeft: 10 }]}
+                    style={[
+                      s.recordLabel,
+                      { color: colors.textTertiary, marginLeft: 10 },
+                    ]}
                   >
                     Not checked out yet
                   </Text>
                 </View>
               ) : (
-                <View style={[s.recordRow, { backgroundColor: T.absentBg }]}>
-                  <Icon name="log-out-outline" size={16} color={T.absentText} />
+                <View style={[s.recordRow, { backgroundColor: absentBg }]}>
+                  <Icon name="logout" size={16} color={absentText} />
                   <Text
                     style={[
                       s.recordLabel,
-                      { color: T.absentText, marginLeft: 10 },
+                      { color: absentText, marginLeft: 10 },
                     ]}
                   >
                     No check-out
@@ -937,20 +958,18 @@ const AttendanceScreen = () => {
               )}
             </>
           ) : selectedDate <= today ? (
-            <View style={[s.recordRow, { backgroundColor: T.absentBg }]}>
-              <Icon
-                name="close-circle-outline"
-                size={18}
-                color={T.absentText}
-              />
+            <View style={[s.recordRow, { backgroundColor: absentBg }]}>
+              <Icon name="close-circle-outline" size={18} color={absentText} />
               <Text
-                style={[s.recordLabel, { color: T.absentText, marginLeft: 10 }]}
+                style={[s.recordLabel, { color: absentText, marginLeft: 10 }]}
               >
                 {selectedDate === today ? 'Not marked yet' : 'Absent'}
               </Text>
             </View>
           ) : (
-            <Text style={[s.emptyText, { color: T.text3 }]}>Future date</Text>
+            <Text style={[s.emptyText, { color: colors.textTertiary }]}>
+              Future date
+            </Text>
           )}
         </View>
       );
@@ -959,35 +978,38 @@ const AttendanceScreen = () => {
   };
 
   const renderTeamPanel = () => (
-    <View style={[{ flex: 1 }, { backgroundColor: T.cardBg }]}>
-      <View style={[s.teamHeader, { borderBottomColor: T.border }]}>
+    <View style={[{ flex: 1 }, { backgroundColor: colors.surface }]}>
+      <View style={[s.teamHeader, { borderBottomColor: colors.border }]}>
         <View style={s.teamHeaderTitle}>
-          <Icon name="people-outline" size={14} color={T.accent} />
-          <Text style={[s.teamHeaderTitleText, { color: T.text1 }]}>
+          <Icon name="account-group-outline" size={14} color={accent} />
+          <Text style={[s.teamHeaderTitleText, { color: colors.textPrimary }]}>
             Team Attendance
           </Text>
         </View>
-        <Text style={[s.teamHeaderSub, { color: T.text3 }]}>
+        <Text style={[s.teamHeaderSub, { color: colors.textTertiary }]}>
           Select teammate for individual view
         </Text>
         <View
           style={[
             s.searchWrap,
-            { borderColor: T.border, backgroundColor: T.inputBg },
+            {
+              borderColor: colors.border,
+              backgroundColor: colors.backgroundSecondary,
+            },
           ]}
         >
           <Icon
-            name="search-outline"
+            name="magnify"
             size={13}
-            color={T.text3}
+            color={colors.textTertiary}
             style={{ marginRight: 6 }}
           />
           <TextInput
             value={searchQ}
             onChangeText={setSearchQ}
             placeholder="Search user…"
-            placeholderTextColor={T.text3}
-            style={[s.searchInput, { color: T.text1 }]}
+            placeholderTextColor={colors.placeholder}
+            style={[s.searchInput, { color: colors.textPrimary }]}
           />
         </View>
       </View>
@@ -999,26 +1021,29 @@ const AttendanceScreen = () => {
           }}
           style={[
             s.teamUserRow,
-            { borderBottomColor: T.borderLight },
-            !selectedUser && { backgroundColor: T.accentSoft },
+            { borderBottomColor: colors.border },
+            !selectedUser && { backgroundColor: colors.primarySoft },
           ]}
         >
           <Icon
-            name="people-outline"
+            name="account-group-outline"
             size={14}
-            color={!selectedUser ? T.accent : T.text2}
+            color={!selectedUser ? accent : colors.textSecondary}
           />
           <Text
             style={[
               s.teamUserName,
-              { color: !selectedUser ? T.accent : T.text2, marginLeft: 8 },
+              {
+                color: !selectedUser ? accent : colors.textSecondary,
+                marginLeft: 8,
+              },
             ]}
           >
             All users
           </Text>
         </TouchableOpacity>
         {users.length === 0 && (
-          <Text style={[s.emptyText, { color: T.text3 }]}>
+          <Text style={[s.emptyText, { color: colors.textTertiary }]}>
             {searchQ ? 'No users match' : 'No active users'}
           </Text>
         )}
@@ -1033,34 +1058,25 @@ const AttendanceScreen = () => {
               }}
               style={[
                 s.teamUserRow,
-                { borderBottomColor: T.borderLight },
-                isActive && { backgroundColor: T.accentSoft },
+                { borderBottomColor: colors.border },
+                isActive && { backgroundColor: colors.primarySoft },
               ]}
             >
-              <View
-                style={[
-                  s.avatar,
-                  { backgroundColor: isActive ? T.accent : T.avatarBg },
-                ]}
-              >
-                <Text
-                  style={[
-                    s.avatarText,
-                    { color: isActive ? '#fff' : T.avatarColor },
-                  ]}
-                >
-                  {initials(u.name)}
-                </Text>
-              </View>
+              <Avatar
+                name={u.name}
+                size={32}
+                rounded={16}
+                variant={isActive ? 'solid' : 'soft'}
+              />
               <View style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
                 <Text
-                  style={[s.teamUserName, { color: T.text1 }]}
+                  style={[s.teamUserName, { color: colors.textPrimary }]}
                   numberOfLines={1}
                 >
                   {u.name}
                 </Text>
                 {u.role === 'admin' && (
-                  <Text style={[s.adminLabel, { color: T.accent }]}>ADMIN</Text>
+                  <Text style={[s.adminLabel, { color: accent }]}>ADMIN</Text>
                 )}
               </View>
             </TouchableOpacity>
@@ -1072,8 +1088,8 @@ const AttendanceScreen = () => {
 
   const renderDetailHeader = () => (
     <View style={s.detailDateRow}>
-      <Icon name="calendar-outline" size={14} color={T.accent} />
-      <Text style={[s.detailDateText, { color: T.text1 }]}>
+      <Icon name="calendar-outline" size={14} color={accent} />
+      <Text style={[s.detailDateText, { color: colors.textPrimary }]}>
         {selectedDate
           ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', {
               day: 'numeric',
@@ -1088,10 +1104,13 @@ const AttendanceScreen = () => {
   const TAB_HEIGHT = 56;
 
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: T.bg }]} edges={['top']}>
+    <SafeAreaView
+      style={[s.root, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       <StatusBar
-        barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor={T.bg}
+        barStyle={colors.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.background}
       />
 
       {/* RENDER FUNCTIONS INSTEAD OF CUSTOM COMPONENTS */}
@@ -1119,12 +1138,15 @@ const AttendanceScreen = () => {
             <View
               style={[
                 s.empDetailSection,
-                { borderTopColor: T.border, backgroundColor: T.cardBg },
+                {
+                  borderTopColor: colors.border,
+                  backgroundColor: colors.surface,
+                },
               ]}
             >
               <View style={s.detailDateRow}>
-                <Icon name="calendar-outline" size={14} color={T.accent} />
-                <Text style={[s.detailDateText, { color: T.text1 }]}>
+                <Icon name="calendar-outline" size={14} color={accent} />
+                <Text style={[s.detailDateText, { color: colors.textPrimary }]}>
                   {selectedDate
                     ? new Date(selectedDate + 'T00:00:00').toLocaleDateString(
                         'en-IN',
@@ -1148,8 +1170,8 @@ const AttendanceScreen = () => {
           style={[
             s.tabBar,
             {
-              backgroundColor: T.tabBg,
-              borderTopColor: T.tabBorder,
+              backgroundColor: colors.surface,
+              borderTopColor: colors.border,
               height: TAB_HEIGHT + insets.bottom,
               paddingBottom: insets.bottom,
             },
@@ -1164,14 +1186,14 @@ const AttendanceScreen = () => {
             },
             {
               key: 'team',
-              icon: 'people-outline',
-              iconActive: 'people',
+              icon: 'account-group-outline',
+              iconActive: 'account-group',
               label: 'Team',
             },
             {
               key: 'detail',
-              icon: 'checkmark-circle-outline',
-              iconActive: 'checkmark-circle',
+              icon: 'check-circle-outline',
+              iconActive: 'check-circle',
               label: 'Detail',
             },
           ].map(tab => {
@@ -1186,17 +1208,18 @@ const AttendanceScreen = () => {
                 <Icon
                   name={active ? tab.iconActive : tab.icon}
                   size={20}
-                  color={active ? T.accent : T.text3}
+                  color={active ? accent : colors.textTertiary}
                 />
                 <Text
-                  style={[s.tabLabel, { color: active ? T.accent : T.text3 }]}
+                  style={[
+                    s.tabLabel,
+                    { color: active ? accent : colors.textTertiary },
+                  ]}
                 >
                   {tab.label}
                 </Text>
                 {active && (
-                  <View
-                    style={[s.tabIndicator, { backgroundColor: T.accent }]}
-                  />
+                  <View style={[s.tabIndicator, { backgroundColor: accent }]} />
                 )}
               </TouchableOpacity>
             );
@@ -1351,14 +1374,6 @@ const s = StyleSheet.create({
     borderWidth: 1,
     gap: 8,
   },
-  userBadgeAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  userBadgeAvatarText: { fontSize: 10, fontWeight: '700', color: '#fff' },
   userBadgeName: { flex: 1, fontSize: 12, fontWeight: '600' },
   userBadgeClear: {
     borderRadius: 999,
@@ -1449,14 +1464,6 @@ const s = StyleSheet.create({
     marginLeft: 6,
     flexShrink: 0,
   },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { fontSize: 11, fontWeight: '700' },
   recordRow: {
     flexDirection: 'row',
     alignItems: 'center',
