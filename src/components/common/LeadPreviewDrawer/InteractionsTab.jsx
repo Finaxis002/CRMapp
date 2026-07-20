@@ -256,17 +256,26 @@ const InteractionsTab = ({
     setLoading(true);
     setError(null);
 
-    try {
-      const activityPromise = api.get(`/activities/lead/${leadId}`);
-      const whatsappPromise = api.get(`/whatsapp/messages?leadId=${leadId}`);
-      const callLogPromise = api.get(`/call-logs?leadId=${leadId}&limit=50`);
+    const safe = (promise, tag) =>
+      Promise.resolve(promise)
+        .then(value => ({ status: 'fulfilled', value }))
+        .catch(reason => {
+          console.log(
+            `[Interactions] ${tag} FAILED:`,
+            reason?.response?.status,
+            reason?.message,
+          );
+          return { status: 'rejected', reason };
+        });
 
-      const [activityResult, whatsappResult, callLogResult] =
-        await Promise.allSettled([
-          activityPromise,
-          whatsappPromise,
-          callLogPromise,
-        ]);
+    try {
+      const [activityResult, whatsappResult, callLogResult] = await Promise.all(
+        [
+          safe(api.get(`/activities/lead/${leadId}`), 'activities'),
+          safe(api.get(`/whatsapp/messages?leadId=${leadId}`), 'whatsapp'),
+          safe(api.get(`/call-logs?leadId=${leadId}&limit=50`), 'call-logs'),
+        ],
+      );
 
       const activities = parseApiResponseArray(
         activityResult.status === 'fulfilled' ? activityResult.value : null,
@@ -316,8 +325,9 @@ const InteractionsTab = ({
 
       setItems(merged);
     } catch (e) {
+      console.log('[Interactions] fatal error:', e);
       setItems([]);
-      setError('Failed to load interactions.');
+      setError(e?.message || 'Failed to load interactions.');
     } finally {
       setLoading(false);
     }
