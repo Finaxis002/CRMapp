@@ -1,10 +1,4 @@
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-  useRef,
-  useCallback,
-} from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,13 +6,11 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
-  Pressable,
   StyleSheet,
-  Alert,
-  ActivityIndicator,
   Platform,
   Linking,
   StatusBar,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -30,27 +22,24 @@ import axios from 'axios';
 
 // ── UI Kit ──
 import { useUISystem } from '../../hooks/useUISystem';
-import { FormField, FieldBlock, FormRow } from '../ui/FormField';
+import { FormField, FormRow } from '../ui/FormField';
 import FormSection from '../ui/FormSection';
 import ImprovedTextInput from '../ui/ImprovedTextInput';
 import ImprovedButton from '../ui/ImprovedButton';
 import ImprovedDropdown from '../ui/ImprovedDropdown';
 import CheckboxRow from '../ui/CheckboxRow';
-import DateField, { DateTimeFieldTrigger } from '../ui/DateField';
+import DateField from '../ui/DateField';
 import EmptyState from '../ui/EmptyState';
 import IconButton from '../ui/IconButton';
-import Avatar from '../ui/Avatar';
 
 // ── App components ──
 import CustomPhoneInput from '../ui/PhoneInput.jsx';
 import MultiSelect from '../ui/MultiSelect';
-import CrossSellTab from './Crossselltab';
 import PaymentHistoryItem from '../common/LeadFormModel/PaymentHistoryItem.jsx';
 import api from '../../services/api.js';
 import CallLogCard from '../../services/callLogCard.js';
 
-// ── Toast (uses CustomToast via useToast hook) ──
-// Fallback to Alert.alert if ToastProvider is not wrapped
+// ── Toast ──
 import { useToast as useKitToast } from '../ui/CustomToast';
 
 // ── Constants ──
@@ -62,6 +51,7 @@ const DEFAULT_STATUS_OPTIONS = [
   'Closed',
   'Repeat',
 ];
+
 const DEFAULT_SOURCE_OPTIONS = [
   'Google Ads',
   'Website',
@@ -72,8 +62,9 @@ const DEFAULT_SOURCE_OPTIONS = [
   'Google Sheet',
   'Other',
 ];
+
 const PRIORITY_OPTIONS = ['Normal', 'High', 'Urgent'];
-const ACTIVITY_TYPES = ['Note', 'Call', 'Email', 'Meeting', 'Task'];
+
 const PAYMENT_MODES = [
   'UPI',
   'Bank Transfer',
@@ -83,8 +74,11 @@ const PAYMENT_MODES = [
   'Stripe',
   'PayU',
 ];
+
 const PAYMENT_STATUS = ['Paid', 'Partial', 'Pending', 'Overdue', 'Cancelled'];
+
 const REMINDER_TYPES = ['Call', 'Email', 'Meeting', 'Follow-up', 'Payment'];
+
 const ALL_CROSS_SELL_SERVICES = [
   'MSME',
   'GST Registration',
@@ -96,6 +90,7 @@ const ALL_CROSS_SELL_SERVICES = [
   'Trade Mark',
   'IEC Code',
 ];
+
 const TABS = [
   'Profile',
   'Assign',
@@ -129,7 +124,7 @@ const toInputTime = d => {
 };
 
 // ════════════════════════════════════════════════════════════════
-// DateTimeField — uses kit DateField internally
+// DateTimeField
 // ════════════════════════════════════════════════════════════════
 const DateTimeField = React.memo(
   ({
@@ -139,8 +134,10 @@ const DateTimeField = React.memo(
     pickerTargets,
     setPickerTargets,
     mode = 'date',
+    minimumDate,
   }) => {
     const open = pickerTargets?.[openKey] === mode;
+
     const parseValue = () => {
       if (!value) return new Date();
       if (mode === 'time') {
@@ -164,7 +161,7 @@ const DateTimeField = React.memo(
             value={parseValue()}
             mode={mode}
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            minimumDate={mode === 'date' ? new Date() : undefined}
+            minimumDate={minimumDate}
             onChange={(event, selectedDate) => {
               if (event?.type === 'dismissed') {
                 setPickerTargets(p => ({ ...p, [openKey]: null }));
@@ -300,6 +297,7 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess, toast }) => {
             />
           </View>
         </View>
+
         {pickerTarget === 'date' && (
           <DateTimePicker
             value={
@@ -320,6 +318,7 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess, toast }) => {
             }}
           />
         )}
+
         {pickerTarget === 'time' && (
           <DateTimePicker
             value={
@@ -381,8 +380,6 @@ const LeadFormModal = ({
   const { colors, typography, spacing, borderRadius, elevation, isDark } =
     useUISystem();
   const insets = useSafeAreaInsets();
-
-  // Toast — uses CustomToast (ToastProvider must be in App.js)
   const toast = useKitToast();
 
   const [activeTab, setActiveTab] = useState(initialTab || 'Profile');
@@ -415,12 +412,15 @@ const LeadFormModal = ({
   const customColumns = Array.isArray(settings?.customColumns)
     ? settings.customColumns
     : [];
+
   const defaultStatusOptions = statusOptions.length
     ? statusOptions
     : DEFAULT_STATUS_OPTIONS;
+
   const defaultSourceOptions = sourceOptions.length
     ? sourceOptions
     : DEFAULT_SOURCE_OPTIONS;
+
   const canManageAssignment = canAssignLead || canChangeLeadOwner;
 
   const statusItems = defaultStatusOptions.map(s => ({ value: s, label: s }));
@@ -468,12 +468,25 @@ const LeadFormModal = ({
     return leadItem.assignedTo._id || leadItem.assignedTo.id || '';
   };
 
+  const allTabs = useMemo(
+    () => [
+      ...TABS,
+      ...(form.status === 'Success' || lead?.isCrossSell ? ['Cross-Sell'] : []),
+    ],
+    [form.status, lead?.isCrossSell],
+  );
+
+  useEffect(() => {
+    if (visible && !allTabs.includes(activeTab)) setActiveTab('Profile');
+  }, [allTabs, activeTab, visible]);
+
   // ── Sync lead -> form ──
   useEffect(() => {
     if (!visible) {
       setRecordingFile(null);
       return;
     }
+
     if (!lead) {
       setActiveTab(initialTab || 'Profile');
       setForm({
@@ -527,6 +540,7 @@ const LeadFormModal = ({
     const pendingReminders = Array.isArray(lead.reminders)
       ? lead.reminders.filter(r => !r.isDone)
       : [];
+
     const latestReminder = pendingReminders.length
       ? [...pendingReminders].sort((a, b) => {
           const aDate = new Date(a.reminderDate || a.createdAt || 0);
@@ -673,7 +687,7 @@ const LeadFormModal = ({
     setActivities(prev => ({ ...prev, [type]: { ...prev[type], [key]: val } }));
   }, []);
 
-  // ── buildPayload (unchanged logic) ──
+  // ── buildPayload ──
   const buildPayload = () => {
     const payload = {
       name: form.name.trim(),
@@ -699,6 +713,7 @@ const LeadFormModal = ({
         ? form.coAssignees
         : undefined,
     };
+
     if (!lead) payload.assignedTo = form.assignedTo || undefined;
     else {
       const originalAssignee = getLeadAssignee(lead);
@@ -707,6 +722,7 @@ const LeadFormModal = ({
     }
 
     const activitiesPayload = [];
+
     if (activities.Note.text.trim() || activities.Note._id)
       activitiesPayload.push({
         _id: activities.Note._id || undefined,
@@ -714,6 +730,7 @@ const LeadFormModal = ({
         text: activities.Note.text.trim(),
         notifiedUsers: activities.Note.notify ? [activities.Note.notify] : [],
       });
+
     if (
       activities.Call.text.trim() ||
       activities.Call.duration.trim() ||
@@ -728,6 +745,7 @@ const LeadFormModal = ({
         callOutcome: activities.Call.outcome,
         notifiedUsers: activities.Call.notify ? [activities.Call.notify] : [],
       });
+
     if (activities.Email.text.trim() || activities.Email._id)
       activitiesPayload.push({
         _id: activities.Email._id || undefined,
@@ -735,6 +753,7 @@ const LeadFormModal = ({
         text: activities.Email.text.trim(),
         notifiedUsers: activities.Email.notify ? [activities.Email.notify] : [],
       });
+
     if (activities.Meeting.text.trim() || activities.Meeting._id)
       activitiesPayload.push({
         _id: activities.Meeting._id || undefined,
@@ -744,6 +763,7 @@ const LeadFormModal = ({
           ? [activities.Meeting.notify]
           : [],
       });
+
     if (
       activities.Task.text.trim() ||
       activities.Task.dueDate ||
@@ -757,12 +777,14 @@ const LeadFormModal = ({
         taskAssignedTo: activities.Task.assignedTo || undefined,
         notifiedUsers: activities.Task.notify ? [activities.Task.notify] : [],
       });
+
     if (activitiesPayload.length > 0) payload.activities = activitiesPayload;
 
-    payload.recording = {
-      label: form.recordingLabel.trim() || '',
-      url: form.recordingUrl.trim() || '',
-    };
+    const recLabel = form.recordingLabel.trim();
+    const recUrl = form.recordingUrl.trim();
+    if (recLabel || recUrl)
+      payload.recording = { label: recLabel, url: recUrl };
+
     if (form.paymentAmount.trim())
       payload.payment = {
         amount: Number(form.paymentAmount),
@@ -771,25 +793,28 @@ const LeadFormModal = ({
         reference: form.paymentReference.trim() || undefined,
         paymentDate: form.paymentDate || undefined,
       };
+
     if (customColumns.length) payload.customFields = { ...form.customFields };
 
-    // Reminder logic
     const existingReminder = lead?.reminders?.find(r => !r.isDone) || null;
     const existingReminderDate = existingReminder?.reminderDate
       ? new Date(existingReminder.reminderDate).toISOString().split('T')[0]
       : '';
+
     const existingReminderAssignedTo =
       typeof existingReminder?.assignedTo === 'string'
         ? existingReminder.assignedTo
         : existingReminder?.assignedTo?._id ||
           existingReminder?.assignedTo?.id ||
           '';
+
     const existingReminderNotify =
       existingReminder?.notifyUsers?.length > 0
         ? typeof existingReminder.notifyUsers[0] === 'string'
           ? existingReminder.notifyUsers[0]
           : existingReminder.notifyUsers[0]?._id || ''
         : '';
+
     const reminderChanged = !lead
       ? Boolean(form.reminderDate)
       : String(form.reminderType || 'Call') !==
@@ -804,6 +829,7 @@ const LeadFormModal = ({
           String(existingReminder?.note || '') ||
         String(form.reminderNotify || '') !==
           String(existingReminderNotify || '');
+
     if (form.reminderDate && reminderChanged) {
       payload.reminder = {
         _id: existingReminder?._id || undefined,
@@ -818,6 +844,7 @@ const LeadFormModal = ({
             : [],
       };
     }
+
     return payload;
   };
 
@@ -903,7 +930,9 @@ const LeadFormModal = ({
       const token = await AsyncStorage.getItem('accessToken');
       await axios.delete(
         `/api/v1/leads/${lead._id}/recordings/${rec.filename}`,
-        { headers: { Authorization: `Bearer ${token}` } },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
       setSavedRecordings(prev => prev.filter(r => r.filename !== rec.filename));
       toast.success('Recording deleted successfully.');
@@ -924,6 +953,7 @@ const LeadFormModal = ({
       toast.error('You do not have permission to create leads.');
       return;
     }
+
     const phoneRegex = /^\+?[1-9][0-9]{9,14}$/;
     const rawDigitsOnly = form.phone.replace(/\D/g, '');
     if (
@@ -935,6 +965,7 @@ const LeadFormModal = ({
       setActiveTab('Profile');
       return;
     }
+
     const altRaw = form.alternatePhone
       ? String(form.alternatePhone).trim()
       : '';
@@ -944,6 +975,7 @@ const LeadFormModal = ({
       setActiveTab('Profile');
       return;
     }
+
     if (!form.name.trim()) {
       toast.error('Lead name is required.');
       setActiveTab('Profile');
@@ -976,6 +1008,7 @@ const LeadFormModal = ({
     setSubmitting(true);
     try {
       const savedLead = await onSubmit(payload, lead?._id);
+
       if (!lead?._id && recordingFile && savedLead?._id) {
         try {
           const fd = new FormData();
@@ -995,6 +1028,7 @@ const LeadFormModal = ({
           toast.error('Lead created but recording upload failed.');
         }
       }
+
       if (!lead?._id) onClose();
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Unable to save lead.');
@@ -1005,10 +1039,6 @@ const LeadFormModal = ({
 
   if (!visible) return null;
 
-  const allTabs = [
-    ...TABS,
-    ...(form.status === 'Success' || lead?.isCrossSell ? ['Cross-Sell'] : []),
-  ];
   const activeAct = activities[activeActivityType];
 
   // ── RENDER ──
@@ -1035,50 +1065,40 @@ const LeadFormModal = ({
           },
         ]}
       >
-        <View style={[styles.modalBody, { backgroundColor: colors.surface }]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={[styles.modalBody, { backgroundColor: colors.surface }]}
+        >
           {/* Header */}
           <View
             style={[
               styles.headerBar,
               {
                 borderBottomColor: colors.border,
-                paddingHorizontal: spacing.lg,
-                paddingTop: spacing.lg,
+                paddingHorizontal: spacing.md,
+                paddingTop: spacing.md,
                 paddingBottom: spacing.md,
+                alignItems: 'center',
+                gap: spacing.sm,
               },
             ]}
           >
-            <View style={{ flex: 1, paddingRight: 12 }}>
+            <IconButton
+              name="arrow-left"
+              size={22}
+              color={colors.textPrimary}
+              backgroundColor={colors.backgroundSecondary}
+              onPress={onClose}
+              style={{ width: 38, height: 38, borderRadius: borderRadius.full }}
+            />
+            <View style={{ flex: 1 }}>
               <Text
                 style={[typography.h3, { color: colors.textPrimary }]}
                 numberOfLines={1}
               >
                 {lead ? 'Edit Lead' : 'Add New Lead'}
               </Text>
-              <Text
-                style={[
-                  typography.body2,
-                  { color: colors.textSecondary, marginTop: 4 },
-                ]}
-                numberOfLines={2}
-              >
-                Complete profile, assignment, activity, recording, payment and
-                reminder sections.
-              </Text>
             </View>
-            <Pressable
-              onPress={onClose}
-              hitSlop={10}
-              style={[
-                styles.closeBtn,
-                {
-                  backgroundColor: colors.backgroundSecondary,
-                  borderRadius: borderRadius.full,
-                },
-              ]}
-            >
-              <Icon name="close" size={18} color={colors.textSecondary} />
-            </Pressable>
           </View>
 
           {/* Tabs */}
@@ -1126,10 +1146,11 @@ const LeadFormModal = ({
           <ScrollView
             contentContainerStyle={{ paddingBottom: 24, flexGrow: 1 }}
             keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={true}
             showsVerticalScrollIndicator={false}
             style={{ flex: 1, backgroundColor: colors.surface }}
           >
-            {/* PROFILE TAB */}
+            {/* ═══════════════ PROFILE TAB ═══════════════ */}
             {activeTab === 'Profile' && (
               <View style={styles.formContainer}>
                 <FormField label="Full Name" required>
@@ -1141,14 +1162,16 @@ const LeadFormModal = ({
                     containerStyle={{ marginBottom: 0 }}
                   />
                 </FormField>
+
+                <FormField label="Primary Phone" required>
+                  <CustomPhoneInput
+                    value={form.phone}
+                    onChange={fullNumber => handleChange('phone', fullNumber)}
+                    defaultCountry="IN"
+                  />
+                </FormField>
+
                 <FormRow columns={2}>
-                  <FormField label="Primary Phone" required>
-                    <CustomPhoneInput
-                      value={form.phone}
-                      onChange={fullNumber => handleChange('phone', fullNumber)}
-                      defaultCountry="IN"
-                    />
-                  </FormField>
                   <FormField label="Status">
                     <ImprovedDropdown
                       items={statusItems}
@@ -1158,14 +1181,24 @@ const LeadFormModal = ({
                       searchable={false}
                     />
                   </FormField>
-                </FormRow>
-                <FormRow columns={2}>
                   <FormField label="Priority">
                     <ImprovedDropdown
                       items={priorityItems}
                       selectedValue={form.priority}
                       onValueChange={v => handleChange('priority', v)}
                       placeholder="Priority"
+                      searchable={false}
+                    />
+                  </FormField>
+                </FormRow>
+
+                <FormRow columns={2}>
+                  <FormField label="Source">
+                    <ImprovedDropdown
+                      items={sourceItems}
+                      selectedValue={form.source}
+                      onValueChange={v => handleChange('source', v)}
+                      placeholder="Source"
                       searchable={false}
                     />
                   </FormField>
@@ -1179,6 +1212,7 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
+
                 <FormRow columns={2}>
                   <FormField label="City">
                     <ImprovedTextInput
@@ -1186,26 +1220,6 @@ const LeadFormModal = ({
                       onChangeText={v => handleChange('city', v)}
                       placeholder="City"
                       containerStyle={{ marginBottom: 0 }}
-                    />
-                  </FormField>
-                  <FormField label="Alternate Phone (Optional)">
-                    <CustomPhoneInput
-                      value={form.alternatePhone || ''}
-                      onChange={fullNumber =>
-                        handleChange('alternatePhone', fullNumber)
-                      }
-                      defaultCountry="IN"
-                    />
-                  </FormField>
-                </FormRow>
-                <FormRow columns={2}>
-                  <FormField label="Source">
-                    <ImprovedDropdown
-                      items={sourceItems}
-                      selectedValue={form.source}
-                      onValueChange={v => handleChange('source', v)}
-                      placeholder="Source"
-                      searchable={false}
                     />
                   </FormField>
                   <FormField label="Product">
@@ -1217,6 +1231,7 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
+
                 <FormRow columns={2}>
                   <FormField label="Email">
                     <ImprovedTextInput
@@ -1238,6 +1253,17 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
+
+                <FormField label="Alternate Phone (Optional)">
+                  <CustomPhoneInput
+                    value={form.alternatePhone || ''}
+                    onChange={fullNumber =>
+                      handleChange('alternatePhone', fullNumber)
+                    }
+                    defaultCountry="IN"
+                  />
+                </FormField>
+
                 {customColumns
                   .filter(c => c.formVisible !== false)
                   .map(column => (
@@ -1252,6 +1278,7 @@ const LeadFormModal = ({
                       />
                     </FormField>
                   ))}
+
                 <FormField label="Initial Note">
                   <ImprovedTextInput
                     multiline
@@ -1264,7 +1291,7 @@ const LeadFormModal = ({
               </View>
             )}
 
-            {/* ASSIGN TAB */}
+            {/* ═══════════════ ASSIGN TAB ═══════════════ */}
             {activeTab === 'Assign' && (
               <View style={styles.formContainer}>
                 <FormField label="Primary Lead Owner" required>
@@ -1286,6 +1313,7 @@ const LeadFormModal = ({
                     </Text>
                   )}
                 </FormField>
+
                 <FormSection title="Co-Assignees">
                   <MultiSelect
                     options={users
@@ -1330,7 +1358,7 @@ const LeadFormModal = ({
               </View>
             )}
 
-            {/* ACTIVITY TAB */}
+            {/* ═══════════════ ACTIVITY TAB ═══════════════ */}
             {activeTab === 'Activity' && (
               <View style={styles.formContainer}>
                 <Text
@@ -1341,6 +1369,7 @@ const LeadFormModal = ({
                 >
                   Activity Type
                 </Text>
+
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                     {Object.keys(ACTIVITY_TYPE_META).map(type => {
@@ -1410,6 +1439,7 @@ const LeadFormModal = ({
                   <Text style={[typography.h4, { color: colors.textPrimary }]}>
                     {activeActivityType} Activity
                   </Text>
+
                   <ImprovedTextInput
                     multiline
                     value={activeAct.text}
@@ -1425,7 +1455,7 @@ const LeadFormModal = ({
                   />
 
                   {activeActivityType === 'Call' && (
-                    <FormRow columns={3}>
+                    <FormRow columns={1}>
                       <FormField label="Duration">
                         <ImprovedTextInput
                           value={activeAct.duration}
@@ -1463,8 +1493,9 @@ const LeadFormModal = ({
                       </FormField>
                     </FormRow>
                   )}
+
                   {activeActivityType === 'Task' && (
-                    <FormRow columns={2}>
+                    <FormRow columns={1}>
                       <FormField label="Due Date" required>
                         <DateTimeField
                           value={activeAct.dueDate}
@@ -1485,6 +1516,7 @@ const LeadFormModal = ({
                       </FormField>
                     </FormRow>
                   )}
+
                   <FormField label="Notify">
                     <ImprovedDropdown
                       items={[{ value: '', label: 'No one' }, ...userItems]}
@@ -1554,6 +1586,7 @@ const LeadFormModal = ({
                               <CallLogCard callLog={item} />
                             </View>
                           );
+
                         const iconMap = {
                           Note: {
                             bg: '#f3e8ff',
@@ -1591,6 +1624,7 @@ const LeadFormModal = ({
                             icon: 'bell-outline',
                           },
                         };
+
                         const st = iconMap[item.type] || iconMap.Status;
                         const userName =
                           typeof item.user === 'string'
@@ -1599,6 +1633,7 @@ const LeadFormModal = ({
                               item.createdBy?.name ||
                               item.userName ||
                               '—';
+
                         return (
                           <View
                             key={item._id || idx}
@@ -1636,7 +1671,9 @@ const LeadFormModal = ({
                                 <View
                                   style={[
                                     styles.recentBadge,
-                                    { backgroundColor: colors.successSoft },
+                                    {
+                                      backgroundColor: colors.successSoft,
+                                    },
                                   ]}
                                 >
                                   <Text
@@ -1658,7 +1695,10 @@ const LeadFormModal = ({
                               <Text
                                 style={[
                                   typography.body2,
-                                  { color: colors.textSecondary, fontSize: 12 },
+                                  {
+                                    color: colors.textSecondary,
+                                    fontSize: 12,
+                                  },
                                 ]}
                               >
                                 {item.text}
@@ -1667,7 +1707,10 @@ const LeadFormModal = ({
                             <Text
                               style={[
                                 typography.caption,
-                                { color: colors.textTertiary, marginTop: 4 },
+                                {
+                                  color: colors.textTertiary,
+                                  marginTop: 4,
+                                },
                               ]}
                             >
                               {userName}
@@ -1693,7 +1736,7 @@ const LeadFormModal = ({
               </View>
             )}
 
-            {/* RECORDING TAB */}
+            {/* ═══════════════ RECORDING TAB ═══════════════ */}
             {activeTab === 'Recording' && (
               <View style={styles.formContainer}>
                 <FormSection title="Add New Recording">
@@ -1705,6 +1748,7 @@ const LeadFormModal = ({
                       containerStyle={{ marginBottom: 0 }}
                     />
                   </FormField>
+
                   <FormField label="Recording URL">
                     <ImprovedTextInput
                       value={form.recordingUrl}
@@ -1794,7 +1838,9 @@ const LeadFormModal = ({
                         <View
                           style={[
                             styles.uploadIconCircle,
-                            { backgroundColor: colors.backgroundSecondary },
+                            {
+                              backgroundColor: colors.backgroundSecondary,
+                            },
                           ]}
                         >
                           <Icon
@@ -1814,7 +1860,10 @@ const LeadFormModal = ({
                         <Text
                           style={[
                             typography.caption,
-                            { color: colors.textTertiary, textAlign: 'center' },
+                            {
+                              color: colors.textTertiary,
+                              textAlign: 'center',
+                            },
                           ]}
                         >
                           MP3, MP4, WAV, OGG, M4A, WebM · max 100MB
@@ -1832,6 +1881,7 @@ const LeadFormModal = ({
                       fullWidth
                     />
                   )}
+
                   {!lead?._id &&
                     (recordingFile || form.recordingUrl.trim()) && (
                       <Text
@@ -1874,7 +1924,9 @@ const LeadFormModal = ({
                             <View
                               style={[
                                 styles.savedRecIcon,
-                                { backgroundColor: colors.primarySoft },
+                                {
+                                  backgroundColor: colors.primarySoft,
+                                },
                               ]}
                             >
                               <Icon
@@ -1899,7 +1951,9 @@ const LeadFormModal = ({
                                 <Text
                                   style={[
                                     typography.caption,
-                                    { color: colors.textTertiary },
+                                    {
+                                      color: colors.textTertiary,
+                                    },
                                   ]}
                                 >
                                   {new Date(rec.uploadedAt).toLocaleDateString(
@@ -1919,7 +1973,10 @@ const LeadFormModal = ({
                               )}
                             </View>
                             <View
-                              style={{ flexDirection: 'row', gap: spacing.sm }}
+                              style={{
+                                flexDirection: 'row',
+                                gap: spacing.sm,
+                              }}
                             >
                               <IconButton
                                 name={
@@ -1965,6 +2022,7 @@ const LeadFormModal = ({
                               />
                             </View>
                           </View>
+
                           {isPlaying && (
                             <View
                               style={{
@@ -2006,10 +2064,10 @@ const LeadFormModal = ({
               </View>
             )}
 
-            {/* PAYMENT TAB */}
+            {/* ═══════════════ PAYMENT TAB ═══════════════ */}
             {activeTab === 'Payment' && (
               <View style={styles.formContainer}>
-                <FormRow columns={3}>
+                <FormRow columns={1}>
                   <FormField label="Amount (₹)">
                     <ImprovedTextInput
                       keyboardType="numeric"
@@ -2037,7 +2095,8 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
-                <FormRow columns={2}>
+
+                <FormRow columns={1}>
                   <FormField label="Status">
                     <ImprovedDropdown
                       items={paymentStatusItems}
@@ -2055,6 +2114,7 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
+
                 {paymentHistory.length > 0 && (
                   <FormSection title="Payment History">
                     <ScrollView style={{ maxHeight: 256 }}>
@@ -2083,10 +2143,10 @@ const LeadFormModal = ({
               </View>
             )}
 
-            {/* REMINDER TAB */}
+            {/* ═══════════════ REMINDER TAB ═══════════════ */}
             {activeTab === 'Reminder' && (
               <View style={styles.formContainer}>
-                <FormRow columns={2}>
+                <FormRow columns={1}>
                   <FormField label="Type">
                     <ImprovedDropdown
                       items={reminderTypeItems}
@@ -2106,6 +2166,7 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
+
                 <FormRow columns={2}>
                   <FormField label="Date">
                     <DateTimeField
@@ -2114,6 +2175,7 @@ const LeadFormModal = ({
                       openKey="reminderDate"
                       pickerTargets={pickerTargets}
                       setPickerTargets={setPickerTargets}
+                      minimumDate={new Date()}
                     />
                   </FormField>
                   <FormField label="Time">
@@ -2127,6 +2189,7 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
+
                 <FormField label="Note">
                   <ImprovedTextInput
                     value={form.reminderNote}
@@ -2135,6 +2198,7 @@ const LeadFormModal = ({
                     containerStyle={{ marginBottom: 0 }}
                   />
                 </FormField>
+
                 <FormField label="Also notify">
                   <ImprovedDropdown
                     items={[{ value: '', label: 'None' }, ...userItems]}
@@ -2146,7 +2210,7 @@ const LeadFormModal = ({
               </View>
             )}
 
-            {/* CROSS-SELL TAB */}
+            {/* ═══════════════ CROSS-SELL TAB ═══════════════ */}
             {activeTab === 'Cross-Sell' && (
               <SuccessServiceSelector
                 lead={lead}
@@ -2180,16 +2244,8 @@ const LeadFormModal = ({
               loading={submitting}
               disabled={submitting}
             />
-            <ImprovedButton
-              title="Cancel"
-              onPress={onClose}
-              variant="secondary"
-              size="medium"
-              fullWidth
-              disabled={submitting}
-            />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -2201,18 +2257,10 @@ const styles = StyleSheet.create({
   modalBody: { flex: 1, overflow: 'hidden' },
   headerBar: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   footerBar: { borderTopWidth: StyleSheet.hairlineWidth },
   tabsContainer: {
-    borderBottomWidth: 1,
     maxHeight: 48,
     flexGrow: 0,
     flexShrink: 0,
@@ -2277,7 +2325,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recentBadge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  recentBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
   orDivider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   orLine: { flex: 1, height: 1 },
   uploadZone: {

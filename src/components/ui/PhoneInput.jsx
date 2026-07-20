@@ -11,6 +11,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useUISystem } from '../../hooks/useUISystem';
 
 const COUNTRIES = [
   { code: 'AF', name: 'Afghanistan', dial: '+93', flag: 'af' },
@@ -53,26 +54,36 @@ const COUNTRIES = [
   { code: 'VN', name: 'Vietnam', dial: '+84', flag: 'vn' },
 ];
 
-const Flag = ({ code, size = 16 }) => (
+const Flag = ({ code, size = 18 }) => (
   <Image
     source={{ uri: `https://flagcdn.com/w40/${code}.png` }}
-    style={{
-      width: size,
-      height: size * 0.72,
-      borderRadius: 2,
-    }}
+    style={{ width: size, height: size * 0.72, borderRadius: 2 }}
     resizeMode="cover"
   />
 );
 
+/**
+ * CustomPhoneInput
+ * Props (unchanged): value, onChange(fullNumberWithDial), defaultCountry
+ *
+ * Visual goals:
+ *  - ONE unified field (flag + dial + number share a single border).
+ *  - Theme-aware via useUISystem (works in dark mode, matches the app).
+ *  - Taller (48) + larger fonts so the placeholder never wraps.
+ *    NOTE: also give this component a FULL-WIDTH row in the form so the
+ *    placeholder has room (see LeadFormModal Profile tab regrouping).
+ */
 const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
+  const { colors, typography, borderRadius } = useUISystem();
+
   const [selected, setSelected] = useState(
     () => COUNTRIES.find(c => c.code === defaultCountry) || COUNTRIES[0],
   );
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [isFocused, setIsFocused] = useState(false);
+  const [focused, setFocused] = useState(false);
 
+  // Auto-detect country when a full international number is pasted in.
   useEffect(() => {
     if (value && String(value).startsWith('+')) {
       const sorted = [...COUNTRIES].sort(
@@ -95,11 +106,12 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
 
   const filtered = useMemo(() => {
     if (!query) return COUNTRIES;
+    const q = query.toLowerCase();
     return COUNTRIES.filter(
       c =>
-        c.name.toLowerCase().includes(query.toLowerCase()) ||
+        c.name.toLowerCase().includes(q) ||
         c.dial.includes(query) ||
-        c.code.toLowerCase().includes(query.toLowerCase()),
+        c.code.toLowerCase().includes(q),
     );
   }, [query]);
 
@@ -109,40 +121,57 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
     onChange(country.dial + rawNumber);
   };
 
-  const handleNumberChange = rawValue => {
-    const raw = rawValue.replace(/\D/g, '').slice(0, 12);
-    onChange(selected.dial + raw);
+  const handleNumberChange = raw => {
+    const digits = raw.replace(/\D/g, '').slice(0, 12);
+    onChange(selected.dial + digits);
   };
 
   return (
-    <View style={styles.root}>
-      <View style={[styles.inputRow, isFocused && styles.inputRowFocused]}>
-        {/* Country button - Flag + Dial + Arrow (compact) */}
+    <View style={s.root}>
+      <View
+        style={[
+          s.inputRow,
+          {
+            backgroundColor: colors.surface,
+            borderColor: focused ? colors.primary : colors.border,
+            borderRadius: borderRadius.md,
+          },
+        ]}
+      >
+        {/* Country selector — NO background, so the whole row reads as one field */}
         <TouchableOpacity
           onPress={() => setOpen(o => !o)}
-          style={styles.countryButton}
           activeOpacity={0.7}
+          style={[s.countryBtn, { borderRightColor: colors.border }]}
+          accessibilityRole="button"
+          accessibilityLabel={`Country code ${selected.dial}. Tap to change.`}
         >
-          <Flag code={selected.flag} size={16} />
-          <Text style={styles.dialText}>{selected.dial}</Text>
-          <Icon name="chevron-down" size={12} color="#9ca3af" />
+          <Flag code={selected.flag} size={18} />
+          <Text style={[s.dial, { color: colors.textPrimary }]}>
+            {selected.dial}
+          </Text>
+          <Icon
+            name={open ? 'chevron-up' : 'chevron-down'}
+            size={14}
+            color={colors.textTertiary}
+          />
         </TouchableOpacity>
 
-        {/* Phone input - max space */}
         <TextInput
           keyboardType="phone-pad"
           value={rawNumber}
           onChangeText={handleNumberChange}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           placeholder="Phone number"
-          placeholderTextColor="#cbd5e1"
-          style={styles.numberInput}
+          placeholderTextColor={colors.placeholder}
+          numberOfLines={1}
           maxLength={12}
+          style={[s.number, { color: colors.textPrimary }]}
         />
       </View>
 
-      {/* Country picker modal */}
+      {/* Country picker modal (theme-aware) */}
       <Modal
         visible={open}
         transparent
@@ -151,57 +180,110 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
         onRequestClose={() => setOpen(false)}
       >
         <TouchableWithoutFeedback onPress={() => setOpen(false)}>
-          <View style={styles.overlay}>
+          <View
+            style={[
+              s.overlay,
+              { backgroundColor: colors.overlay || 'rgba(15,23,42,0.5)' },
+            ]}
+          >
             <TouchableWithoutFeedback>
-              <View style={styles.dropdown}>
+              <View
+                style={[
+                  s.dropdown,
+                  {
+                    backgroundColor: colors.surface,
+                    borderRadius: borderRadius.xl,
+                  },
+                ]}
+              >
                 {/* Header */}
-                <View style={styles.modalHeader}>
-                  <View>
-                    <Text style={styles.modalTitle}>Select Country</Text>
-                    <Text style={styles.modalSubtitle}>
+                <View
+                  style={[
+                    s.mHeader,
+                    { borderBottomColor: colors.borderLight || colors.border },
+                  ]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[typography.h4, { color: colors.textPrimary }]}
+                    >
+                      Select Country
+                    </Text>
+                    <Text
+                      style={[
+                        typography.caption,
+                        { color: colors.textTertiary, marginTop: 2 },
+                      ]}
+                    >
                       Choose your country code
                     </Text>
                   </View>
                   <TouchableOpacity
                     onPress={() => setOpen(false)}
-                    style={styles.closeBtn}
+                    style={[
+                      s.closeBtn,
+                      {
+                        backgroundColor: colors.backgroundSecondary,
+                        borderRadius: borderRadius.full,
+                      },
+                    ]}
+                    accessibilityLabel="Close"
                   >
-                    <Icon name="close" size={18} color="#6b7280" />
+                    <Icon name="close" size={18} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
 
                 {/* Search */}
-                <View style={styles.searchWrap}>
-                  <Icon name="magnify" size={18} color="#9ca3af" />
+                <View
+                  style={[
+                    s.searchWrap,
+                    {
+                      backgroundColor: colors.backgroundSecondary,
+                      borderRadius: borderRadius.md,
+                    },
+                  ]}
+                >
+                  <Icon name="magnify" size={18} color={colors.textTertiary} />
                   <TextInput
                     autoFocus
                     value={query}
                     onChangeText={setQuery}
-                    placeholder="Search by country or code..."
-                    placeholderTextColor="#9ca3af"
-                    style={styles.searchInput}
+                    placeholder="Search country or code"
+                    placeholderTextColor={colors.placeholder}
+                    style={[s.searchInput, { color: colors.textPrimary }]}
                   />
                   {query ? (
                     <TouchableOpacity onPress={() => setQuery('')}>
-                      <Icon name="close-circle" size={18} color="#9ca3af" />
+                      <Icon
+                        name="close-circle"
+                        size={18}
+                        color={colors.textTertiary}
+                      />
                     </TouchableOpacity>
                   ) : null}
                 </View>
 
-                {/* Country list */}
+                {/* List */}
                 <FlatList
                   data={filtered}
                   keyExtractor={item => item.code}
-                  style={styles.countryList}
+                  style={s.list}
                   keyboardShouldPersistTaps="handled"
                   ListEmptyComponent={
-                    <View style={styles.emptyWrap}>
+                    <View style={s.empty}>
                       <Icon
                         name="map-search-outline"
                         size={40}
-                        color="#d1d5db"
+                        color={colors.textTertiary}
                       />
-                      <Text style={styles.emptyText}>No country found</Text>
+                      <Text
+                        style={[
+                          typography.body2,
+                          { color: colors.textTertiary },
+                        ]}
+                      >
+                        No country found
+                      </Text>
                     </View>
                   }
                   renderItem={({ item }) => {
@@ -209,18 +291,23 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
                     return (
                       <TouchableOpacity
                         onPress={() => handleSelect(item)}
-                        style={[
-                          styles.countryRow,
-                          active && styles.countryRowActive,
-                        ]}
                         activeOpacity={0.6}
+                        style={[
+                          s.row,
+                          active && { backgroundColor: colors.primarySoft },
+                        ]}
                       >
                         <Flag code={item.flag} size={22} />
-                        <View style={styles.countryInfo}>
+                        <View style={s.rowInfo}>
                           <Text
                             style={[
-                              styles.countryName,
-                              active && styles.countryNameActive,
+                              typography.body2,
+                              {
+                                color: active
+                                  ? colors.primary
+                                  : colors.textPrimary,
+                                fontWeight: active ? '600' : '500',
+                              },
                             ]}
                             numberOfLines={1}
                           >
@@ -229,8 +316,13 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
                         </View>
                         <Text
                           style={[
-                            styles.countryDial,
-                            active && styles.countryDialActive,
+                            typography.caption,
+                            {
+                              color: active
+                                ? colors.primary
+                                : colors.textSecondary,
+                              fontWeight: '600',
+                            },
                           ]}
                         >
                           {item.dial}
@@ -239,7 +331,7 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
                           <Icon
                             name="check-circle"
                             size={18}
-                            color="#5a7bf6"
+                            color={colors.primary}
                             style={{ marginLeft: 4 }}
                           />
                         ) : null}
@@ -256,64 +348,43 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   root: { width: '100%' },
 
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    height: 44,
-    borderRadius: 12,
+    height: 48,
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#fff',
     overflow: 'hidden',
   },
 
-  inputRowFocused: {
-    borderColor: '#5a7bf6',
-    borderWidth: 1.5,
-  },
-
-  countryButton: {
+  // Transparent bg + hairline divider = reads as a single unified input.
+  countryBtn: {
     height: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    backgroundColor: '#f9fafb',
-    borderRightWidth: 1,
-    borderRightColor: '#e5e7eb',
+    gap: 6,
+    paddingHorizontal: 10,
+    borderRightWidth: StyleSheet.hairlineWidth,
   },
 
-  dialText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-  },
+  dial: { fontSize: 14, fontWeight: '600' },
 
-  numberInput: {
+  number: {
     flex: 1,
     height: '100%',
-    paddingHorizontal: 8,
-    color: '#111827',
-    fontSize: 13,
+    paddingHorizontal: 12,
+    fontSize: 15,
     paddingVertical: 0,
     fontWeight: '500',
     minWidth: 0,
   },
 
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.5)',
-    justifyContent: 'center',
-    padding: 20,
-  },
+  overlay: { flex: 1, justifyContent: 'center', padding: 20 },
   dropdown: {
     maxHeight: 540,
-    borderRadius: 20,
-    backgroundColor: '#fff',
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOpacity: 0.25,
@@ -321,7 +392,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 15,
   },
-  modalHeader: {
+  mHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -329,23 +400,10 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 2,
   },
   closeBtn: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f3f4f6',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -353,58 +411,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 12,
     height: 42,
   },
-  searchInput: {
-    flex: 1,
-    color: '#111827',
-    fontSize: 14,
-    paddingVertical: 0,
-  },
-  countryList: { maxHeight: 400 },
-  countryRow: {
+  searchInput: { flex: 1, fontSize: 14, paddingVertical: 0 },
+  list: { maxHeight: 400 },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  countryRowActive: {
-    backgroundColor: 'rgba(90,123,246,0.06)',
-  },
-  countryInfo: { flex: 1 },
-  countryName: {
-    fontSize: 14,
-    color: '#1f2937',
-    fontWeight: '500',
-  },
-  countryNameActive: {
-    color: '#5a7bf6',
-    fontWeight: '600',
-  },
-  countryDial: {
-    fontSize: 13,
-    color: '#6b7280',
-    fontWeight: '600',
-  },
-  countryDialActive: {
-    color: '#5a7bf6',
-  },
-  emptyWrap: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    gap: 8,
-  },
-  emptyText: {
-    color: '#9ca3af',
-    fontSize: 14,
-  },
+  rowInfo: { flex: 1 },
+  empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
 });
 
 export default CustomPhoneInput;
