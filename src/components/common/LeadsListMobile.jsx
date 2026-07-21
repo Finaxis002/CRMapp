@@ -18,6 +18,7 @@ const LeadsListMobile = ({
   selectedIds,
   onToggleSelect,
   onPreview,
+  onOpenDetails,
   onEdit,
   onDelete,
   canEditAnyLead,
@@ -28,8 +29,7 @@ const LeadsListMobile = ({
   getAssignedName,
   formatCurrency,
 }) => {
-  const { colors, typography, spacing, borderRadius, elevation } =
-    useUISystem();
+  const { colors, spacing, borderRadius } = useUISystem();
 
   const refreshControl = onRefresh ? (
     <RefreshControl
@@ -152,6 +152,7 @@ const LeadsListMobile = ({
           selected={selectedIds?.has(lead._id)}
           onToggleSelect={onToggleSelect}
           onPreview={onPreview}
+          onOpenDetails={onOpenDetails}
           onEdit={onEdit}
           onDelete={onDelete}
           canEditAnyLead={canEditAnyLead}
@@ -168,17 +169,17 @@ const LeadsListMobile = ({
 };
 
 const styles = StyleSheet.create({
-  listContainer: { padding: 12, gap: 12 },
-  skeletonCard: { borderWidth: 1, padding: 16, marginBottom: 12 },
+  listContainer: { padding: 10 },
+  skeletonCard: { borderWidth: 1, padding: 14, marginBottom: 8 },
   skeletonHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 12,
   },
-  skeletonLine: { height: 16, borderRadius: 4 },
-  skeletonBadge: { height: 20, borderRadius: 999 },
-  skeletonGrid: { flexDirection: 'row', gap: 8, marginTop: 16 },
+  skeletonLine: { height: 15, borderRadius: 4 },
+  skeletonBadge: { height: 18, borderRadius: 999 },
+  skeletonGrid: { flexDirection: 'row', gap: 8, marginTop: 12 },
   skeletonBlock: { flex: 1, height: 32, borderRadius: 6 },
   emptyContainer: {
     flex: 1,

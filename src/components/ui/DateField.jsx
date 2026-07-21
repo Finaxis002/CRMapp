@@ -1,5 +1,5 @@
 /**
- * DateField / DateTimeField trigger
+ * DateField / DateTimeField trigger — compact version
  * Parent still owns DateTimePicker visibility state (pickerTargets pattern).
  *
  * <DateField
@@ -11,7 +11,7 @@
  */
 
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useUISystem } from '../../hooks/useUISystem';
 
@@ -25,8 +25,10 @@ export default function DateField({
   style,
 }) {
   const { colors, typography, borderRadius, sizes } = useUISystem();
-  const ph =
-    placeholder || (mode === 'time' ? 'Select time' : 'Select date');
+  const ph = placeholder || (mode === 'time' ? 'Select time' : 'Select date');
+
+  const height =
+    sizes?.inputHeight != null ? Math.min(sizes.inputHeight, 44) : 44;
 
   return (
     <Pressable
@@ -35,8 +37,8 @@ export default function DateField({
       style={[
         styles.btn,
         {
-          height: sizes.inputHeight,
-          borderRadius: borderRadius.lg,
+          height,
+          borderRadius: borderRadius.md,
           borderColor: error ? colors.borderError : colors.borderSolid,
           backgroundColor: disabled ? colors.disabledBg : colors.surface,
           opacity: disabled ? 0.6 : 1,
@@ -59,7 +61,7 @@ export default function DateField({
       </Text>
       <Icon
         name={mode === 'time' ? 'clock-outline' : 'calendar'}
-        size={16}
+        size={14}
         color={colors.textSecondary}
       />
     </Pressable>
@@ -74,7 +76,7 @@ export function DateTimeFieldTrigger(props) {
 const styles = StyleSheet.create({
   btn: {
     borderWidth: 1,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

@@ -63,15 +63,8 @@ const Flag = ({ code, size = 18 }) => (
 );
 
 /**
- * CustomPhoneInput
- * Props (unchanged): value, onChange(fullNumberWithDial), defaultCountry
- *
- * Visual goals:
- *  - ONE unified field (flag + dial + number share a single border).
- *  - Theme-aware via useUISystem (works in dark mode, matches the app).
- *  - Taller (48) + larger fonts so the placeholder never wraps.
- *    NOTE: also give this component a FULL-WIDTH row in the form so the
- *    placeholder has room (see LeadFormModal Profile tab regrouping).
+ * CustomPhoneInput — compact, unified field (flag + dial + number, single border).
+ * Sizing matches the compact LeadFormModal density (height 44, smaller fonts).
  */
 const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
   const { colors, typography, borderRadius } = useUISystem();
@@ -138,7 +131,7 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
           },
         ]}
       >
-        {/* Country selector — NO background, so the whole row reads as one field */}
+        {/* Country selector — transparent bg = reads as one unified field */}
         <TouchableOpacity
           onPress={() => setOpen(o => !o)}
           activeOpacity={0.7}
@@ -146,13 +139,13 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
           accessibilityRole="button"
           accessibilityLabel={`Country code ${selected.dial}. Tap to change.`}
         >
-          <Flag code={selected.flag} size={18} />
+          <Flag code={selected.flag} size={16} />
           <Text style={[s.dial, { color: colors.textPrimary }]}>
             {selected.dial}
           </Text>
           <Icon
             name={open ? 'chevron-up' : 'chevron-down'}
-            size={14}
+            size={12}
             color={colors.textTertiary}
           />
         </TouchableOpacity>
@@ -205,14 +198,17 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
                 >
                   <View style={{ flex: 1 }}>
                     <Text
-                      style={[typography.h4, { color: colors.textPrimary }]}
+                      style={[
+                        typography.h4,
+                        { color: colors.textPrimary, fontSize: 14 },
+                      ]}
                     >
                       Select Country
                     </Text>
                     <Text
                       style={[
                         typography.caption,
-                        { color: colors.textTertiary, marginTop: 2 },
+                        { color: colors.textTertiary, marginTop: 2, fontSize: 11 },
                       ]}
                     >
                       Choose your country code
@@ -229,7 +225,7 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
                     ]}
                     accessibilityLabel="Close"
                   >
-                    <Icon name="close" size={18} color={colors.textSecondary} />
+                    <Icon name="close" size={16} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
 
@@ -243,7 +239,7 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
                     },
                   ]}
                 >
-                  <Icon name="magnify" size={18} color={colors.textTertiary} />
+                  <Icon name="magnify" size={16} color={colors.textTertiary} />
                   <TextInput
                     autoFocus
                     value={query}
@@ -256,7 +252,7 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
                     <TouchableOpacity onPress={() => setQuery('')}>
                       <Icon
                         name="close-circle"
-                        size={18}
+                        size={16}
                         color={colors.textTertiary}
                       />
                     </TouchableOpacity>
@@ -273,7 +269,7 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
                     <View style={s.empty}>
                       <Icon
                         name="map-search-outline"
-                        size={40}
+                        size={36}
                         color={colors.textTertiary}
                       />
                       <Text
@@ -297,7 +293,7 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
                           active && { backgroundColor: colors.primarySoft },
                         ]}
                       >
-                        <Flag code={item.flag} size={22} />
+                        <Flag code={item.flag} size={20} />
                         <View style={s.rowInfo}>
                           <Text
                             style={[
@@ -307,6 +303,7 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
                                   ? colors.primary
                                   : colors.textPrimary,
                                 fontWeight: active ? '600' : '500',
+                                fontSize: 13,
                               },
                             ]}
                             numberOfLines={1}
@@ -322,6 +319,7 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
                                 ? colors.primary
                                 : colors.textSecondary,
                               fontWeight: '600',
+                              fontSize: 12,
                             },
                           ]}
                         >
@@ -330,7 +328,7 @@ const CustomPhoneInput = ({ value = '', onChange, defaultCountry = 'IN' }) => {
                         {active ? (
                           <Icon
                             name="check-circle"
-                            size={18}
+                            size={16}
                             color={colors.primary}
                             style={{ marginLeft: 4 }}
                           />
@@ -355,28 +353,27 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    height: 48,
+    height: 44,
     borderWidth: 1,
     overflow: 'hidden',
   },
 
-  // Transparent bg + hairline divider = reads as a single unified input.
   countryBtn: {
     height: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
+    gap: 5,
+    paddingHorizontal: 8,
     borderRightWidth: StyleSheet.hairlineWidth,
   },
 
-  dial: { fontSize: 14, fontWeight: '600' },
+  dial: { fontSize: 13, fontWeight: '600' },
 
   number: {
     flex: 1,
     height: '100%',
-    paddingHorizontal: 12,
-    fontSize: 15,
+    paddingHorizontal: 10,
+    fontSize: 13,
     paddingVertical: 0,
     fontWeight: '500',
     minWidth: 0,
@@ -384,7 +381,7 @@ const s = StyleSheet.create({
 
   overlay: { flex: 1, justifyContent: 'center', padding: 20 },
   dropdown: {
-    maxHeight: 540,
+    maxHeight: 520,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOpacity: 0.25,
@@ -396,38 +393,38 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
     borderBottomWidth: 1,
   },
   closeBtn: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 8,
-    height: 42,
+    gap: 6,
+    paddingHorizontal: 10,
+    marginHorizontal: 14,
+    marginTop: 10,
+    marginBottom: 6,
+    height: 38,
   },
-  searchInput: { flex: 1, fontSize: 14, paddingVertical: 0 },
-  list: { maxHeight: 400 },
+  searchInput: { flex: 1, fontSize: 13, paddingVertical: 0 },
+  list: { maxHeight: 380 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   rowInfo: { flex: 1 },
-  empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
+  empty: { alignItems: 'center', paddingVertical: 36, gap: 8 },
 });
 
 export default CustomPhoneInput;

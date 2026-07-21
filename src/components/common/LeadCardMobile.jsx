@@ -8,7 +8,6 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useUISystem } from '../../hooks/useUISystem';
-import ImprovedButton from '../ui/ImprovedButton';
 
 const openPhone = phoneNumber => {
   const rawPhone = String(phoneNumber || '').trim();
@@ -29,6 +28,7 @@ const LeadCardMobile = ({
   selected = false,
   onToggleSelect,
   onPreview,
+  onOpenDetails,
   onEdit,
   onDelete,
   canEditAnyLead,
@@ -39,8 +39,7 @@ const LeadCardMobile = ({
   getAssignedName,
   formatCurrency,
 }) => {
-  const { colors, typography, spacing, borderRadius, elevation } =
-    useUISystem();
+  const { colors, typography, borderRadius, elevation } = useUISystem();
 
   const status = lead.status || 'New';
   const statusColor = getStageColor(status);
@@ -50,6 +49,10 @@ const LeadCardMobile = ({
     .replace(/\D/g, '')
     .slice(-10);
   const isCrossSell = lead.isCrossSell || lead.crossSellRecord;
+
+  const handleCardPress = () => {
+    if (onOpenDetails) onOpenDetails(lead);
+  };
 
   return (
     <View
@@ -67,159 +70,195 @@ const LeadCardMobile = ({
         },
       ]}
     >
-      {/* ── Top row: checkbox + name + status badge ── */}
-      <View style={styles.topRow}>
-        <View style={styles.nameWrap}>
-          {onToggleSelect && (
-            <TouchableOpacity
-              onPress={() => onToggleSelect(lead._id)}
-              style={[
-                styles.checkbox,
-                {
-                  borderColor: colors.borderSolid,
-                  backgroundColor: colors.surface,
-                },
-                selected && {
-                  backgroundColor: colors.primary,
-                  borderColor: colors.primary,
-                },
-              ]}
-              activeOpacity={0.7}
-            >
-              {selected ? (
-                <Icon name="check" size={12} color="#ffffff" />
-              ) : null}
-            </TouchableOpacity>
-          )}
-          <View style={styles.nameBlock}>
-            <View style={styles.nameRow}>
-              <Text
+      <TouchableOpacity
+        onPress={handleCardPress}
+        activeOpacity={0.8}
+        disabled={!onOpenDetails}
+      >
+        {/* ── Top row: checkbox + name + status badge ── */}
+        <View style={styles.topRow}>
+          <View style={styles.nameWrap}>
+            {onToggleSelect && (
+              <TouchableOpacity
+                onPress={() => onToggleSelect(lead._id)}
                 style={[
-                  typography.label,
-                  { color: colors.textPrimary, fontSize: 14, flexShrink: 1 },
+                  styles.checkbox,
+                  {
+                    borderColor: colors.borderSolid,
+                    backgroundColor: colors.surface,
+                  },
+                  selected && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
                 ]}
-                numberOfLines={1}
+                activeOpacity={0.7}
               >
-                {lead.name || '—'}
-              </Text>
-              {isCrossSell ? (
-                <View
+                {selected ? (
+                  <Icon name="check" size={11} color="#ffffff" />
+                ) : null}
+              </TouchableOpacity>
+            )}
+            <View style={styles.nameBlock}>
+              <View style={styles.nameRow}>
+                <Text
                   style={[
-                    styles.crossSellBadge,
+                    typography.label,
                     {
-                      backgroundColor: colors.purpleSoft,
-                      borderColor: colors.purple + '40',
+                      color: colors.textPrimary,
+                      fontSize: 13.5,
+                      flexShrink: 1,
                     },
                   ]}
+                  numberOfLines={1}
                 >
+                  {lead.name || '—'}
+                </Text>
+                {isCrossSell ? (
+                  <View
+                    style={[
+                      styles.crossSellBadge,
+                      {
+                        backgroundColor: colors.purpleSoft,
+                        borderColor: colors.purple + '40',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        typography.caption,
+                        {
+                          color: colors.purple,
+                          fontWeight: '600',
+                          fontSize: 9,
+                        },
+                      ]}
+                    >
+                      🔁 Cross-Sell
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              {phone ? (
+                <TouchableOpacity
+                  onPress={() => openPhone(lead.phone)}
+                  style={styles.phoneRow}
+                  activeOpacity={0.6}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Icon name="phone-outline" size={11} color={colors.success} />
                   <Text
                     style={[
                       typography.caption,
-                      { color: colors.purple, fontWeight: '600', fontSize: 10 },
+                      { color: colors.textSecondary, fontSize: 11 },
                     ]}
                   >
-                    🔁 Cross-Sell
+                    {phone}
                   </Text>
-                </View>
-              ) : null}
-            </View>
-            {phone ? (
-              <TouchableOpacity
-                onPress={() => openPhone(lead.phone)}
-                style={styles.phoneRow}
-                activeOpacity={0.6}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-              >
-                <Icon name="phone-outline" size={12} color={colors.success} />
+                </TouchableOpacity>
+              ) : (
                 <Text
-                  style={[typography.caption, { color: colors.textSecondary }]}
+                  style={[
+                    typography.caption,
+                    { color: colors.textSecondary, fontSize: 11 },
+                  ]}
                 >
-                  {phone}
+                  —
                 </Text>
-              </TouchableOpacity>
-            ) : (
+              )}
+            </View>
+          </View>
+
+          <View style={styles.statusWrap}>
+            <View
+              style={[
+                styles.statusBadge,
+                {
+                  backgroundColor: statusColor,
+                  borderRadius: borderRadius.full,
+                },
+              ]}
+            >
               <Text
-                style={[typography.caption, { color: colors.textSecondary }]}
+                style={[
+                  styles.statusText,
+                  { color: getContrastTextColor(statusColor) },
+                ]}
               >
-                —
+                {status}
               </Text>
-            )}
+            </View>
+            {onOpenDetails ? (
+              <Icon
+                name="chevron-right"
+                size={16}
+                color={colors.textTertiary}
+                style={styles.statusChevron}
+              />
+            ) : null}
           </View>
         </View>
 
-        <View
-          style={[
-            styles.statusBadge,
-            { backgroundColor: statusColor, borderRadius: borderRadius.full },
-          ]}
-        >
-          <Text
-            style={[
-              styles.statusText,
-              { color: getContrastTextColor(statusColor) },
-            ]}
-          >
-            {status}
-          </Text>
-        </View>
-      </View>
-
-      {/* ── Info grid ── */}
-      <View style={[styles.infoGrid, { paddingHorizontal: spacing.lg }]}>
-        <View style={styles.infoCell}>
-          <Text style={[typography.overline, { color: colors.textTertiary }]}>
-            Deal Value
-          </Text>
-          <Text
-            style={[
-              typography.body2,
-              { color: colors.textPrimary, fontWeight: '500', fontSize: 13 },
-            ]}
-            numberOfLines={1}
-          >
-            {formatCurrency(lead.dealValue ?? lead.value)}
-          </Text>
-        </View>
-        <View style={styles.infoCell}>
-          <Text style={[typography.overline, { color: colors.textTertiary }]}>
-            Priority
-          </Text>
-          <View
-            style={[
-              styles.priorityBadge,
-              {
-                backgroundColor: priorityColors.bg,
-                borderRadius: borderRadius.full,
-              },
-            ]}
-          >
+        {/* ── Info grid ── */}
+        <View style={styles.infoGrid}>
+          <View style={styles.infoCell}>
+            <Text style={[typography.overline, { color: colors.textTertiary }]}>
+              Deal Value
+            </Text>
             <Text
               style={[
-                typography.caption,
-                { color: priorityColors.text, fontWeight: '600', fontSize: 11 },
+                typography.body2,
+                { color: colors.textPrimary, fontWeight: '500', fontSize: 12 },
+              ]}
+              numberOfLines={1}
+            >
+              {formatCurrency(lead.dealValue ?? lead.value)}
+            </Text>
+          </View>
+          <View style={styles.infoCell}>
+            <Text style={[typography.overline, { color: colors.textTertiary }]}>
+              Priority
+            </Text>
+            <View
+              style={[
+                styles.priorityBadge,
+                {
+                  backgroundColor: priorityColors.bg,
+                  borderRadius: borderRadius.full,
+                },
               ]}
             >
-              {priority}
+              <Text
+                style={[
+                  typography.caption,
+                  {
+                    color: priorityColors.text,
+                    fontWeight: '600',
+                    fontSize: 10,
+                  },
+                ]}
+              >
+                {priority}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.infoCell}>
+            <Text style={[typography.overline, { color: colors.textTertiary }]}>
+              Assigned
+            </Text>
+            <Text
+              style={[
+                typography.body2,
+                { color: colors.textPrimary, fontWeight: '500', fontSize: 12 },
+              ]}
+              numberOfLines={1}
+            >
+              {getAssignedName(lead)}
             </Text>
           </View>
         </View>
-        <View style={styles.infoCell}>
-          <Text style={[typography.overline, { color: colors.textTertiary }]}>
-            Assigned
-          </Text>
-          <Text
-            style={[
-              typography.body2,
-              { color: colors.textPrimary, fontWeight: '500', fontSize: 13 },
-            ]}
-            numberOfLines={1}
-          >
-            {getAssignedName(lead)}
-          </Text>
-        </View>
-      </View>
+      </TouchableOpacity>
 
-      {/* ── Actions row ── */}
       <View style={[styles.actionsRow, { borderTopColor: colors.borderLight }]}>
         <TouchableOpacity
           onPress={e => onPreview(lead, e)}
@@ -229,11 +268,11 @@ const LeadCardMobile = ({
           ]}
           activeOpacity={0.7}
         >
-          <Icon name="eye-outline" size={13} color={colors.textSecondary} />
+          <Icon name="eye-outline" size={12} color={colors.textSecondary} />
           <Text
             style={[
               typography.caption,
-              { color: colors.textSecondary, fontWeight: '500' },
+              { color: colors.textSecondary, fontWeight: '500', fontSize: 11 },
             ]}
           >
             Preview
@@ -251,13 +290,17 @@ const LeadCardMobile = ({
           >
             <Icon
               name="pencil-outline"
-              size={13}
+              size={12}
               color={colors.textSecondary}
             />
             <Text
               style={[
                 typography.caption,
-                { color: colors.textSecondary, fontWeight: '500' },
+                {
+                  color: colors.textSecondary,
+                  fontWeight: '500',
+                  fontSize: 11,
+                },
               ]}
             >
               Edit
@@ -277,11 +320,11 @@ const LeadCardMobile = ({
             ]}
             activeOpacity={0.7}
           >
-            <Icon name="trash-can-outline" size={13} color={colors.danger} />
+            <Icon name="trash-can-outline" size={12} color={colors.danger} />
             <Text
               style={[
                 typography.caption,
-                { color: colors.danger, fontWeight: '500' },
+                { color: colors.danger, fontWeight: '500', fontSize: 11 },
               ]}
             >
               Delete
@@ -294,79 +337,94 @@ const LeadCardMobile = ({
 };
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, marginBottom: 12 },
+  card: { borderWidth: 1, marginBottom: 8 },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 14,
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingTop: 10,
   },
   nameWrap: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
+    gap: 8,
     flex: 1,
     minWidth: 0,
   },
   checkbox: {
-    width: 20,
-    height: 20,
+    width: 18,
+    height: 18,
     borderRadius: 4,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
+    marginTop: 1,
   },
   nameBlock: { flex: 1, minWidth: 0 },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     flexWrap: 'wrap',
   },
   crossSellBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
     borderWidth: 1,
   },
   phoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 2,
+    marginTop: 1,
     alignSelf: 'flex-start',
   },
-  statusBadge: { flexShrink: 0, paddingHorizontal: 10, paddingVertical: 4 },
-  statusText: { fontSize: 11, fontWeight: '600' },
-  infoGrid: { flexDirection: 'row', gap: 8, paddingVertical: 12, marginTop: 4 },
-  infoCell: { flex: 1, gap: 4, minWidth: 0 },
+  statusWrap: {
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statusChevron: {
+    marginLeft: 0,
+  },
+  statusBadge: { flexShrink: 0, paddingHorizontal: 9, paddingVertical: 3 },
+  statusText: { fontSize: 10, fontWeight: '600' },
+  infoGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 2,
+  },
+  infoCell: { flex: 1, gap: 2, minWidth: 0 },
   priorityBadge: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
   },
   actionsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
     borderTopWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
   actionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    borderRadius: 8,
+    gap: 4,
+    borderRadius: 7,
     borderWidth: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
   },
 });
 
