@@ -25,7 +25,6 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useToast as useKitToast } from '../../components/ui/CustomToast';
 
 // ─── UI Kit imports ────────────────────────────────────────────────────────
-import PageHeader from '../../components/ui/PageHeader';
 import ImprovedButton from '../../components/ui/ImprovedButton';
 import IconButton from '../../components/ui/IconButton';
 import ActiveFilterBadge from '../../components/ui/ActiveFilterBadge';
@@ -106,6 +105,7 @@ const LeadsScreen = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // ── Lead modals ──
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -169,6 +169,12 @@ const LeadsScreen = () => {
   });
   const skipLoadAfterSearchRef = useRef(false);
 
+  const skipLoadAfterAppendRef = useRef(false);
+
+  const firstPageRef = useRef(1);
+
+  const [listResetSignal, setListResetSignal] = useState(0);
+
   // ── Status options from settings ──
   const statusOptions = useMemo(
     () => settings?.pipelineStages?.map(s => s.name) || DEFAULT_STATUS_OPTIONS,
@@ -213,6 +219,10 @@ const LeadsScreen = () => {
       skipLoadAfterSearchRef.current = false;
       return;
     }
+    if (skipLoadAfterAppendRef.current) {
+      skipLoadAfterAppendRef.current = false;
+      return;
+    }
     loadLeads();
   }, [
     pagination.page,
@@ -250,10 +260,10 @@ const LeadsScreen = () => {
     } catch (_) {}
   };
 
-  // ── Load leads ──
-  const loadLeads = async forcePage => {
+  const loadLeads = async (forcePage, { append = false } = {}) => {
     const activePage = forcePage ?? pagination.page;
-    setLoading(true);
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     try {
       const fp = {};
       if (filters.status) fp.status = filters.status;
@@ -283,7 +293,20 @@ const LeadsScreen = () => {
         activePage,
         pagination.limit,
       );
-      setLeads(result.data || []);
+      const items = result.data || [];
+      if (append) {
+        skipLoadAfterAppendRef.current = true;
+
+        setLeads(prev => {
+          const seen = new Set(prev.map(l => l?._id));
+          return [...prev, ...items.filter(l => l && !seen.has(l._id))];
+        });
+      } else {
+        firstPageRef.current = result.pagination?.page ?? activePage;
+        setLeads(items);
+
+        setListResetSignal(s => s + 1);
+      }
       setPagination(prev => ({
         ...prev,
         page: result.pagination.page,
@@ -293,14 +316,25 @@ const LeadsScreen = () => {
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Unable to load leads.');
     } finally {
-      setLoading(false);
+      if (append) setLoadingMore(false);
+      else setLoading(false);
     }
+  };
+
+  const handleLoadMore = () => {
+    if (loading || loadingMore) return;
+    if (pagination.page >= pagination.totalPages) return;
+    loadLeads(pagination.page + 1, { append: true });
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await loadLeads();
+      if (pagination.page !== 1) {
+        skipLoadAfterSearchRef.current = true;
+        setPagination(prev => ({ ...prev, page: 1 }));
+      }
+      await loadLeads(1);
     } finally {
       setRefreshing(false);
     }
@@ -433,7 +467,7 @@ const LeadsScreen = () => {
         if (filters.dateTo) params.append('dateTo', filters.dateTo);
         if (filters.dateFrom || filters.dateTo)
           params.append('dateFilterType', 'createdAt');
-        if (filters.search) params.append('search', filters.search);
+        if (debouncedSearch) params.append('search', debouncedSearch);
         if (
           (canViewAllLeads || (isManager && canViewTeamLeads)) &&
           filters.assignedTo
@@ -711,7 +745,6 @@ const LeadsScreen = () => {
       style={[styles.safeArea, { backgroundColor: colors.background }]}
     >
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* ══ HEADER ══ */}
         <View
           style={[
             styles.header,
@@ -721,111 +754,75 @@ const LeadsScreen = () => {
             },
           ]}
         >
-          <PageHeader
-            title="Leads"
-            subtitle="Manage and track your sales pipeline"
-            right={
-              <View style={styles.headerActions}>
-                <IconButton
-                  name="sort-variant"
-                  onPress={() => setShowSortSheet(true)}
-                  color={
-                    filters.sortBy ? colors.textInverse : colors.textSecondary
-                  }
-                  backgroundColor={
-                    filters.sortBy ? colors.primary : 'transparent'
-                  }
-                  style={
-                    !filters.sortBy && {
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: borderRadius.md,
-                    }
-                  }
-                />
-                {canCreateLead && (
-                  <ImprovedButton
-                    title="Add"
-                    icon="plus"
-                    size="small"
-                    onPress={openNewLead}
-                  />
-                )}
-              </View>
-            }
-          />
-
-          {/* Search + Filter button */}
-          <View style={styles.searchRow}>
-            <View
-              style={[
-                styles.searchBox,
-                {
-                  backgroundColor: colors.backgroundSecondary,
-                  borderColor: colors.border,
-                  borderRadius: borderRadius.md,
-                },
-              ]}
-            >
-              <Icon name="magnify" size={20} color={colors.textTertiary} />
-              <TextInput
-                value={filters.search}
-                onChangeText={v => handleFilterChange('search', v)}
-                placeholder="Search leads..."
-                placeholderTextColor={colors.placeholder}
-                style={[
-                  styles.searchInput,
-                  typography.body2,
-                  { color: colors.textPrimary },
-                ]}
-              />
-              {filters.search ? (
-                <TouchableOpacity
-                  onPress={() => handleFilterChange('search', '')}
-                >
-                  <Icon
-                    name="close-circle"
-                    size={18}
-                    color={colors.textTertiary}
-                  />
-                </TouchableOpacity>
-              ) : null}
+          <View style={styles.actionRow}>
+            <View style={styles.titleBlock}>
+              <Text
+                style={[styles.headerTitle, { color: colors.textPrimary }]}
+                numberOfLines={1}
+              >
+                Leads
+              </Text>
+              <Text
+                style={[styles.headerSubtitle, { color: colors.textTertiary }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                Manage and track your sales pipeline
+              </Text>
             </View>
-            <TouchableOpacity
-              onPress={() => setShowFiltersSheet(true)}
-              style={[
-                styles.filterIconBtn,
-                {
-                  backgroundColor: hasActiveFilters
-                    ? colors.primary
-                    : colors.surface,
-                  borderColor: hasActiveFilters
-                    ? colors.primary
-                    : colors.border,
-                  borderRadius: borderRadius.md,
-                },
-              ]}
-            >
-              <Icon
-                name="tune-variant"
-                size={20}
+
+            <View style={styles.headerActions}>
+              <IconButton
+                name="sort-variant"
+                onPress={() => setShowSortSheet(true)}
                 color={
-                  hasActiveFilters ? colors.textInverse : colors.textSecondary
+                  filters.sortBy ? colors.textInverse : colors.textSecondary
+                }
+                backgroundColor={
+                  filters.sortBy ? colors.primary : 'transparent'
                 }
               />
-              {activeFilterCount > 0 && (
-                <View
-                  style={[
-                    styles.filterBadge,
-                    { backgroundColor: colors.danger },
-                  ]}
-                >
-                  <Text style={styles.filterBadgeText}>
-                    {activeFilterCount}
-                  </Text>
-                </View>
+              <TouchableOpacity
+                onPress={() => setShowFiltersSheet(true)}
+                style={[
+                  styles.filterIconBtn,
+                  {
+                    backgroundColor: hasActiveFilters
+                      ? colors.primary
+                      : 'transparent',
+                    borderRadius: borderRadius.md,
+                  },
+                ]}
+              >
+                <Icon
+                  name="tune-variant"
+                  size={20}
+                  color={
+                    hasActiveFilters ? colors.textInverse : colors.textSecondary
+                  }
+                />
+                {activeFilterCount > 0 && (
+                  <View
+                    style={[
+                      styles.filterBadge,
+                      { backgroundColor: colors.danger },
+                    ]}
+                  >
+                    <Text style={styles.filterBadgeText}>
+                      {activeFilterCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              {canCreateLead && (
+                <ImprovedButton
+                  title="Add"
+                  icon="plus"
+                  size="small"
+                  onPress={openNewLead}
+                />
               )}
-            </TouchableOpacity>
+            </View>
           </View>
 
           {/* ── Active filter badges ── */}
@@ -1029,6 +1026,10 @@ const LeadsScreen = () => {
             loading={loading}
             refreshing={refreshing}
             onRefresh={handleRefresh}
+            onLoadMore={handleLoadMore}
+            loadingMore={loadingMore}
+            hasMore={pagination.page < pagination.totalPages}
+            resetScrollSignal={listResetSignal}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelectOne}
             onPreview={handleOpenPreview}
@@ -1052,6 +1053,16 @@ const LeadsScreen = () => {
           total={pagination.total}
           limit={pagination.limit}
           loading={loading}
+          from={
+            leads.length === 0
+              ? 0
+              : (firstPageRef.current - 1) * pagination.limit + 1
+          }
+          to={
+            leads.length === 0
+              ? 0
+              : (firstPageRef.current - 1) * pagination.limit + leads.length
+          }
           onPageChange={p => setPagination(prev => ({ ...prev, page: p }))}
           onLimitChange={l =>
             setPagination(prev => ({ ...prev, limit: l, page: 1 }))
@@ -1936,27 +1947,24 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     paddingHorizontal: 14,
-    paddingTop: 12,
+    paddingTop: 10,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    gap: 10,
+    gap: 8,
   },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  searchBox: {
-    flex: 1,
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  titleBlock: { flex: 1, minWidth: 0 },
+  headerTitle: { fontSize: 15, fontWeight: '700', letterSpacing: -0.2 },
+  headerSubtitle: { fontSize: 11, marginTop: 1 },
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 40,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    gap: 6,
+    gap: 8,
+    flexShrink: 0,
   },
-  searchInput: { flex: 1, paddingVertical: 0 },
   filterIconBtn: {
     width: 40,
     height: 40,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
