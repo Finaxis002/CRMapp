@@ -29,11 +29,12 @@ export default function ImprovedDropdown({
   helperText,
   icon,
 }) {
-  const { colors, typography, spacing, borderRadius, elevation } = useUISystem();
+  const { colors, typography, spacing, borderRadius, elevation } =
+    useUISystem();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
-  const selected = items.find((i) => i.value === selectedValue);
+  const selected = items.find(i => i.value === selectedValue);
   const errText = typeof error === 'string' ? error : errorMessage;
   const hasError = Boolean(error || errorMessage);
 
@@ -41,7 +42,7 @@ export default function ImprovedDropdown({
     if (!searchable || !query.trim()) return items;
     const q = query.trim().toLowerCase();
     return items.filter(
-      (i) =>
+      i =>
         String(i.label).toLowerCase().includes(q) ||
         String(i.value).toLowerCase().includes(q),
     );
@@ -52,7 +53,7 @@ export default function ImprovedDropdown({
     setQuery('');
   };
 
-  const pick = (item) => {
+  const pick = item => {
     onValueChange?.(item.value, item);
     close();
   };
@@ -76,15 +77,14 @@ export default function ImprovedDropdown({
             {
               color: isSelected ? colors.primary : colors.textPrimary,
               fontWeight: isSelected ? '600' : '400',
+              fontSize: 13,
               flex: 1,
             },
           ]}
         >
           {item.label}
         </Text>
-        {isSelected && (
-          <Icon name="check" size={18} color={colors.primary} />
-        )}
+        {isSelected && <Icon name="check" size={16} color={colors.primary} />}
       </Pressable>
     );
   };
@@ -104,7 +104,12 @@ export default function ImprovedDropdown({
         renderValue={() => selected?.label}
       />
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={close}>
+      <Modal
+        visible={open}
+        transparent
+        animationType="slide"
+        onRequestClose={close}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.backdropWrap}
@@ -123,12 +128,21 @@ export default function ImprovedDropdown({
                   borderTopRightRadius: borderRadius['2xl'],
                 },
               ]}
-              onPress={(e) => e.stopPropagation?.()}
+              onPress={e => e.stopPropagation?.()}
             >
-              <View style={[styles.handle, { backgroundColor: colors.border }]} />
+              <View
+                style={[styles.handle, { backgroundColor: colors.border }]}
+              />
 
-              <View style={[styles.sheetHeader, { paddingHorizontal: spacing.lg }]}>
-                <Text style={[typography.h4, { color: colors.textPrimary, flex: 1 }]}>
+              <View
+                style={[styles.sheetHeader, { paddingHorizontal: spacing.md }]}
+              >
+                <Text
+                  style={[
+                    typography.h4,
+                    { color: colors.textPrimary, flex: 1, fontSize: 14 },
+                  ]}
+                >
                   {label || 'Select'}
                 </Text>
                 <Pressable
@@ -136,17 +150,21 @@ export default function ImprovedDropdown({
                   hitSlop={10}
                   style={({ pressed }) => [
                     styles.closeButton,
-                    { backgroundColor: pressed ? colors.backgroundSecondary : 'transparent' },
+                    {
+                      backgroundColor: pressed
+                        ? colors.backgroundSecondary
+                        : 'transparent',
+                    },
                   ]}
                 >
-                  <Icon name="close" size={22} color={colors.textSecondary} />
+                  <Icon name="close" size={18} color={colors.textSecondary} />
                 </Pressable>
               </View>
 
               {searchable && (
                 <View
                   style={{
-                    paddingHorizontal: spacing.lg,
+                    paddingHorizontal: spacing.md,
                     marginBottom: spacing.sm,
                   }}
                 >
@@ -162,9 +180,9 @@ export default function ImprovedDropdown({
                   >
                     <Icon
                       name="magnify"
-                      size={18}
+                      size={16}
                       color={colors.textTertiary}
-                      style={{ marginRight: 8 }}
+                      style={{ marginRight: 6 }}
                     />
                     <TextInput
                       value={query}
@@ -174,7 +192,7 @@ export default function ImprovedDropdown({
                       style={[
                         styles.search,
                         typography.body1,
-                        { color: colors.textPrimary },
+                        { color: colors.textPrimary, fontSize: 13 },
                       ]}
                     />
                   </View>
@@ -190,10 +208,15 @@ export default function ImprovedDropdown({
                     : defaultRender
                 }
                 keyboardShouldPersistTaps="handled"
-                style={{ maxHeight: 300 }}
+                style={{ maxHeight: 280 }}
                 ListEmptyComponent={
-                  <View style={{ padding: spacing.xl, alignItems: 'center' }}>
-                    <Text style={[typography.body2, { color: colors.textTertiary }]}>
+                  <View style={{ padding: spacing.lg, alignItems: 'center' }}>
+                    <Text
+                      style={[
+                        typography.body2,
+                        { color: colors.textTertiary, fontSize: 12 },
+                      ]}
+                    >
                       No options found
                     </Text>
                   </View>
@@ -210,22 +233,22 @@ export default function ImprovedDropdown({
 const styles = StyleSheet.create({
   backdropWrap: { flex: 1 },
   backdrop: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { maxHeight: '80%', paddingBottom: 24 },
+  sheet: { maxHeight: '75%', paddingBottom: 16 },
   handle: {
     alignSelf: 'center',
-    width: 40,
+    width: 36,
     height: 4,
     borderRadius: 2,
-    marginTop: 10,
-    marginBottom: 8,
+    marginTop: 8,
+    marginBottom: 6,
   },
   sheetHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   closeButton: {
-    padding: 4,
+    padding: 3,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
@@ -233,16 +256,16 @@ const styles = StyleSheet.create({
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 44,
-    paddingHorizontal: 12,
+    height: 38,
+    paddingHorizontal: 10,
     borderWidth: 1,
   },
   search: { flex: 1, padding: 0 },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
 });

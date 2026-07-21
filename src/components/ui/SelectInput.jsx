@@ -21,12 +21,14 @@ export default function SelectInput({
   icon,
   renderValue,
 }) {
-  const { colors, typography, spacing, borderRadius, sizes } = useUISystem();
+  const { colors, typography, borderRadius, sizes } = useUISystem();
 
   const hasError = Boolean(error);
   const displayError = typeof error === 'string' ? error : null;
   const displayValue = renderValue ? renderValue() : value;
   const isEmpty = !displayValue;
+
+  const triggerHeight = Math.min(sizes.inputHeight ?? 44, 44);
 
   return (
     <View style={styles.wrap}>
@@ -34,7 +36,12 @@ export default function SelectInput({
         <Text
           style={[
             typography.label,
-            { color: colors.textPrimary, marginBottom: spacing.xs },
+            {
+              color: colors.textSecondary,
+              fontSize: 11,
+              fontWeight: '600',
+              marginBottom: 3,
+            },
           ]}
         >
           {label}
@@ -48,14 +55,10 @@ export default function SelectInput({
         style={({ pressed }) => [
           styles.trigger,
           {
-            height: sizes.inputHeight,
+            height: triggerHeight,
             borderRadius: borderRadius.md,
-            borderColor: hasError
-              ? colors.borderError
-              : colors.border,
-            backgroundColor: disabled
-              ? colors.disabledBg
-              : colors.surface,
+            borderColor: hasError ? colors.borderError : colors.border,
+            backgroundColor: disabled ? colors.disabledBg : colors.surface,
             opacity: disabled ? 0.6 : pressed ? 0.92 : 1,
           },
         ]}
@@ -63,9 +66,9 @@ export default function SelectInput({
         {!!icon && (
           <Icon
             name={icon}
-            size={18}
+            size={16}
             color={colors.textTertiary}
-            style={{ marginRight: 8 }}
+            style={{ marginRight: 6 }}
           />
         )}
 
@@ -75,7 +78,7 @@ export default function SelectInput({
             {
               flex: 1,
               color: isEmpty ? colors.placeholder : colors.textPrimary,
-              fontSize: 14,
+              fontSize: 13,
             },
           ]}
           numberOfLines={1}
@@ -83,18 +86,14 @@ export default function SelectInput({
           {displayValue || placeholder}
         </Text>
 
-        <Icon
-          name="chevron-down"
-          size={20}
-          color={colors.textTertiary}
-        />
+        <Icon name="chevron-down" size={18} color={colors.textTertiary} />
       </Pressable>
 
       {hasError && displayError ? (
         <Text
           style={[
             typography.caption,
-            { color: colors.danger, marginTop: 4 },
+            { color: colors.danger, fontSize: 11, marginTop: 2 },
           ]}
         >
           {displayError}
@@ -103,7 +102,7 @@ export default function SelectInput({
         <Text
           style={[
             typography.caption,
-            { color: colors.textTertiary, marginTop: 4 },
+            { color: colors.textTertiary, fontSize: 11, marginTop: 2 },
           ]}
         >
           {helperText}
@@ -120,7 +119,7 @@ const styles = StyleSheet.create({
   trigger: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5,
+    borderWidth: 1,
     paddingHorizontal: 12,
   },
 });

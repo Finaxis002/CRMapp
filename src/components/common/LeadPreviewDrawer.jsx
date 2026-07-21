@@ -7,9 +7,8 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
-  ActivityIndicator,
-  Alert,
   Linking,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -26,7 +25,6 @@ import {
 // UI Kit
 import ImprovedButton from '../ui/ImprovedButton';
 import ImprovedDropdown from '../ui/ImprovedDropdown';
-import ImprovedTextInput from '../ui/ImprovedTextInput';
 import Avatar from '../ui/Avatar';
 import IconButton from '../ui/IconButton';
 import FilterChip from '../ui/FilterChip';
@@ -73,6 +71,8 @@ const LeadPreviewDrawer = ({
   activityRefreshTrigger,
   onRefresh,
   canEditAnyLead = false,
+
+  mode = 'details',
 }) => {
   const [activeTab, setActiveTab] = useState('Interactions');
   const [isEditing, setIsEditing] = useState(false);
@@ -80,10 +80,17 @@ const LeadPreviewDrawer = ({
   const [saving, setSaving] = useState(false);
   const [mobileView, setMobileView] = useState('info');
 
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
   const settings = useSelector(state => state.settings?.data || state.settings);
-  const { colors, typography, spacing, borderRadius, elevation, isDark } =
-    useUISystem();
+  const { colors, typography, spacing, borderRadius, isDark } = useUISystem();
   const toast = useKitToast();
+
+  const showDetailsView = mode !== 'activity';
+  const showActivityView = mode !== 'details';
+  const showSegmentToggle = showDetailsView && showActivityView;
+  const forcedView = showDetailsView && !showActivityView ? 'info' : 'tabs';
+  const effectiveView = showSegmentToggle ? mobileView : forcedView;
 
   // Build theme object for sub-tabs (they still expect a theme prop)
   const theme = useMemo(
@@ -130,9 +137,22 @@ const LeadPreviewDrawer = ({
       setActiveTab('Interactions');
       setIsEditing(false);
       setTempLead(lead || {});
-      setMobileView('info');
+      setMobileView(mode === 'details' ? 'info' : 'tabs');
     }
-  }, [visible, lead]);
+  }, [visible, lead, mode]);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', e =>
+      setKeyboardHeight(e.endCoordinates?.height || 0),
+    );
+    const hideSub = Keyboard.addListener('keyboardDidHide', () =>
+      setKeyboardHeight(0),
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useCallRecordingEvents(event => {
     if (!visible) return;
@@ -142,12 +162,6 @@ const LeadPreviewDrawer = ({
 
   if (!lead) return null;
 
-  const getInitials = (name = '') =>
-    name
-      .split(' ')
-      .slice(0, 2)
-      .map(w => w[0]?.toUpperCase())
-      .join('');
   const getAssignedName = item => {
     if (!item.assignedTo) return null;
     return typeof item.assignedTo === 'string'
@@ -252,7 +266,6 @@ const LeadPreviewDrawer = ({
 
   const assignedName = getAssignedName(lead);
   const coAssigneesNames = getCoAssigneeNames(lead);
-  const initials = getInitials(isEditing ? tempLead.name : lead.name);
   const contactPhones = [lead.phone, lead.alternatePhone || ''].filter(Boolean);
   const primaryPhone = contactPhones[0] || '';
 
@@ -462,7 +475,12 @@ const LeadPreviewDrawer = ({
         style={{ flex: 1 }}
       >
         <SafeAreaView
-          style={{ flex: 1, backgroundColor: colors.background }}
+          style={[
+            { flex: 1, backgroundColor: colors.background },
+            Platform.OS === 'android' && keyboardHeight > 0
+              ? { paddingBottom: keyboardHeight }
+              : null,
+          ]}
           edges={['top', 'bottom']}
         >
           {/* Top Bar */}
@@ -476,6 +494,18 @@ const LeadPreviewDrawer = ({
             ]}
           >
             <View style={styles.topLeft}>
+              <IconButton
+                name="arrow-left"
+                size={20}
+                color={colors.textSecondary}
+                onPress={onClose}
+                style={{
+                  borderWidth: 0,
+                  width: 28,
+                  height: 28,
+                  backgroundColor: 'transparent',
+                }}
+              />
               <View
                 style={[
                   styles.statusBadge,
@@ -499,7 +529,7 @@ const LeadPreviewDrawer = ({
               </Text>
             </View>
             <View style={styles.topActions}>
-              {canEditAnyLead ? (
+              {canEditAnyLead && showDetailsView ? (
                 isEditing ? (
                   <>
                     <ImprovedButton
@@ -528,7 +558,7 @@ const LeadPreviewDrawer = ({
                       }}
                     />
                   </>
-                ) : (
+                ) : effectiveView === 'info' ? (
                   <ImprovedButton
                     title="Edit"
                     icon="pencil-outline"
@@ -539,57 +569,40 @@ const LeadPreviewDrawer = ({
                       setIsEditing(true);
                     }}
                   />
-                )
+                ) : null
               ) : null}
-              <ImprovedButton
-                title="Full"
-                size="small"
-                variant="danger"
-                onPress={onOpenFull}
-              />
-              <IconButton
-                name="close"
-                size={18}
-                color={colors.textSecondary}
-                onPress={onClose}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: borderRadius.sm,
-                  width: 30,
-                  height: 30,
-                }}
-              />
             </View>
           </View>
 
-          {/* Segment Toggle */}
-          <View
-            style={[
-              styles.segmentBar,
-              {
-                backgroundColor: colors.surface,
-                borderBottomColor: colors.border,
-              },
-            ]}
-          >
-            {[
-              { key: 'info', label: 'Details' },
-              { key: 'tabs', label: 'Activity' },
-            ].map(seg => (
-              <FilterChip
-                key={seg.key}
-                label={seg.label}
-                active={mobileView === seg.key}
-                onPress={() => setMobileView(seg.key)}
-                style={{ flex: 1, justifyContent: 'center' }}
-              />
-            ))}
-          </View>
+          {/* Segment Toggle — only when both views enabled */}
+          {showSegmentToggle ? (
+            <View
+              style={[
+                styles.segmentBar,
+                {
+                  backgroundColor: colors.surface,
+                  borderBottomColor: colors.border,
+                },
+              ]}
+            >
+              {[
+                { key: 'tabs', label: 'Activity' },
+                { key: 'info', label: 'Details' },
+              ].map(seg => (
+                <FilterChip
+                  key={seg.key}
+                  label={seg.label}
+                  active={mobileView === seg.key}
+                  onPress={() => setMobileView(seg.key)}
+                  style={{ flex: 1, justifyContent: 'center' }}
+                />
+              ))}
+            </View>
+          ) : null}
 
           {/* Body */}
           <View style={{ flex: 1 }}>
-            {mobileView === 'info' ? (
+            {effectiveView === 'info' ? (
               <ScrollView
                 style={{ flex: 1, backgroundColor: colors.surface }}
                 showsVerticalScrollIndicator={false}

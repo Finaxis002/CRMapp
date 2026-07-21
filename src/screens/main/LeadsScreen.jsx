@@ -5,8 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
-  ActivityIndicator,
   StyleSheet,
   Platform,
 } from 'react-native';
@@ -29,7 +27,6 @@ import { useToast as useKitToast } from '../../components/ui/CustomToast';
 // ─── UI Kit imports ────────────────────────────────────────────────────────
 import PageHeader from '../../components/ui/PageHeader';
 import ImprovedButton from '../../components/ui/ImprovedButton';
-import ImprovedTextInput from '../../components/ui/ImprovedTextInput';
 import IconButton from '../../components/ui/IconButton';
 import ActiveFilterBadge from '../../components/ui/ActiveFilterBadge';
 import BottomSheet from '../../components/ui/BottomSheet';
@@ -75,18 +72,12 @@ const DEFAULT_STATUS_OPTIONS = [
   'Repeat',
 ];
 
-// toast is now provided by useKitToast() inside the component
-
 // ─────────────────────────────────────────────────────────────
 //  MAIN SCREEN
 // ─────────────────────────────────────────────────────────────
 const LeadsScreen = () => {
-  const { colors, typography, spacing, borderRadius, elevation, isDark } =
-    useUISystem();
-
-  // Toast — uses CustomToast (ToastProvider must be in App.js)
+  const { colors, typography, spacing, borderRadius, isDark } = useUISystem();
   const toast = useKitToast();
-
   const dispatch = useDispatch();
   const settings = useSelector(s => s.settings?.data || s.settings);
   const currentUser = useSelector(s => s.auth.user);
@@ -121,6 +112,8 @@ const LeadsScreen = () => {
   const [editingLead, setEditingLead] = useState(null);
   const [previewLead, setPreviewLead] = useState(null);
   const [showPreviewDrawer, setShowPreviewDrawer] = useState(false);
+
+  const [previewMode, setPreviewMode] = useState('details');
   const [activeTabOverride, setActiveTabOverride] = useState(null);
   const [activityRefreshTrigger, setActivityRefreshTrigger] = useState(0);
 
@@ -284,6 +277,7 @@ const LeadsScreen = () => {
       } else if (currentUser?._id) {
         fp.assignedTo = currentUser._id;
       }
+
       const result = await leadsService.getLeads(
         fp,
         activePage,
@@ -418,14 +412,6 @@ const LeadsScreen = () => {
     if (priority === 'High') return { bg: '#ffedd5', text: '#ea580c' };
     return { bg: '#dbeafe', text: '#2563eb' };
   };
-
-  const getInitials = name =>
-    (name || 'U')
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
 
   const getSelectedUserName = id =>
     id ? users.find(u => u._id === id)?.name || null : null;
@@ -579,6 +565,13 @@ const LeadsScreen = () => {
 
   const handleOpenPreview = lead => {
     setPreviewLead(lead);
+    setPreviewMode('both');
+    setShowPreviewDrawer(true);
+  };
+
+  const handleOpenDetails = lead => {
+    setPreviewLead(lead);
+    setPreviewMode('details');
     setShowPreviewDrawer(true);
   };
 
@@ -1039,6 +1032,7 @@ const LeadsScreen = () => {
             selectedIds={selectedIds}
             onToggleSelect={toggleSelectOne}
             onPreview={handleOpenPreview}
+            onOpenDetails={handleOpenDetails}
             onEdit={openEditLead}
             onDelete={id => triggerDeleteLead(id)}
             canEditAnyLead={canEditAnyLead}
@@ -1359,6 +1353,7 @@ const LeadsScreen = () => {
             </Text>
           </TouchableOpacity>
         </View>
+
         {(filters.dateFrom || filters.dateTo) && (
           <View style={styles.dateRangeInfo}>
             <View
@@ -1929,6 +1924,7 @@ const LeadsScreen = () => {
         activityRefreshTrigger={activityRefreshTrigger}
         onRefresh={handleDrawerRefresh}
         canEditAnyLead={canEditAnyLead}
+        mode={previewMode}
       />
     </SafeAreaView>
   );
@@ -2007,7 +2003,6 @@ const styles = StyleSheet.create({
   },
   checkmark: { color: '#fff', fontSize: 11, fontWeight: '700' },
   listContainer: { flex: 1 },
-  // Filter sheet
   filterLabel: {
     fontSize: 11,
     fontWeight: '700',

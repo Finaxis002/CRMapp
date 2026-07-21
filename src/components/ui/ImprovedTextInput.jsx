@@ -1,22 +1,16 @@
 /**
- * ImprovedTextInput — theme-aware professional input
+ * ImprovedTextInput — theme-aware professional input (compact sizes)
  */
 
 import React, { useRef, useState } from 'react';
-import {
-  Animated,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Animated, StyleSheet, Text, TextInput, View } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useUISystem } from '../../hooks/useUISystem';
 
 const SIZE_MAP = {
-  small: { height: 40, fontSize: 14, padH: 12, icon: 18 },
-  medium: { height: 48, fontSize: 15, padH: 14, icon: 20 },
-  large: { height: 56, fontSize: 16, padH: 16, icon: 22 },
+  small: { height: 36, fontSize: 12, padH: 10, icon: 16 },
+  medium: { height: 44, fontSize: 13, padH: 12, icon: 18 },
+  large: { height: 50, fontSize: 14, padH: 14, icon: 20 },
 };
 
 export default function ImprovedTextInput({
@@ -58,7 +52,7 @@ export default function ImprovedTextInput({
   const displayError =
     typeof error === 'string' && error.length ? error : errorMessage;
 
-  const animateFocus = (to) => {
+  const animateFocus = to => {
     Animated.timing(borderAnim, {
       toValue: to,
       duration: 160,
@@ -77,22 +71,27 @@ export default function ImprovedTextInput({
   const bgColor = !editable
     ? colors.disabledBg
     : isFilled
-      ? colors.backgroundSecondary
-      : colors.surface;
+    ? colors.backgroundSecondary
+    : colors.surface;
 
   const iconColor = focused
     ? colors.primary
     : hasError
-      ? colors.danger
-      : colors.textTertiary;
+    ? colors.danger
+    : colors.textTertiary;
 
   return (
-    <View style={[styles.wrap, { marginBottom: spacing.md }, containerStyle]}>
+    <View style={[styles.wrap, { marginBottom: spacing.sm }, containerStyle]}>
       {!!label && (
         <Text
           style={[
             typography.label,
-            { color: colors.textPrimary, marginBottom: spacing.xs },
+            {
+              color: colors.textSecondary,
+              marginBottom: 3,
+              fontSize: 11,
+              fontWeight: '600',
+            },
           ]}
         >
           {label}
@@ -104,7 +103,7 @@ export default function ImprovedTextInput({
         style={[
           styles.field,
           {
-            minHeight: multiline ? sizeCfg.height + 40 : sizeCfg.height,
+            minHeight: multiline ? sizeCfg.height + 36 : sizeCfg.height,
             borderRadius: borderRadius.md,
             backgroundColor: bgColor,
             borderWidth: 1.5,
@@ -120,7 +119,7 @@ export default function ImprovedTextInput({
             name={icon}
             size={sizeCfg.icon}
             color={iconColor}
-            style={{ marginRight: 8 }}
+            style={{ marginRight: 6 }}
           />
         )}
         {!!prefix && <View style={styles.affix}>{prefix}</View>}
@@ -137,12 +136,12 @@ export default function ImprovedTextInput({
           maxLength={maxLength}
           autoCapitalize={autoCapitalize}
           autoFocus={autoFocus}
-          onFocus={(e) => {
+          onFocus={e => {
             setFocused(true);
             animateFocus(1);
             onFocus?.(e);
           }}
-          onBlur={(e) => {
+          onBlur={e => {
             setFocused(false);
             animateFocus(0);
             onBlur?.(e);
@@ -154,8 +153,8 @@ export default function ImprovedTextInput({
               fontSize: sizeCfg.fontSize,
               color: colors.textPrimary,
               textAlignVertical: multiline ? 'top' : 'center',
-              paddingTop: multiline ? 12 : 0,
-              paddingBottom: multiline ? 12 : 0,
+              paddingTop: multiline ? 10 : 0,
+              paddingBottom: multiline ? 10 : 0,
             },
             inputStyle,
           ]}
@@ -167,12 +166,20 @@ export default function ImprovedTextInput({
 
       <View style={styles.footer}>
         {hasError && displayError ? (
-          <Text style={[typography.caption, { color: colors.danger, flex: 1 }]}>
+          <Text
+            style={[
+              typography.caption,
+              { color: colors.danger, flex: 1, fontSize: 11 },
+            ]}
+          >
             {displayError}
           </Text>
         ) : helperText ? (
           <Text
-            style={[typography.caption, { color: colors.textTertiary, flex: 1 }]}
+            style={[
+              typography.caption,
+              { color: colors.textTertiary, flex: 1, fontSize: 11 },
+            ]}
           >
             {helperText}
           </Text>
@@ -194,11 +201,11 @@ const styles = StyleSheet.create({
   wrap: { width: '100%' },
   field: { flexDirection: 'row', alignItems: 'center' },
   input: { flex: 1, padding: 0, margin: 0 },
-  affix: { marginHorizontal: 4 },
+  affix: { marginHorizontal: 3 },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
-    minHeight: 16,
+    marginTop: 2,
+    minHeight: 12,
   },
 });

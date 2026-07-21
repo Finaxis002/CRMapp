@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   Modal,
@@ -51,7 +50,6 @@ const DEFAULT_STATUS_OPTIONS = [
   'Closed',
   'Repeat',
 ];
-
 const DEFAULT_SOURCE_OPTIONS = [
   'Google Ads',
   'Website',
@@ -62,9 +60,7 @@ const DEFAULT_SOURCE_OPTIONS = [
   'Google Sheet',
   'Other',
 ];
-
 const PRIORITY_OPTIONS = ['Normal', 'High', 'Urgent'];
-
 const PAYMENT_MODES = [
   'UPI',
   'Bank Transfer',
@@ -74,11 +70,8 @@ const PAYMENT_MODES = [
   'Stripe',
   'PayU',
 ];
-
 const PAYMENT_STATUS = ['Paid', 'Partial', 'Pending', 'Overdue', 'Cancelled'];
-
 const REMINDER_TYPES = ['Call', 'Email', 'Meeting', 'Follow-up', 'Payment'];
-
 const ALL_CROSS_SELL_SERVICES = [
   'MSME',
   'GST Registration',
@@ -90,7 +83,6 @@ const ALL_CROSS_SELL_SERVICES = [
   'Trade Mark',
   'IEC Code',
 ];
-
 const TABS = [
   'Profile',
   'Assign',
@@ -99,7 +91,6 @@ const TABS = [
   'Payment',
   'Reminder',
 ];
-
 const ACTIVITY_TYPE_META = {
   Note: { color: '#a855f7', icon: 'note-text-outline' },
   Call: { color: '#22c55e', icon: 'phone-outline' },
@@ -183,8 +174,8 @@ const DateTimeField = React.memo(
 // ════════════════════════════════════════════════════════════════
 // SuccessServiceSelector
 // ════════════════════════════════════════════════════════════════
-const SuccessServiceSelector = ({ lead, onSaved, isSuccess, toast }) => {
-  const { colors, typography, spacing, borderRadius } = useUISystem();
+const SuccessServiceSelector = ({ lead, onSaved, toast }) => {
+  const { colors, spacing } = useUISystem();
   const [availableServices, setAvailableServices] = useState(
     ALL_CROSS_SELL_SERVICES,
   );
@@ -262,9 +253,9 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess, toast }) => {
   };
 
   return (
-    <View style={{ gap: spacing.lg }}>
+    <View style={{ gap: spacing.sm }}>
       <FormSection title="Select Services">
-        <View style={{ gap: spacing.sm }}>
+        <View style={{ gap: 4 }}>
           {availableServices.map(svc => (
             <CheckboxRow
               key={svc}
@@ -280,7 +271,7 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess, toast }) => {
         title="Reactivation Date & Time"
         description="On this date and time, the lead will automatically move to 'New'."
       >
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
           <View style={{ flex: 1 }}>
             <DateField
               value={reactivationDate}
@@ -288,7 +279,7 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess, toast }) => {
               onPress={() => setPickerTarget('date')}
             />
           </View>
-          <View style={{ width: 128 }}>
+          <View style={{ width: 112 }}>
             <DateField
               value={reactivationTime}
               mode="time"
@@ -297,7 +288,6 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess, toast }) => {
             />
           </View>
         </View>
-
         {pickerTarget === 'date' && (
           <DateTimePicker
             value={
@@ -318,7 +308,6 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess, toast }) => {
             }}
           />
         )}
-
         {pickerTarget === 'time' && (
           <DateTimePicker
             value={
@@ -352,7 +341,7 @@ const SuccessServiceSelector = ({ lead, onSaved, isSuccess, toast }) => {
         loading={saving}
         disabled={saving || selectedServices.length === 0 || !reactivationDate}
         fullWidth
-        size="large"
+        size="medium"
       />
     </View>
   );
@@ -377,8 +366,7 @@ const LeadFormModal = ({
   settings = {},
   initialTab = 'Profile',
 }) => {
-  const { colors, typography, spacing, borderRadius, elevation, isDark } =
-    useUISystem();
+  const { colors, typography, spacing, borderRadius, isDark } = useUISystem();
   const insets = useSafeAreaInsets();
   const toast = useKitToast();
 
@@ -387,7 +375,6 @@ const LeadFormModal = ({
   const [activeActivityType, setActiveActivityType] = useState('Note');
   const [recordingFile, setRecordingFile] = useState(null);
   const [uploadingRec, setUploadingRec] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [savedRecordings, setSavedRecordings] = useState([]);
   const [playingUrl, setPlayingUrl] = useState(null);
   const [paymentHistory, setPaymentHistory] = useState(
@@ -412,15 +399,12 @@ const LeadFormModal = ({
   const customColumns = Array.isArray(settings?.customColumns)
     ? settings.customColumns
     : [];
-
   const defaultStatusOptions = statusOptions.length
     ? statusOptions
     : DEFAULT_STATUS_OPTIONS;
-
   const defaultSourceOptions = sourceOptions.length
     ? sourceOptions
     : DEFAULT_SOURCE_OPTIONS;
-
   const canManageAssignment = canAssignLead || canChangeLeadOwner;
 
   const statusItems = defaultStatusOptions.map(s => ({ value: s, label: s }));
@@ -540,7 +524,6 @@ const LeadFormModal = ({
     const pendingReminders = Array.isArray(lead.reminders)
       ? lead.reminders.filter(r => !r.isDone)
       : [];
-
     const latestReminder = pendingReminders.length
       ? [...pendingReminders].sort((a, b) => {
           const aDate = new Date(a.reminderDate || a.createdAt || 0);
@@ -722,7 +705,6 @@ const LeadFormModal = ({
     }
 
     const activitiesPayload = [];
-
     if (activities.Note.text.trim() || activities.Note._id)
       activitiesPayload.push({
         _id: activities.Note._id || undefined,
@@ -730,7 +712,6 @@ const LeadFormModal = ({
         text: activities.Note.text.trim(),
         notifiedUsers: activities.Note.notify ? [activities.Note.notify] : [],
       });
-
     if (
       activities.Call.text.trim() ||
       activities.Call.duration.trim() ||
@@ -745,7 +726,6 @@ const LeadFormModal = ({
         callOutcome: activities.Call.outcome,
         notifiedUsers: activities.Call.notify ? [activities.Call.notify] : [],
       });
-
     if (activities.Email.text.trim() || activities.Email._id)
       activitiesPayload.push({
         _id: activities.Email._id || undefined,
@@ -753,7 +733,6 @@ const LeadFormModal = ({
         text: activities.Email.text.trim(),
         notifiedUsers: activities.Email.notify ? [activities.Email.notify] : [],
       });
-
     if (activities.Meeting.text.trim() || activities.Meeting._id)
       activitiesPayload.push({
         _id: activities.Meeting._id || undefined,
@@ -763,7 +742,6 @@ const LeadFormModal = ({
           ? [activities.Meeting.notify]
           : [],
       });
-
     if (
       activities.Task.text.trim() ||
       activities.Task.dueDate ||
@@ -777,7 +755,6 @@ const LeadFormModal = ({
         taskAssignedTo: activities.Task.assignedTo || undefined,
         notifiedUsers: activities.Task.notify ? [activities.Task.notify] : [],
       });
-
     if (activitiesPayload.length > 0) payload.activities = activitiesPayload;
 
     const recLabel = form.recordingLabel.trim();
@@ -800,14 +777,12 @@ const LeadFormModal = ({
     const existingReminderDate = existingReminder?.reminderDate
       ? new Date(existingReminder.reminderDate).toISOString().split('T')[0]
       : '';
-
     const existingReminderAssignedTo =
       typeof existingReminder?.assignedTo === 'string'
         ? existingReminder.assignedTo
         : existingReminder?.assignedTo?._id ||
           existingReminder?.assignedTo?.id ||
           '';
-
     const existingReminderNotify =
       existingReminder?.notifyUsers?.length > 0
         ? typeof existingReminder.notifyUsers[0] === 'string'
@@ -890,7 +865,6 @@ const LeadFormModal = ({
       return;
     }
     setUploadingRec(true);
-    setUploadProgress(0);
     try {
       if (recordingFile) {
         const fd = new FormData();
@@ -917,7 +891,6 @@ const LeadFormModal = ({
       toast.error(err?.message || 'Upload failed.');
     } finally {
       setUploadingRec(false);
-      setUploadProgress(0);
     }
   };
 
@@ -981,27 +954,32 @@ const LeadFormModal = ({
       setActiveTab('Profile');
       return;
     }
+
     if (!form.assignedTo) {
       toast.error('Please assign the lead to a user.');
       setActiveTab('Assign');
       return;
     }
+
     if (form.paymentAmount.trim() && !form.paymentDate) {
       toast.error('Payment date is required.');
       setActiveTab('Payment');
       return;
     }
+
     if (activities.Task.text?.trim() && !activities.Task.dueDate) {
       toast.error('Task due date is required.');
       setActiveTab('Activity');
       setActiveActivityType('Task');
       return;
     }
+
     if (form.reminderDate && !form.reminderAssignedTo) {
       toast.error('Reminder must be assigned to a user.');
       setActiveTab('Reminder');
       return;
     }
+
     if (activeTab === 'Cross-Sell') return;
 
     const payload = buildPayload();
@@ -1069,39 +1047,42 @@ const LeadFormModal = ({
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={[styles.modalBody, { backgroundColor: colors.surface }]}
         >
-          {/* Header */}
+          {/* ── Compact Header ── */}
           <View
             style={[
               styles.headerBar,
               {
                 borderBottomColor: colors.border,
-                paddingHorizontal: spacing.md,
-                paddingTop: spacing.md,
-                paddingBottom: spacing.md,
-                alignItems: 'center',
-                gap: spacing.sm,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
               },
             ]}
           >
             <IconButton
               name="arrow-left"
-              size={22}
+              size={18}
               color={colors.textPrimary}
               backgroundColor={colors.backgroundSecondary}
               onPress={onClose}
-              style={{ width: 38, height: 38, borderRadius: borderRadius.full }}
+              style={{ width: 30, height: 30, borderRadius: 15 }}
             />
-            <View style={{ flex: 1 }}>
-              <Text
-                style={[typography.h3, { color: colors.textPrimary }]}
-                numberOfLines={1}
-              >
-                {lead ? 'Edit Lead' : 'Add New Lead'}
-              </Text>
-            </View>
+            <Text
+              style={[
+                typography.h3,
+                {
+                  color: colors.textPrimary,
+                  fontSize: 15,
+                  fontWeight: '700',
+                  flex: 1,
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {lead ? 'Edit Lead' : 'Add New Lead'}
+            </Text>
           </View>
 
-          {/* Tabs */}
+          {/* ── Compact Tabs ── */}
           <View
             style={[styles.tabsContainer, { borderBottomColor: colors.border }]}
           >
@@ -1120,10 +1101,11 @@ const LeadFormModal = ({
                   >
                     <Text
                       style={[
-                        typography.label,
+                        typography.caption,
                         {
                           color: active ? colors.primary : colors.textSecondary,
-                          fontSize: 14,
+                          fontWeight: active ? '700' : '500',
+                          fontSize: 12,
                         },
                       ]}
                     >
@@ -1144,9 +1126,9 @@ const LeadFormModal = ({
           </View>
 
           <ScrollView
-            contentContainerStyle={{ paddingBottom: 24, flexGrow: 1 }}
+            contentContainerStyle={{ paddingBottom: 16, flexGrow: 1 }}
             keyboardShouldPersistTaps="handled"
-            automaticallyAdjustKeyboardInsets={true}
+            automaticallyAdjustKeyboardInsets
             showsVerticalScrollIndicator={false}
             style={{ flex: 1, backgroundColor: colors.surface }}
           >
@@ -1162,7 +1144,6 @@ const LeadFormModal = ({
                     containerStyle={{ marginBottom: 0 }}
                   />
                 </FormField>
-
                 <FormField label="Primary Phone" required>
                   <CustomPhoneInput
                     value={form.phone}
@@ -1170,7 +1151,6 @@ const LeadFormModal = ({
                     defaultCountry="IN"
                   />
                 </FormField>
-
                 <FormRow columns={2}>
                   <FormField label="Status">
                     <ImprovedDropdown
@@ -1191,7 +1171,6 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
-
                 <FormRow columns={2}>
                   <FormField label="Source">
                     <ImprovedDropdown
@@ -1212,7 +1191,6 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
-
                 <FormRow columns={2}>
                   <FormField label="City">
                     <ImprovedTextInput
@@ -1231,7 +1209,6 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
-
                 <FormRow columns={2}>
                   <FormField label="Email">
                     <ImprovedTextInput
@@ -1253,7 +1230,6 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
-
                 <FormField label="Alternate Phone (Optional)">
                   <CustomPhoneInput
                     value={form.alternatePhone || ''}
@@ -1263,7 +1239,6 @@ const LeadFormModal = ({
                     defaultCountry="IN"
                   />
                 </FormField>
-
                 {customColumns
                   .filter(c => c.formVisible !== false)
                   .map(column => (
@@ -1278,7 +1253,6 @@ const LeadFormModal = ({
                       />
                     </FormField>
                   ))}
-
                 <FormField label="Initial Note">
                   <ImprovedTextInput
                     multiline
@@ -1306,14 +1280,13 @@ const LeadFormModal = ({
                     <Text
                       style={[
                         typography.caption,
-                        { color: colors.warning, marginTop: spacing.xs },
+                        { color: colors.warning, marginTop: 4, fontSize: 11 },
                       ]}
                     >
                       You do not have permission to change assignment.
                     </Text>
                   )}
                 </FormField>
-
                 <FormSection title="Co-Assignees">
                   <MultiSelect
                     options={users
@@ -1348,7 +1321,7 @@ const LeadFormModal = ({
                     <Text
                       style={[
                         typography.caption,
-                        { color: colors.warning, marginTop: spacing.xs },
+                        { color: colors.warning, marginTop: 4, fontSize: 11 },
                       ]}
                     >
                       Co-assignee assignment is restricted for your role.
@@ -1361,17 +1334,8 @@ const LeadFormModal = ({
             {/* ═══════════════ ACTIVITY TAB ═══════════════ */}
             {activeTab === 'Activity' && (
               <View style={styles.formContainer}>
-                <Text
-                  style={[
-                    typography.label,
-                    { color: colors.textPrimary, marginBottom: spacing.sm },
-                  ]}
-                >
-                  Activity Type
-                </Text>
-
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
                     {Object.keys(ACTIVITY_TYPE_META).map(type => {
                       const meta = ACTIVITY_TYPE_META[type];
                       const act = activities[type];
@@ -1394,15 +1358,16 @@ const LeadFormModal = ({
                         >
                           <Icon
                             name={meta.icon}
-                            size={14}
+                            size={12}
                             color={isActive ? '#fff' : colors.textSecondary}
                           />
                           <Text
                             style={[
-                              typography.label,
+                              typography.caption,
                               {
                                 color: isActive ? '#fff' : colors.textPrimary,
-                                fontSize: 13,
+                                fontSize: 11,
+                                fontWeight: '600',
                               },
                             ]}
                           >
@@ -1436,10 +1401,18 @@ const LeadFormModal = ({
                     },
                   ]}
                 >
-                  <Text style={[typography.h4, { color: colors.textPrimary }]}>
+                  <Text
+                    style={[
+                      typography.label,
+                      {
+                        color: colors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: '700',
+                      },
+                    ]}
+                  >
                     {activeActivityType} Activity
                   </Text>
-
                   <ImprovedTextInput
                     multiline
                     value={activeAct.text}
@@ -1453,7 +1426,6 @@ const LeadFormModal = ({
                     }
                     containerStyle={{ marginBottom: 0 }}
                   />
-
                   {activeActivityType === 'Call' && (
                     <FormRow columns={1}>
                       <FormField label="Duration">
@@ -1493,7 +1465,6 @@ const LeadFormModal = ({
                       </FormField>
                     </FormRow>
                   )}
-
                   {activeActivityType === 'Task' && (
                     <FormRow columns={1}>
                       <FormField label="Due Date" required>
@@ -1516,7 +1487,6 @@ const LeadFormModal = ({
                       </FormField>
                     </FormRow>
                   )}
-
                   <FormField label="Notify">
                     <ImprovedDropdown
                       items={[{ value: '', label: 'No one' }, ...userItems]}
@@ -1527,7 +1497,6 @@ const LeadFormModal = ({
                       searchable={false}
                     />
                   </FormField>
-
                   {(activeAct.text?.trim() ||
                     activeAct.duration?.trim() ||
                     activeAct.dueDate) && (
@@ -1563,7 +1532,10 @@ const LeadFormModal = ({
                       }}
                     >
                       <Text
-                        style={[typography.caption, { color: colors.danger }]}
+                        style={[
+                          typography.caption,
+                          { color: colors.danger, fontSize: 11 },
+                        ]}
                       >
                         ✕ Clear {activeActivityType} data
                       </Text>
@@ -1581,7 +1553,7 @@ const LeadFormModal = ({
                           return (
                             <View
                               key={item._id || idx}
-                              style={{ marginBottom: 12 }}
+                              style={{ marginBottom: 8 }}
                             >
                               <CallLogCard callLog={item} />
                             </View>
@@ -1624,7 +1596,6 @@ const LeadFormModal = ({
                             icon: 'bell-outline',
                           },
                         };
-
                         const st = iconMap[item.type] || iconMap.Status;
                         const userName =
                           typeof item.user === 'string'
@@ -1642,7 +1613,7 @@ const LeadFormModal = ({
                               {
                                 borderColor: colors.border,
                                 backgroundColor: colors.surface,
-                                borderRadius: borderRadius.lg,
+                                borderRadius: borderRadius.md,
                               },
                             ]}
                           >
@@ -1655,14 +1626,18 @@ const LeadFormModal = ({
                               >
                                 <Icon
                                   name={st.icon}
-                                  size={13}
+                                  size={11}
                                   color={st.text}
                                 />
                               </View>
                               <Text
                                 style={[
-                                  typography.label,
-                                  { color: colors.textPrimary, fontSize: 13 },
+                                  typography.caption,
+                                  {
+                                    color: colors.textPrimary,
+                                    fontSize: 11,
+                                    fontWeight: '700',
+                                  },
                                 ]}
                               >
                                 {item.type || 'Interaction'}
@@ -1671,9 +1646,7 @@ const LeadFormModal = ({
                                 <View
                                   style={[
                                     styles.recentBadge,
-                                    {
-                                      backgroundColor: colors.successSoft,
-                                    },
+                                    { backgroundColor: colors.successSoft },
                                   ]}
                                 >
                                   <Text
@@ -1682,7 +1655,7 @@ const LeadFormModal = ({
                                       {
                                         color: colors.success,
                                         fontWeight: '700',
-                                        fontSize: 10,
+                                        fontSize: 9,
                                       },
                                     ]}
                                   >
@@ -1697,7 +1670,8 @@ const LeadFormModal = ({
                                   typography.body2,
                                   {
                                     color: colors.textSecondary,
-                                    fontSize: 12,
+                                    fontSize: 11,
+                                    lineHeight: 16,
                                   },
                                 ]}
                               >
@@ -1707,10 +1681,7 @@ const LeadFormModal = ({
                             <Text
                               style={[
                                 typography.caption,
-                                {
-                                  color: colors.textTertiary,
-                                  marginTop: 4,
-                                },
+                                { color: colors.textTertiary, fontSize: 10 },
                               ]}
                             >
                               {userName}
@@ -1748,7 +1719,6 @@ const LeadFormModal = ({
                       containerStyle={{ marginBottom: 0 }}
                     />
                   </FormField>
-
                   <FormField label="Recording URL">
                     <ImprovedTextInput
                       value={form.recordingUrl}
@@ -1771,8 +1741,8 @@ const LeadFormModal = ({
                     />
                     <Text
                       style={[
-                        typography.overline,
-                        { color: colors.textTertiary },
+                        typography.caption,
+                        { color: colors.textTertiary, fontSize: 10 },
                       ]}
                     >
                       or upload a file
@@ -1792,7 +1762,7 @@ const LeadFormModal = ({
                       {
                         borderColor: colors.border,
                         backgroundColor: colors.surface,
-                        borderRadius: borderRadius.xl,
+                        borderRadius: borderRadius.lg,
                       },
                     ]}
                   >
@@ -1800,14 +1770,18 @@ const LeadFormModal = ({
                       <View style={styles.fileRow}>
                         <Icon
                           name="microphone"
-                          size={24}
+                          size={20}
                           color={colors.primary}
                         />
                         <View style={styles.fileInfo}>
                           <Text
                             style={[
-                              typography.label,
-                              { color: colors.textPrimary },
+                              typography.caption,
+                              {
+                                color: colors.textPrimary,
+                                fontWeight: '600',
+                                fontSize: 12,
+                              },
                             ]}
                             numberOfLines={1}
                           >
@@ -1816,7 +1790,7 @@ const LeadFormModal = ({
                           <Text
                             style={[
                               typography.caption,
-                              { color: colors.textTertiary },
+                              { color: colors.textTertiary, fontSize: 10 },
                             ]}
                           >
                             {(
@@ -1828,7 +1802,7 @@ const LeadFormModal = ({
                         </View>
                         <IconButton
                           name="close"
-                          size={16}
+                          size={14}
                           color={colors.danger}
                           onPress={() => setRecordingFile(null)}
                         />
@@ -1838,21 +1812,23 @@ const LeadFormModal = ({
                         <View
                           style={[
                             styles.uploadIconCircle,
-                            {
-                              backgroundColor: colors.backgroundSecondary,
-                            },
+                            { backgroundColor: colors.backgroundSecondary },
                           ]}
                         >
                           <Icon
                             name="upload"
-                            size={24}
+                            size={18}
                             color={colors.textTertiary}
                           />
                         </View>
                         <Text
                           style={[
-                            typography.label,
-                            { color: colors.textPrimary },
+                            typography.caption,
+                            {
+                              color: colors.textPrimary,
+                              fontWeight: '600',
+                              fontSize: 12,
+                            },
                           ]}
                         >
                           Tap to select a file
@@ -1863,6 +1839,7 @@ const LeadFormModal = ({
                             {
                               color: colors.textTertiary,
                               textAlign: 'center',
+                              fontSize: 10,
                             },
                           ]}
                         >
@@ -1878,10 +1855,10 @@ const LeadFormModal = ({
                       onPress={handleRecordingUpload}
                       loading={uploadingRec}
                       disabled={uploadingRec}
+                      size="medium"
                       fullWidth
                     />
                   )}
-
                   {!lead?._id &&
                     (recordingFile || form.recordingUrl.trim()) && (
                       <Text
@@ -1890,7 +1867,7 @@ const LeadFormModal = ({
                           {
                             color: colors.warning,
                             textAlign: 'center',
-                            marginTop: spacing.sm,
+                            fontSize: 11,
                           },
                         ]}
                       >
@@ -1916,7 +1893,7 @@ const LeadFormModal = ({
                             {
                               borderColor: colors.border,
                               backgroundColor: colors.surface,
-                              borderRadius: borderRadius.xl,
+                              borderRadius: borderRadius.lg,
                             },
                           ]}
                         >
@@ -1924,22 +1901,24 @@ const LeadFormModal = ({
                             <View
                               style={[
                                 styles.savedRecIcon,
-                                {
-                                  backgroundColor: colors.primarySoft,
-                                },
+                                { backgroundColor: colors.primarySoft },
                               ]}
                             >
                               <Icon
                                 name={isVideo ? 'video-outline' : 'music'}
-                                size={16}
+                                size={14}
                                 color={colors.primary}
                               />
                             </View>
                             <View style={styles.savedRecInfo}>
                               <Text
                                 style={[
-                                  typography.label,
-                                  { color: colors.textPrimary },
+                                  typography.caption,
+                                  {
+                                    color: colors.textPrimary,
+                                    fontWeight: '600',
+                                    fontSize: 12,
+                                  },
                                 ]}
                                 numberOfLines={1}
                               >
@@ -1953,6 +1932,7 @@ const LeadFormModal = ({
                                     typography.caption,
                                     {
                                       color: colors.textTertiary,
+                                      fontSize: 10,
                                     },
                                   ]}
                                 >
@@ -1972,62 +1952,56 @@ const LeadFormModal = ({
                                 </Text>
                               )}
                             </View>
-                            <View
-                              style={{
-                                flexDirection: 'row',
-                                gap: spacing.sm,
-                              }}
-                            >
+                            <View style={{ flexDirection: 'row', gap: 6 }}>
                               <IconButton
                                 name={
                                   isPlaying
                                     ? 'stop-circle-outline'
                                     : 'play-circle-outline'
                                 }
-                                size={20}
+                                size={16}
                                 color={colors.primary}
                                 onPress={() =>
                                   setPlayingUrl(isPlaying ? null : rec.url)
                                 }
                                 backgroundColor={colors.primarySoft}
                                 style={{
-                                  borderRadius: 18,
-                                  width: 36,
-                                  height: 36,
+                                  borderRadius: 15,
+                                  width: 30,
+                                  height: 30,
                                 }}
                               />
                               <IconButton
                                 name="download"
-                                size={16}
+                                size={14}
                                 color={colors.textSecondary}
                                 onPress={() => Linking.openURL(rec.url)}
                                 backgroundColor={colors.backgroundSecondary}
                                 style={{
-                                  borderRadius: 18,
-                                  width: 36,
-                                  height: 36,
+                                  borderRadius: 15,
+                                  width: 30,
+                                  height: 30,
                                 }}
                               />
                               <IconButton
                                 name="trash-can-outline"
-                                size={16}
+                                size={14}
                                 color={colors.danger}
                                 onPress={() => handleDeleteRecording(rec)}
                                 backgroundColor={colors.dangerSoft}
                                 style={{
-                                  borderRadius: 18,
-                                  width: 36,
-                                  height: 36,
+                                  borderRadius: 15,
+                                  width: 30,
+                                  height: 30,
                                 }}
                               />
                             </View>
                           </View>
-
                           {isPlaying && (
                             <View
                               style={{
-                                paddingHorizontal: 12,
-                                paddingBottom: 12,
+                                paddingHorizontal: 10,
+                                paddingBottom: 10,
                               }}
                             >
                               <Video
@@ -2035,9 +2009,9 @@ const LeadFormModal = ({
                                 resizeMode="contain"
                                 style={{
                                   width: '100%',
-                                  height: 180,
+                                  height: 160,
                                   backgroundColor: '#000',
-                                  borderRadius: borderRadius.lg,
+                                  borderRadius: borderRadius.md,
                                 }}
                                 controls
                                 paused={!isPlaying}
@@ -2095,7 +2069,6 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
-
                 <FormRow columns={1}>
                   <FormField label="Status">
                     <ImprovedDropdown
@@ -2114,11 +2087,10 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
-
                 {paymentHistory.length > 0 && (
                   <FormSection title="Payment History">
-                    <ScrollView style={{ maxHeight: 256 }}>
-                      <View style={{ gap: 12 }}>
+                    <ScrollView style={{ maxHeight: 220 }}>
+                      <View style={{ gap: 8 }}>
                         {[...paymentHistory]
                           .sort(
                             (a, b) =>
@@ -2166,7 +2138,6 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
-
                 <FormRow columns={2}>
                   <FormField label="Date">
                     <DateTimeField
@@ -2189,7 +2160,6 @@ const LeadFormModal = ({
                     />
                   </FormField>
                 </FormRow>
-
                 <FormField label="Note">
                   <ImprovedTextInput
                     value={form.reminderNote}
@@ -2198,7 +2168,6 @@ const LeadFormModal = ({
                     containerStyle={{ marginBottom: 0 }}
                   />
                 </FormField>
-
                 <FormField label="Also notify">
                   <ImprovedDropdown
                     items={[{ value: '', label: 'None' }, ...userItems]}
@@ -2215,21 +2184,20 @@ const LeadFormModal = ({
               <SuccessServiceSelector
                 lead={lead}
                 onSaved={onClose}
-                isSuccess
                 toast={toast}
               />
             )}
           </ScrollView>
 
-          {/* Footer */}
+          {/* ── Compact Footer ── */}
           <View
             style={[
               styles.footerBar,
               {
                 borderTopColor: colors.border,
                 backgroundColor: colors.surface,
-                padding: spacing.lg,
-                gap: spacing.sm,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
               },
             ]}
           >
@@ -2239,7 +2207,7 @@ const LeadFormModal = ({
               }
               onPress={handleSubmit}
               variant="primary"
-              size="large"
+              size="medium"
               fullWidth
               loading={submitting}
               disabled={submitting}
@@ -2257,115 +2225,116 @@ const styles = StyleSheet.create({
   modalBody: { flex: 1, overflow: 'hidden' },
   headerBar: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   footerBar: { borderTopWidth: StyleSheet.hairlineWidth },
   tabsContainer: {
-    maxHeight: 48,
+    maxHeight: 38,
     flexGrow: 0,
     flexShrink: 0,
   },
   tabsInner: {
     flexDirection: 'row',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    gap: 4,
+    paddingHorizontal: 6,
+    gap: 2,
     alignItems: 'center',
   },
   tabBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    height: 38,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    position: 'relative',
   },
   tabIndicator: {
     position: 'absolute',
-    bottom: -1,
-    left: 0,
-    right: 0,
+    bottom: 0,
+    left: 8,
+    right: 8,
     height: 2,
     borderRadius: 2,
   },
   formContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 16,
+    gap: 8,
   },
   typePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     position: 'relative',
   },
   typePillDot: {
     position: 'absolute',
     top: -2,
     right: -2,
-    width: 10,
-    height: 10,
+    width: 8,
+    height: 8,
     borderRadius: 999,
     backgroundColor: '#10b981',
-    borderWidth: 2,
+    borderWidth: 1.5,
   },
-  activityForm: { borderWidth: 1, padding: 16, gap: 14 },
-  recentItem: { borderWidth: 1, padding: 12, gap: 6 },
+  activityForm: { borderWidth: 1, padding: 12, gap: 10 },
+  recentItem: { borderWidth: 1, padding: 10, gap: 4, marginBottom: 8 },
   recentItemTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     flexWrap: 'wrap',
   },
   recentIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   recentBadge: {
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
   },
-  orDivider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  orDivider: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   orLine: { flex: 1, height: 1 },
   uploadZone: {
-    borderWidth: 2,
+    borderWidth: 1,
     borderStyle: 'dashed',
-    padding: 20,
+    padding: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    minHeight: 100,
+    gap: 6,
+    minHeight: 84,
   },
   uploadIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   fileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
     width: '100%',
   },
   fileInfo: { flex: 1 },
-  savedRecItem: { borderWidth: 1, overflow: 'hidden' },
+  savedRecItem: { borderWidth: 1, overflow: 'hidden', marginBottom: 8 },
   savedRecTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 12,
+    gap: 8,
+    padding: 10,
   },
   savedRecIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },

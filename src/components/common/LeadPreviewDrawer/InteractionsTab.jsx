@@ -12,10 +12,10 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { useSelector } from 'react-redux';
-import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import api from '../../../services/api';
+import CallLogCard from '../../../services/callLogCard.js';
 
 const hexToRgba = (hex, alpha = 1) => {
   if (!hex) return `rgba(0,0,0,${alpha})`;
@@ -33,7 +33,6 @@ const hexToRgba = (hex, alpha = 1) => {
   const b = val & 255;
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
-import CallLogCard from '../../../services/callLogCard.js';
 
 // =============================================
 // HELPERS
@@ -58,9 +57,6 @@ const getActivityIcon = (type, source, isAutoTracked) => {
   if (isAutoTracked) return '🎙️';
   const raw = String(type || '').toLowerCase();
 
-  if (raw.includes('whatsapp') || source === 'whatsapp') {
-    return '💬';
-  }
   if (raw === 'call') return '📞';
   if (raw === 'task') return '📌';
   if (raw === 'email') return '✉️';
@@ -269,13 +265,10 @@ const InteractionsTab = ({
         });
 
     try {
-      const [activityResult, whatsappResult, callLogResult] = await Promise.all(
-        [
-          safe(api.get(`/activities/lead/${leadId}`), 'activities'),
-          safe(api.get(`/whatsapp/messages?leadId=${leadId}`), 'whatsapp'),
-          safe(api.get(`/call-logs?leadId=${leadId}&limit=50`), 'call-logs'),
-        ],
-      );
+      const [activityResult, callLogResult] = await Promise.all([
+        safe(api.get(`/activities/lead/${leadId}`), 'activities'),
+        safe(api.get(`/call-logs?leadId=${leadId}&limit=50`), 'call-logs'),
+      ]);
 
       const activities = parseApiResponseArray(
         activityResult.status === 'fulfilled' ? activityResult.value : null,
@@ -299,21 +292,7 @@ const InteractionsTab = ({
         });
       }
 
-      let whatsappMessages = [];
-      if (whatsappResult.status === 'fulfilled') {
-        whatsappMessages = parseApiResponseArray(whatsappResult.value).map(
-          message => ({
-            ...message,
-            source: 'whatsapp',
-            type: 'WhatsApp',
-            whatsappType: message.type,
-            whatsappDirection: message.direction,
-            text: message.body || 'WhatsApp message',
-          }),
-        );
-      }
-
-      const merged = [...activities, ...whatsappMessages].sort((a, b) => {
+      const merged = [...activities].sort((a, b) => {
         const aDate = new Date(
           a.updatedAt || a.createdAt || a.callTimestamp || 0,
         );
@@ -439,12 +418,7 @@ const InteractionsTab = ({
           onPress: async () => {
             setSaving(true);
             try {
-              const deleteUrl =
-                activity.source === 'whatsapp'
-                  ? `/whatsapp/messages/${activity._id}`
-                  : `/activities/${activity._id}`;
-
-              await api.delete(deleteUrl);
+              await api.delete(`/activities/${activity._id}`);
               await fetchInteractions();
               if (editItem?._id === activity._id) {
                 resetEditForm();
@@ -600,13 +574,11 @@ const InteractionsTab = ({
 
       case 'recording':
         return (
-          <>
-            <Text
-              style={[styles.summaryText, { color: defaultTheme.textPrimary }]}
-            >
-              {text || 'Recording added.'}
-            </Text>
-          </>
+          <Text
+            style={[styles.summaryText, { color: defaultTheme.textPrimary }]}
+          >
+            {text || 'Recording added.'}
+          </Text>
         );
 
       case 'status change':
@@ -648,33 +620,6 @@ const InteractionsTab = ({
                 {item.paymentReference
                   ? ` · Ref: ${item.paymentReference}`
                   : ''}
-              </Text>
-            )}
-          </>
-        );
-
-      case 'whatsapp':
-        return (
-          <>
-            <Text
-              style={[styles.summaryText, { color: defaultTheme.textPrimary }]}
-            >
-              {item.whatsappType === 'call'
-                ? `WhatsApp ${item.whatsappType} ${
-                    item.whatsappDirection || ''
-                  }`
-                : 'WhatsApp message'}
-            </Text>
-            <Text
-              style={[styles.summaryText, { color: defaultTheme.textPrimary }]}
-            >
-              {item.text || item.body || 'WhatsApp interaction recorded.'}
-            </Text>
-            {item.mediaName && (
-              <Text
-                style={[styles.metaText, { color: defaultTheme.textMuted }]}
-              >
-                Attachment: {item.mediaName}
               </Text>
             )}
           </>

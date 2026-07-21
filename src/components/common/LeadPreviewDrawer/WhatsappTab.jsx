@@ -88,9 +88,6 @@ const WhatsappTab = ({
   const [filter, setFilter] = useState('all');
   const [newMsg, setNewMsg] = useState('');
   const [sending, setSending] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [editingText, setEditingText] = useState('');
-  const [showActionsId, setShowActionsId] = useState(null);
   const messagesEndRef = useRef(null);
 
   // Theme-aware values (use theme when provided)
@@ -172,54 +169,6 @@ const WhatsappTab = ({
   // =============================================
   // SEND MESSAGE
   // =============================================
-  const handleDeleteMessage = async messageId => {
-    Alert.alert(
-      'Delete Message',
-      'Are you sure you want to delete this message?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.delete(`/whatsapp/messages/${messageId}`);
-              setItems(prev => prev.filter(m => m._id !== messageId));
-              if (editingId === messageId) {
-                setEditingId(null);
-                setEditingText('');
-              }
-            } catch (err) {
-              console.error('Delete message error:', err);
-              Alert.alert('Error', 'Failed to delete message.');
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  const handleSaveEdit = async messageId => {
-    if (!editingText.trim() || sending) return;
-    setSending(true);
-    try {
-      const res = await api.patch(`/whatsapp/messages/${messageId}`, {
-        body: editingText.trim(),
-      });
-      const updated = res?.data?.data || res?.data;
-      setItems(prev =>
-        prev.map(m => (m._id === messageId ? { ...m, ...updated } : m)),
-      );
-      setEditingId(null);
-      setEditingText('');
-    } catch (err) {
-      console.error('Edit message error:', err);
-      Alert.alert('Error', 'Failed to update message.');
-    } finally {
-      setSending(false);
-    }
-  };
-
   const handleSend = async () => {
     if (!newMsg.trim() || sending) return;
     const messageText = newMsg.trim();
@@ -304,7 +253,7 @@ const WhatsappTab = ({
   const callCount = items.filter(i => i.type === 'call').length;
 
   // =============================================
-  // RENDER MESSAGE BUBBLE
+  // RENDER MESSAGE BUBBLE (VIEW ONLY)
   // =============================================
   const renderMessageBubble = item => {
     const isSent = item.direction === 'outgoing';
@@ -321,35 +270,6 @@ const WhatsappTab = ({
           isSent ? styles.bubbleSent : styles.bubbleReceived,
         ]}
       >
-        {/* Actions Overlay */}
-        {isSent && editingId !== item._id && showActionsId === item._id && (
-          <View style={styles.actionsOverlay}>
-            <TouchableOpacity
-              onPress={() => {
-                setEditingId(item._id);
-                setEditingText(item.body || '');
-                setShowActionsId(null);
-              }}
-              style={styles.actionButton}
-            >
-              <Text style={styles.actionIcon}>✏️</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => handleDeleteMessage(item._id)}
-              style={styles.actionButton}
-            >
-              <Text
-                style={[
-                  styles.actionIcon,
-                  { color: theme.danger || '#ef4444' },
-                ]}
-              >
-                🗑️
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
         <View
           style={[
             styles.bubble,
@@ -380,47 +300,11 @@ const WhatsappTab = ({
             </TouchableOpacity>
           )}
 
-          {/* Text or Edit */}
-          {editingId === item._id ? (
-            <>
-              <TextInput
-                value={editingText}
-                onChangeText={setEditingText}
-                multiline
-                style={[
-                  styles.editInput,
-                  {
-                    backgroundColor:
-                      theme.editInputBg || (isDark ? '#111827' : '#f8fafc'),
-                    color:
-                      theme.editInputColor || (isDark ? '#eef2ff' : '#111827'),
-                  },
-                ]}
-              />
-              <View style={styles.editActions}>
-                <TouchableOpacity
-                  onPress={() => handleSaveEdit(item._id)}
-                  style={styles.saveButton}
-                >
-                  <Text style={styles.saveButtonText}>Save</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    setEditingId(null);
-                    setEditingText('');
-                  }}
-                  style={styles.cancelButton}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            item.body && (
-              <Text style={[styles.bubbleText, { color: bs.color }]}>
-                {item.body}
-              </Text>
-            )
+          {/* Text */}
+          {item.body && (
+            <Text style={[styles.bubbleText, { color: bs.color }]}>
+              {item.body}
+            </Text>
           )}
 
           {/* Footer: Sender + Time + Tick */}
@@ -631,7 +515,7 @@ const WhatsappTab = ({
           </View>
         )}
 
-        {/* Messages with Dividers */}
+        {/* Messages with Dividers (view only – no edit/delete) */}
         {!loading &&
           !error &&
           withDividers.map(item => {
@@ -667,18 +551,8 @@ const WhatsappTab = ({
               return renderCallCard(item);
             }
 
-            // Chat Bubble
-            return (
-              <TouchableOpacity
-                key={item._id}
-                activeOpacity={0.9}
-                onLongPress={() =>
-                  setShowActionsId(showActionsId === item._id ? null : item._id)
-                }
-              >
-                {renderMessageBubble(item)}
-              </TouchableOpacity>
-            );
+            // Chat Bubble (view only)
+            return renderMessageBubble(item);
           })}
       </ScrollView>
 
@@ -872,30 +746,6 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  actionsOverlay: {
-    position: 'absolute',
-    top: -30,
-    right: 0,
-    flexDirection: 'row',
-    gap: 4,
-    zIndex: 2,
-  },
-  actionButton: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  actionIcon: {
-    fontSize: 14,
-  },
   attachment: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -912,46 +762,6 @@ const styles = StyleSheet.create({
   bubbleText: {
     fontSize: 13,
     lineHeight: 20,
-  },
-  editInput: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 13,
-    minHeight: 70,
-    marginBottom: 6,
-    textAlignVertical: 'top',
-  },
-  editActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    justifyContent: 'flex-end',
-    marginTop: 4,
-  },
-  saveButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: '#10b981',
-    borderRadius: 6,
-  },
-  saveButtonText: {
-    fontSize: 11,
-    color: '#fff',
-  },
-  cancelButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 6,
-  },
-  cancelButtonText: {
-    fontSize: 11,
-    color: '#111',
   },
   bubbleFooter: {
     flexDirection: 'row',
