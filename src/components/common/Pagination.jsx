@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Platform,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -19,6 +13,9 @@ const Pagination = ({
   onPageChange,
   onLimitChange,
   limitOptions = [10, 20, 50, 100],
+
+  from: fromProp = null,
+  to: toProp = null,
 }) => {
   const { isDark } = useTheme();
   const colors = {
@@ -34,8 +31,10 @@ const Pagination = ({
     activePageBg: '#5A7BF6',
     pageText: isDark ? '#CBD5E1' : '#475569',
   };
-  const from = total === 0 ? 0 : (page - 1) * limit + 1;
-  const to = Math.min(page * limit, total);
+  const fromAuto = total === 0 ? 0 : (page - 1) * limit + 1;
+  const toAuto = Math.min(page * limit, total);
+  const from = fromProp ?? fromAuto;
+  const to = toProp ?? toAuto;
 
   const buildPages = () => {
     const pages = [];
@@ -104,7 +103,7 @@ const Pagination = ({
             </Text>
             <Icon
               name="chevron-down"
-              size={16}
+              size={14}
               color={colors.pickerLabelText}
             />
           </View>
@@ -135,7 +134,7 @@ const Pagination = ({
         >
           <Icon
             name="chevron-left"
-            size={18}
+            size={16}
             color={disabledPrev ? colors.disabledIcon : colors.navIcon}
           />
         </TouchableOpacity>
@@ -180,7 +179,7 @@ const Pagination = ({
         >
           <Icon
             name="chevron-right"
-            size={18}
+            size={16}
             color={disabledNext ? colors.disabledIcon : colors.navIcon}
           />
         </TouchableOpacity>
@@ -192,8 +191,8 @@ const Pagination = ({
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingTop: 8,
+    paddingBottom: 8,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#EEF2F7',
@@ -202,10 +201,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   infoText: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: '#0F172A',
     flexShrink: 1,
   },
@@ -218,8 +217,8 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   pickerWrap: {
-    height: 36,
-    minWidth: 110,
+    height: 30,
+    minWidth: 102,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 8,
@@ -232,11 +231,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     height: '100%',
   },
   pickerLabelText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#1E293B',
   },
@@ -262,8 +261,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   navBtn: {
-    width: 34,
-    height: 34,
+    width: 32,
+    height: 32,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -272,9 +271,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pageBtn: {
-    minWidth: 34,
-    height: 34,
-    paddingHorizontal: 8,
+    minWidth: 32,
+    height: 32,
+    paddingHorizontal: 7,
     borderRadius: 8,
     backgroundColor: 'transparent',
     alignItems: 'center',
@@ -289,7 +288,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   pageText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '600',
     color: '#475569',
   },
@@ -298,13 +297,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   dotsWrap: {
-    width: 22,
-    height: 34,
+    width: 18,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dots: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#94A3B8',
     fontWeight: '600',
   },
