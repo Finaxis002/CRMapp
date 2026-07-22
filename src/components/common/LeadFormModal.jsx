@@ -1023,7 +1023,7 @@ const LeadFormModal = ({
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="none"
       transparent={false}
       onRequestClose={onClose}
       statusBarTranslucent
