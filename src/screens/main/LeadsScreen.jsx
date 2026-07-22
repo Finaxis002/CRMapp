@@ -626,15 +626,13 @@ const LeadsScreen = () => {
       toast.error('No permission to edit.');
       return;
     }
-    setEditingLead(null);
+    setEditingLead(previewLead);
     setActiveTabOverride(null);
+    setShowCreateModal(true);
     try {
       const l = await leadsService.getLead(previewLead._id);
       setEditingLead(l);
-    } catch {
-      setEditingLead(previewLead);
-    }
-    setShowCreateModal(true);
+    } catch {}
   };
 
   const openNewLead = () => {
