@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useUISystem } from '../../hooks/useUISystem';
 
-const PADDING = { small: 12, medium: 16, large: 20 };
+const PADDING = { small: 10, medium: 12, large: 16 };
 
 export default function ImprovedCard({
   children,
@@ -17,6 +17,7 @@ export default function ImprovedCard({
 }) {
   const { colors, borderRadius, elevation } = useUISystem();
   const scale = useRef(new Animated.Value(1)).current;
+
   const isPressable = pressable || typeof onPress === 'function';
   const pad = PADDING[padding] ?? PADDING.medium;
   const radius = borderRadius[radiusKey] ?? borderRadius.lg;
@@ -25,7 +26,11 @@ export default function ImprovedCard({
     switch (variant) {
       case 'flat':
       case 'default':
-        return { backgroundColor: colors.surface, borderWidth: 0, ...elevation.xs };
+        return {
+          backgroundColor: colors.surface,
+          borderWidth: 0,
+          ...elevation.xs,
+        };
       case 'outline':
       case 'bordered':
         return {
@@ -43,7 +48,11 @@ export default function ImprovedCard({
         };
       case 'elevated':
       default:
-        return { backgroundColor: colors.surface, borderWidth: 0, ...elevation.md };
+        return {
+          backgroundColor: colors.surface,
+          borderWidth: 0,
+          ...elevation.md,
+        };
     }
   })();
 

@@ -1,15 +1,14 @@
 /**
- * MetricCard — dashboard KPI tile
+ * MetricCard — dashboard KPI tile (compact)
  * color: blue | yellow | green | purple | cyan
  */
 
 import React from 'react';
-import { Pressable, StyleSheet, Text, View, Dimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Feather from 'react-native-vector-icons/Feather';
 import { useUISystem } from '../../hooks/useUISystem';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const HALF = (SCREEN_WIDTH - 16 * 2 - 8) / 2;
+const HALF_WIDTH = '48.5%';
 
 const COLOR_MAP = {
   blue: { accent: 'primary', soft: 'primarySoft' },
@@ -35,10 +34,25 @@ export default function MetricCard({
 
   const content = (
     <>
-      <View style={[styles.icon, { backgroundColor: soft, borderRadius: borderRadius.md }]}>
-        <Feather name={icon} size={18} color={top} />
+      <View
+        style={[
+          styles.icon,
+          { backgroundColor: soft, borderRadius: borderRadius.md },
+        ]}
+      >
+        <Feather name={icon} size={15} color={top} />
       </View>
-      <Text style={[typography.overline, { color: colors.textSecondary, marginTop: 8, marginBottom: 8 }]}>
+      <Text
+        style={[
+          typography.overline,
+          {
+            color: colors.textSecondary,
+            marginTop: 4,
+            marginBottom: 5,
+            marginRight: 34,
+          },
+        ]}
+      >
         {label}
       </Text>
       <Text
@@ -46,8 +60,8 @@ export default function MetricCard({
           typography.h2,
           {
             color: colors.textPrimary,
-            fontSize: label === 'Collected' ? 22 : 26,
-            lineHeight: 30,
+            fontSize: label === 'Collected' ? 20 : 22,
+            lineHeight: 26,
           },
         ]}
         numberOfLines={1}
@@ -62,13 +76,13 @@ export default function MetricCard({
     styles.card,
     elevation.xs,
     {
-      width: fullWidth ? '100%' : HALF,
+      width: fullWidth ? '100%' : HALF_WIDTH,
       backgroundColor: colors.surface,
       borderColor: colors.border,
       borderTopColor: top,
       borderRadius: borderRadius.xl,
     },
-    fullWidth && { marginBottom: 12 },
+    fullWidth && { marginBottom: 8 },
     style,
   ];
 
@@ -88,17 +102,17 @@ export default function MetricCard({
 
 const styles = StyleSheet.create({
   card: {
-    padding: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderWidth: 1,
     borderTopWidth: 3,
-    minHeight: 110,
   },
   icon: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 36,
-    height: 36,
+    top: 10,
+    right: 10,
+    width: 30,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },

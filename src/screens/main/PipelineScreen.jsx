@@ -19,8 +19,6 @@ import { canUser } from '../../utils/permissions';
 import { useUISystem } from '../../hooks/useUISystem';
 import { useToast as useKitToast } from '../../components/ui/CustomToast';
 
-// UI Kit — only header, button, dropdown
-import PageHeader from '../../components/ui/PageHeader';
 import ImprovedButton from '../../components/ui/ImprovedButton';
 import ImprovedDropdown from '../../components/ui/ImprovedDropdown';
 
@@ -376,7 +374,7 @@ const KanbanScreen = () => {
       edges={['bottom']}
       style={[styles.container, { backgroundColor: colors.screenBg }]}
     >
-      {/* ══ HEADER — updated ══ */}
+      {/* ══ HEADER — compact ══ */}
       <View
         style={[
           styles.header,
@@ -386,24 +384,35 @@ const KanbanScreen = () => {
           },
         ]}
       >
-        <PageHeader
-          title="Pipeline"
-          subtitle="Track leads stage-wise"
-          right={
-            canCreateLead ? (
-              <ImprovedButton
-                title="+ Add"
-                size="small"
-                onPress={() => {
-                  setEditingLead(null);
-                  setShowCreateModal(true);
-                }}
-              />
-            ) : null
-          }
-        />
+        <View style={styles.titleRow}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text
+              style={[styles.headerTitle, { color: colors.titleText }]}
+              numberOfLines={1}
+            >
+              Pipeline
+            </Text>
+            <Text
+              style={[styles.headerSubtitle, { color: colors.subtitleText }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Track leads stage-wise
+            </Text>
+          </View>
+          {canCreateLead ? (
+            <ImprovedButton
+              title="+ Add"
+              size="small"
+              onPress={() => {
+                setEditingLead(null);
+                setShowCreateModal(true);
+              }}
+            />
+          ) : null}
+        </View>
 
-        {/* User Filter — updated to ImprovedDropdown */}
+        {/* User Filter */}
         {(canViewAllLeads || (isManager && canViewTeamLeads)) && (
           <View style={{ marginTop: 8 }}>
             <ImprovedDropdown
@@ -566,12 +575,27 @@ const KanbanScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: 12,
+    paddingTop: 10,
     paddingBottom: 8,
     borderBottomWidth: 1,
   },
-  tabsContainer: { marginTop: 12 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  headerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  headerSubtitle: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  tabsContainer: { marginTop: 10 },
   stageTab: {
     flexDirection: 'row',
     alignItems: 'center',
