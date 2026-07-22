@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   View,
   Text,
   ScrollView,
@@ -15,8 +16,7 @@ import { useUISystem } from '../../hooks/useUISystem';
 import { dashboardService } from '../../services/dashboardService';
 
 // ─── UI Kit imports ────────────────────────────────────────────────────────
-import PageHeader from '../../components/ui/PageHeader';
-import FilterChip from '../../components/ui/FilterChip';
+import BottomSheet from '../../components/ui/BottomSheet';
 import MetricCard from '../../components/ui/MetricCard';
 import ImprovedCard from '../../components/ui/ImprovedCard';
 import ImprovedButton from '../../components/ui/ImprovedButton';
@@ -124,54 +124,127 @@ const PerfBar = ({ ratio, colors }) => (
 
 // ─── Skeleton components ───────────────────────────────────────────────────
 
-const SkeletonBox = ({ width, height, colors, style }) => (
-  <View
+const useSkeletonPulse = active => {
+  const pulse = useRef(new Animated.Value(0.45)).current;
+  useEffect(() => {
+    if (!active) return undefined;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 650,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0.45,
+          duration: 650,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse, active]);
+  return pulse;
+};
+
+const SkeletonBox = ({ width, height, colors, pulse, style }) => (
+  <Animated.View
     style={[
       styles.skeleton,
       {
         width,
         height,
-        backgroundColor: colors.skeletonBase,
+        backgroundColor: colors.skeletonBase || colors.backgroundSecondary,
+        opacity: pulse,
       },
       style,
-      { overflow: 'hidden' },
     ]}
-  >
-    <View
-      style={[styles.shimmer, { backgroundColor: colors.skeletonHighlight }]}
-    />
-  </View>
+  />
 );
 
-const SkeletonMetricCard = ({ colors, borderRadius: br }) => (
+const SkeletonMetricCard = ({ colors, borderRadius: br, pulse, fullWidth }) => (
   <View
     style={[
       styles.skeletonCard,
       {
-        backgroundColor: colors.cardBg,
+        width: fullWidth ? '100%' : '48.5%',
+        backgroundColor: colors.surface,
         borderColor: colors.border,
+        borderTopColor: colors.border,
         borderRadius: br.xl,
       },
+      fullWidth && { marginBottom: 8 },
     ]}
   >
     <SkeletonBox
-      width="60%"
-      height={12}
+      width={30}
+      height={30}
       colors={colors}
-      style={{ marginBottom: 16 }}
+      pulse={pulse}
+      style={{ position: 'absolute', top: 10, right: 10, borderRadius: br.md }}
     />
     <SkeletonBox
-      width="45%"
-      height={28}
+      width="52%"
+      height={10}
       colors={colors}
-      style={{ marginBottom: 20 }}
+      pulse={pulse}
+      style={{ marginTop: 4, marginBottom: 9 }}
     />
+    <SkeletonBox width="36%" height={22} colors={colors} pulse={pulse} />
+  </View>
+);
+
+const SkeletonSectionHeader = ({ colors, pulse }) => (
+  <View style={[styles.cardHead, { alignItems: 'center' }]}>
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <SkeletonBox
+        width="42%"
+        height={13}
+        colors={colors}
+        pulse={pulse}
+        style={{ marginBottom: 6 }}
+      />
+      <SkeletonBox width="58%" height={11} colors={colors} pulse={pulse} />
+    </View>
+    <SkeletonBox
+      width={54}
+      height={24}
+      colors={colors}
+      pulse={pulse}
+      style={{ borderRadius: 8 }}
+    />
+  </View>
+);
+
+const SkeletonRow = ({ colors, pulse, withPill }) => (
+  <View style={styles.skeletonRow}>
     <SkeletonBox
       width={36}
       height={36}
       colors={colors}
-      style={{ position: 'absolute', top: 16, right: 16, borderRadius: br.md }}
+      pulse={pulse}
+      style={{ borderRadius: 10 }}
     />
+    <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
+      <SkeletonBox
+        width="55%"
+        height={12}
+        colors={colors}
+        pulse={pulse}
+        style={{ marginBottom: 6 }}
+      />
+      <SkeletonBox width="38%" height={10} colors={colors} pulse={pulse} />
+    </View>
+    {withPill && (
+      <SkeletonBox
+        width={44}
+        height={18}
+        colors={colors}
+        pulse={pulse}
+        style={{ borderRadius: 20 }}
+      />
+    )}
   </View>
 );
 
@@ -184,9 +257,9 @@ const DashboardScreen = ({ navigation }) => {
   const [activeFilter, setActiveFilter] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState(null);
+  const [periodOpen, setPeriodOpen] = useState(false);
 
-  const { colors, typography, spacing, borderRadius, elevation, isDark } =
-    useUISystem();
+  const { colors, typography, spacing, borderRadius, isDark } = useUISystem();
 
   const filterMap = {
     All: 'all',
@@ -194,6 +267,13 @@ const DashboardScreen = ({ navigation }) => {
     'This Week': 'week',
     'This Month': 'month',
   };
+
+  const PERIOD_OPTIONS = [
+    { key: 'All', icon: 'layers' },
+    { key: 'Today', icon: 'sun' },
+    { key: 'This Week', icon: 'calendar' },
+    { key: 'This Month', icon: 'calendar' },
+  ];
 
   useEffect(() => {
     let mounted = true;
@@ -266,7 +346,118 @@ const DashboardScreen = ({ navigation }) => {
     return params;
   };
 
+  // ── Compact header: title left + right side period dropdown trigger ──
+  const renderHeader = (subtitle, rightNode = null) => (
+    <View style={styles.headerRow}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text
+          style={[styles.headerTitle, { color: colors.textPrimary }]}
+          numberOfLines={1}
+        >
+          Dashboard Overview
+        </Text>
+        {!!subtitle && (
+          <Text
+            style={[styles.headerSubtitle, { color: colors.textTertiary }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {subtitle}
+          </Text>
+        )}
+      </View>
+      {rightNode}
+    </View>
+  );
+
+  const renderPeriodTrigger = (disabled = false) => (
+    <TouchableOpacity
+      disabled={disabled}
+      onPress={() => setPeriodOpen(true)}
+      style={[
+        styles.periodTrigger,
+        {
+          backgroundColor: colors.backgroundSecondary,
+          borderColor: colors.border,
+          borderRadius: borderRadius.full,
+        },
+      ]}
+      activeOpacity={0.7}
+    >
+      <Feather name="calendar" size={12} color={colors.primary} />
+      <Text
+        style={[
+          typography.caption,
+          { color: colors.textPrimary, fontWeight: '600' },
+        ]}
+        numberOfLines={1}
+      >
+        {activeFilter === 'All' ? 'All Time' : activeFilter}
+      </Text>
+      <Feather name="chevron-down" size={13} color={colors.textTertiary} />
+    </TouchableOpacity>
+  );
+
+  const overviewSubtitle =
+    user?.role === 'admin' || user?.role === 'manager'
+      ? "Your team's sales at a glance"
+      : 'Your sales at a glance';
+
+  const periodSheet = (
+    <BottomSheet
+      visible={periodOpen}
+      onClose={() => setPeriodOpen(false)}
+      title="Time Period"
+      maxHeight={360}
+    >
+      {PERIOD_OPTIONS.map(opt => {
+        const active = activeFilter === opt.key;
+        return (
+          <TouchableOpacity
+            key={opt.key}
+            onPress={() => {
+              setActiveFilter(opt.key);
+              setPeriodOpen(false);
+            }}
+            style={[
+              styles.periodRow,
+              { borderBottomColor: colors.borderLight },
+              active && { backgroundColor: colors.primarySoft },
+            ]}
+            activeOpacity={0.7}
+          >
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+            >
+              <Feather
+                name={opt.icon}
+                size={16}
+                color={active ? colors.primary : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  typography.body2,
+                  {
+                    color: active ? colors.primary : colors.textPrimary,
+                    fontWeight: active ? '600' : '400',
+                  },
+                ]}
+              >
+                {opt.key === 'All' ? 'All Time' : opt.key}
+              </Text>
+            </View>
+            {active && (
+              <Feather name="check" size={18} color={colors.primary} />
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </BottomSheet>
+  );
+
   // ─── Loading State ───────────────────────────────────────────────────────
+  const pulse = useSkeletonPulse(loading);
+
   if (loading) {
     return (
       <SafeAreaView
@@ -274,75 +465,52 @@ const DashboardScreen = ({ navigation }) => {
         style={[styles.root, { backgroundColor: colors.background }]}
       >
         <ScrollView contentContainerStyle={styles.container}>
-          <PageHeader
-            title="Dashboard Overview"
-            subtitle="Loading dashboard data…"
-            style={{ marginBottom: spacing.md }}
-          />
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ marginBottom: spacing.md }}
-          >
-            <View style={styles.filtersRow}>
-              {['All', 'Today', 'This Week', 'This Month'].map(f => (
-                <FilterChip key={f} label={f} active={false} disabled />
-              ))}
-            </View>
-          </ScrollView>
+          {renderHeader('Loading dashboard data…', renderPeriodTrigger(false))}
 
           <View style={styles.metricsGrid}>
-            {[1, 2, 3, 4, 5].map(i => (
+            {[1, 2, 3, 4].map(i => (
               <SkeletonMetricCard
                 key={i}
                 colors={colors}
                 borderRadius={borderRadius}
+                pulse={pulse}
               />
             ))}
           </View>
+          <SkeletonMetricCard
+            colors={colors}
+            borderRadius={borderRadius}
+            pulse={pulse}
+            fullWidth
+          />
 
-          {/* Skeleton cards for sections */}
-          {[1, 2, 3].map(section => (
-            <ImprovedCard
-              key={section}
-              variant="outline"
-              style={{ marginBottom: spacing.xl }}
-            >
-              <SkeletonBox
-                width="35%"
-                height={18}
-                colors={colors}
-                style={{ marginBottom: 6 }}
-              />
-              <SkeletonBox
-                width="50%"
-                height={12}
-                colors={colors}
-                style={{ marginBottom: 20 }}
-              />
-              {[1, 2, 3].map(i => (
-                <View key={i} style={styles.skeletonRow}>
-                  <SkeletonBox
-                    width={40}
-                    height={40}
-                    colors={colors}
-                    style={{ borderRadius: borderRadius.md }}
-                  />
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <SkeletonBox
-                      width="55%"
-                      height={14}
-                      colors={colors}
-                      style={{ marginBottom: 6 }}
-                    />
-                    <SkeletonBox width="40%" height={12} colors={colors} />
-                  </View>
-                </View>
-              ))}
-            </ImprovedCard>
-          ))}
+          <ImprovedCard
+            variant="outline"
+            style={{ marginBottom: spacing.md, marginTop: 12 }}
+          >
+            <SkeletonSectionHeader colors={colors} pulse={pulse} />
+            {[1, 2, 3].map(i => (
+              <SkeletonRow key={i} colors={colors} pulse={pulse} withPill />
+            ))}
+          </ImprovedCard>
+
+          {/* Team Performance skeleton */}
+          <ImprovedCard variant="outline" style={{ marginBottom: spacing.md }}>
+            <SkeletonSectionHeader colors={colors} pulse={pulse} />
+            {[1, 2, 3].map(i => (
+              <SkeletonRow key={i} colors={colors} pulse={pulse} />
+            ))}
+          </ImprovedCard>
+
+          {/* Reminders skeleton */}
+          <ImprovedCard variant="outline" style={{ marginBottom: spacing.md }}>
+            <SkeletonSectionHeader colors={colors} pulse={pulse} />
+            {[1, 2].map(i => (
+              <SkeletonRow key={i} colors={colors} pulse={pulse} />
+            ))}
+          </ImprovedCard>
         </ScrollView>
+        {periodSheet}
       </SafeAreaView>
     );
   }
@@ -355,7 +523,7 @@ const DashboardScreen = ({ navigation }) => {
         style={[styles.root, { backgroundColor: colors.background }]}
       >
         <View style={styles.container}>
-          <PageHeader title="Dashboard" />
+          {renderHeader(null)}
           <EmptyState
             icon="alert-circle-outline"
             title="Something went wrong"
@@ -436,8 +604,9 @@ const DashboardScreen = ({ navigation }) => {
           <Text
             style={[
               typography.label,
-              { color: colors.textPrimary, fontSize: 14 },
+              { color: colors.textPrimary, fontSize: 13.5 },
             ]}
+            numberOfLines={1}
           >
             {lead.name}
           </Text>
@@ -450,10 +619,11 @@ const DashboardScreen = ({ navigation }) => {
                 color: colors.textSecondary,
                 backgroundColor: colors.backgroundSecondary,
                 fontWeight: '600',
-                paddingVertical: 3,
-                paddingHorizontal: 8,
+                paddingVertical: 2,
+                paddingHorizontal: 7,
                 borderRadius: borderRadius.sm,
                 overflow: 'hidden',
+                fontSize: 11,
               },
             ]}
           >
@@ -466,7 +636,7 @@ const DashboardScreen = ({ navigation }) => {
         </View>
       </View>
 
-      <ListDivider style={{ marginVertical: spacing.md }} />
+      <ListDivider style={{ marginVertical: 8 }} />
 
       <View style={styles.leadCardRow}>
         <View style={{ flex: 1 }}>
@@ -482,7 +652,7 @@ const DashboardScreen = ({ navigation }) => {
           <Text
             style={[
               typography.label,
-              { color: colors.primary, fontSize: 14, marginTop: 2 },
+              { color: colors.primary, fontSize: 13.5, marginTop: 1 },
             ]}
           >
             {lead.dealValue ? formatCurrency(lead.dealValue) : '—'}
@@ -506,7 +676,7 @@ const DashboardScreen = ({ navigation }) => {
       >
         <Feather
           name={iconName}
-          size={18}
+          size={16}
           color={colors[colorKey] || colors.primary}
         />
       </View>
@@ -522,8 +692,9 @@ const DashboardScreen = ({ navigation }) => {
             <Text
               style={[
                 typography.label,
-                { color: colors.textPrimary, fontSize: 14 },
+                { color: colors.textPrimary, fontSize: 13.5 },
               ]}
+              numberOfLines={1}
             >
               {item.title || 'Event'}
             </Text>
@@ -532,10 +703,11 @@ const DashboardScreen = ({ navigation }) => {
                 typography.caption,
                 {
                   color: colors.textSecondary,
-                  marginTop: 2,
+                  marginTop: 1,
                   fontWeight: '500',
                 },
               ]}
+              numberOfLines={1}
             >
               {Array.isArray(item.assignedTo)
                 ? item.assignedTo.map(u => u?.name || u).join(', ')
@@ -545,8 +717,9 @@ const DashboardScreen = ({ navigation }) => {
               <Text
                 style={[
                   typography.body2,
-                  { color: colors.textSecondary, marginTop: 6, fontSize: 13 },
+                  { color: colors.textSecondary, marginTop: 4, fontSize: 12.5 },
                 ]}
+                numberOfLines={2}
               >
                 {item.note}
               </Text>
@@ -576,8 +749,9 @@ const DashboardScreen = ({ navigation }) => {
             <Text
               style={[
                 typography.label,
-                { color: colors.textPrimary, fontSize: 14 },
+                { color: colors.textPrimary, fontSize: 13.5 },
               ]}
+              numberOfLines={1}
             >
               Task
             </Text>
@@ -586,10 +760,11 @@ const DashboardScreen = ({ navigation }) => {
                 typography.caption,
                 {
                   color: colors.textSecondary,
-                  marginTop: 2,
+                  marginTop: 1,
                   fontWeight: '500',
                 },
               ]}
+              numberOfLines={1}
             >
               {item.leadId?.name || 'Lead Name'}
             </Text>
@@ -597,8 +772,9 @@ const DashboardScreen = ({ navigation }) => {
               <Text
                 style={[
                   typography.body2,
-                  { color: colors.textSecondary, marginTop: 6, fontSize: 13 },
+                  { color: colors.textSecondary, marginTop: 4, fontSize: 12.5 },
                 ]}
+                numberOfLines={2}
               >
                 {item.text}
               </Text>
@@ -635,16 +811,18 @@ const DashboardScreen = ({ navigation }) => {
           <Text
             style={[
               typography.label,
-              { color: colors.textPrimary, fontSize: 14 },
+              { color: colors.textPrimary, fontSize: 13.5 },
             ]}
+            numberOfLines={1}
           >
             {item.type || 'Reminder'}
           </Text>
           <Text
             style={[
               typography.caption,
-              { color: colors.textSecondary, marginTop: 2, fontWeight: '500' },
+              { color: colors.textSecondary, marginTop: 1, fontWeight: '500' },
             ]}
+            numberOfLines={1}
           >
             {item.leadId?.name || 'Lead Name'}
           </Text>
@@ -652,8 +830,9 @@ const DashboardScreen = ({ navigation }) => {
             <Text
               style={[
                 typography.body2,
-                { color: colors.textSecondary, marginTop: 6, fontSize: 13 },
+                { color: colors.textSecondary, marginTop: 4, fontSize: 12.5 },
               ]}
+              numberOfLines={2}
             >
               {item.note}
             </Text>
@@ -684,16 +863,21 @@ const DashboardScreen = ({ navigation }) => {
     rightNode,
   }) => (
     <View style={styles.cardHead}>
-      <View style={{ flex: 1, marginRight: spacing.md }}>
-        <Text style={[typography.h4, { color: colors.textPrimary }]}>
+      <View style={{ flex: 1, marginRight: spacing.sm, minWidth: 0 }}>
+        <Text
+          style={[typography.h4, { color: colors.textPrimary, fontSize: 15 }]}
+          numberOfLines={1}
+        >
           {title}
         </Text>
         {!!subtitle && (
           <Text
             style={[
               typography.body2,
-              { color: colors.textSecondary, marginTop: 4, fontSize: 13 },
+              { color: colors.textSecondary, marginTop: 2, fontSize: 11.5 },
             ]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
           >
             {subtitle}
           </Text>
@@ -729,36 +913,7 @@ const DashboardScreen = ({ navigation }) => {
           />
         }
       >
-        {/* Header */}
-        <PageHeader
-          title="Dashboard Overview"
-          subtitle={
-            `Welcome back${
-              user?.name ? `, ${user.name.split(' ')[0]}` : ''
-            }! ` +
-            (isAdmin || isManager
-              ? "Here is the summary of your team's sales performance."
-              : 'Here is the summary of your personal sales performance.')
-          }
-          style={{ marginBottom: spacing.md }}
-        />
-
-        {/* Filters */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginBottom: spacing.md }}
-          contentContainerStyle={styles.filtersRow}
-        >
-          {['All', 'Today', 'This Week', 'This Month'].map(f => (
-            <FilterChip
-              key={f}
-              label={f}
-              active={activeFilter === f}
-              onPress={() => setActiveFilter(f)}
-            />
-          ))}
-        </ScrollView>
+        {renderHeader(overviewSubtitle, renderPeriodTrigger())}
 
         {/* Metrics — 2x2 grid + 1 full width */}
         <View style={styles.metricsGrid}>
@@ -789,7 +944,7 @@ const DashboardScreen = ({ navigation }) => {
         {/* Recent Leads */}
         <ImprovedCard
           variant="outline"
-          style={{ marginBottom: spacing.xl, marginTop: spacing.md }}
+          style={{ marginBottom: spacing.md, marginTop: 12 }}
         >
           <SectionHeader
             title="Recent Leads"
@@ -815,13 +970,13 @@ const DashboardScreen = ({ navigation }) => {
               keyExtractor={item => item._id}
               renderItem={renderLeadItem}
               scrollEnabled={false}
-              contentContainerStyle={{ gap: 10 }}
+              contentContainerStyle={{ gap: 8 }}
             />
           )}
         </ImprovedCard>
 
         {/* Team Performance */}
-        <ImprovedCard variant="outline" style={{ marginBottom: spacing.xl }}>
+        <ImprovedCard variant="outline" style={{ marginBottom: spacing.md }}>
           <SectionHeader
             title="Team Performance"
             subtitle="Top contributors based on lead count"
@@ -839,15 +994,16 @@ const DashboardScreen = ({ navigation }) => {
               <View key={member.userId || member.name} style={styles.perfItem}>
                 <Avatar
                   name={member.name}
-                  size={40}
+                  size={36}
                   rounded={borderRadius.md}
                 />
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <Text
                     style={[
                       typography.label,
-                      { color: colors.textPrimary, fontSize: 14 },
+                      { color: colors.textPrimary, fontSize: 13.5 },
                     ]}
+                    numberOfLines={1}
                   >
                     {member.name}
                   </Text>
@@ -856,10 +1012,11 @@ const DashboardScreen = ({ navigation }) => {
                       typography.caption,
                       {
                         color: colors.textSecondary,
-                        marginTop: 4,
+                        marginTop: 2,
                         fontWeight: '500',
                       },
                     ]}
+                    numberOfLines={1}
                   >
                     {member.leadCount} leads assigned
                   </Text>
@@ -868,7 +1025,7 @@ const DashboardScreen = ({ navigation }) => {
                   <Text
                     style={[
                       typography.label,
-                      { color: colors.textPrimary, fontSize: 15 },
+                      { color: colors.textPrimary, fontSize: 14 },
                     ]}
                   >
                     {formatCurrency(member.totalDealValue)}
@@ -884,7 +1041,7 @@ const DashboardScreen = ({ navigation }) => {
         </ImprovedCard>
 
         {/* Reminders, Events & Tasks */}
-        <ImprovedCard variant="outline" style={{ marginBottom: spacing.xl }}>
+        <ImprovedCard variant="outline" style={{ marginBottom: spacing.md }}>
           <SectionHeader
             title="Today's Reminders, Events & Tasks"
             subtitle="Pending follow-ups for today"
@@ -912,12 +1069,14 @@ const DashboardScreen = ({ navigation }) => {
               }
               renderItem={renderReminderItem}
               scrollEnabled={false}
-              contentContainerStyle={{ gap: 4 }}
+              contentContainerStyle={{ gap: 2 }}
               ItemSeparatorComponent={() => <ListDivider />}
             />
           )}
         </ImprovedCard>
       </ScrollView>
+
+      {periodSheet}
     </SafeAreaView>
   );
 };
@@ -929,12 +1088,41 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   container: {
-    padding: 16,
-    paddingBottom: 40,
+    padding: 12,
+    paddingBottom: 24,
   },
-  filtersRow: {
+  headerRow: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  headerSubtitle: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  periodTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    flexShrink: 0,
+  },
+  periodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
   },
   metricsGrid: {
     flexDirection: 'row',
@@ -946,14 +1134,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 18,
+    marginBottom: 10,
   },
   // Lead card
   leadCardRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 10,
   },
   leadCardRight: {
     flexDirection: 'row',
@@ -962,26 +1150,26 @@ const styles = StyleSheet.create({
   },
   // Status pill
   pill: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
     borderRadius: 20,
   },
   pillText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   // Performance
   perfItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    paddingVertical: 12,
+    gap: 12,
+    paddingVertical: 10,
   },
   perfRight: {
     alignItems: 'flex-end',
   },
   perfBarWrap: {
-    marginTop: 6,
+    marginTop: 5,
     height: 4,
     width: 90,
     borderRadius: 4,
@@ -994,21 +1182,21 @@ const styles = StyleSheet.create({
   // Reminders
   reminderItem: {
     flexDirection: 'row',
-    gap: 14,
-    paddingVertical: 12,
+    gap: 12,
+    paddingVertical: 10,
   },
   rDot: {
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
   },
   timeBadge: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
-    marginTop: 6,
+    marginTop: 5,
     paddingVertical: 2,
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     borderRadius: 6,
     borderWidth: 1,
     alignSelf: 'flex-start',
@@ -1019,20 +1207,15 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   skeletonCard: {
-    width: '48%',
-    minWidth: 160,
-    padding: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderWidth: 1,
-  },
-  shimmer: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.3,
+    borderTopWidth: 3,
   },
   skeletonRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
+    paddingVertical: 9,
     gap: 12,
   },
 });
