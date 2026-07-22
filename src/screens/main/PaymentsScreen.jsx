@@ -195,7 +195,7 @@ const SlimHeader = ({ colors, borderRadius, showActions, onFilter, onAdd }) => (
           numberOfLines={1}
           ellipsizeMode="tail"
         >
-          Track payments and collect via Razorpay
+          Track and collect payments
         </Text>
       </View>
       {showActions && (
