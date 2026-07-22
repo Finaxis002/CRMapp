@@ -23,6 +23,7 @@ import ReportsScreen from '../screens/main/ReportsScreen';
 import NotificationsScreen from '../screens/main/NotificationsScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
 import AddScheduleScreen from '../components/ui/AddScheduleScreen';
+import AddPaymentScreen from '../components/ui/AddPaymentScreen';
 const Stack = createNativeStackNavigator();
 
 const MainNavigator = () => {
@@ -56,6 +57,11 @@ const MainNavigator = () => {
           <Stack.Screen name="Pipeline" component={PipelineScreen} />
           <Stack.Screen name="Calendar" component={CalendarScreen} />
           <Stack.Screen name="Payments" component={PaymentsScreen} />
+          <Stack.Screen
+            name="AddPayment"
+            component={AddPaymentScreen}
+            options={{ animation: 'slide_from_bottom' }}
+          />
           <Stack.Screen name="Attendance" component={AttendanceScreen} />
           <Stack.Screen name="Import" component={ImportScreen} />
           <Stack.Screen name="CrossSell" component={CrossSellDashboardScreen} />
