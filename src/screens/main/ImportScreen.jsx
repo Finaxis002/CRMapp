@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
   Modal,
   Alert,
@@ -13,6 +12,7 @@ import {
   Image,
 } from 'react-native';
 import { useSelector } from 'react-redux';
+
 import { useUISystem } from '../../hooks/useUISystem';
 import { useToast as useKitToast } from '../../components/ui/CustomToast';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -23,7 +23,6 @@ import {
 import { googleSheetsService } from '../../services/googleSheetsService';
 
 // ─── UI Kit imports ────────────────────────────────────────────────────────
-import PageHeader from '../../components/ui/PageHeader';
 import ImprovedCard from '../../components/ui/ImprovedCard';
 import ImprovedButton from '../../components/ui/ImprovedButton';
 import ImprovedTextInput from '../../components/ui/ImprovedTextInput';
@@ -183,6 +182,7 @@ const SourceReportModal = ({ visible, connections, onClose }) => {
               </Text>
               <Text
                 style={[styles.tableSubtext, { color: colors.textTertiary }]}
+                numberOfLines={1}
               >
                 {conn.tabName} · {conn.googleEmail}
               </Text>
@@ -235,7 +235,7 @@ const SourceReportModal = ({ visible, connections, onClose }) => {
    ADD SHEET MODAL
 ══════════════════════════════════════════════ */
 const AddSheetModal = ({ visible, onClose, onRegistered }) => {
-  const { colors, typography, borderRadius, spacing } = useUISystem();
+  const { colors, typography, borderRadius } = useUISystem();
   const toast = useKitToast();
 
   const [googleUser, setGoogleUser] = useState(null);
@@ -374,15 +374,26 @@ const AddSheetModal = ({ visible, onClose, onRegistered }) => {
             },
           ]}
         >
+          {/* Grab handle — sheet feel */}
+          <View style={styles.sheetHandleWrap}>
+            <View
+              style={[styles.sheetHandle, { backgroundColor: colors.border }]}
+            />
+          </View>
+
           <View
             style={[styles.modalHeader, { borderBottomColor: colors.border }]}
           >
-            <View>
-              <Text style={[typography.h4, { color: colors.textPrimary }]}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text
+                style={[typography.h4, { color: colors.textPrimary }]}
+                numberOfLines={1}
+              >
                 Add Google Sheet
               </Text>
               <Text
                 style={[styles.modalSubtitle, { color: colors.textTertiary }]}
+                numberOfLines={1}
               >
                 {!googleUser
                   ? 'Step 1 of 3 — Sign in'
@@ -444,7 +455,7 @@ const AddSheetModal = ({ visible, onClose, onRegistered }) => {
                       variant="solid"
                     />
                   )}
-                  <View style={{ flex: 1, marginLeft: 10 }}>
+                  <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
                     <Text
                       style={[
                         styles.googleEmail,
@@ -475,7 +486,7 @@ const AddSheetModal = ({ visible, onClose, onRegistered }) => {
                   label="Google Sheet URL *"
                   value={sheetUrl}
                   onChangeText={setSheetUrl}
-                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  placeholder="https://docs.google.com/spreadsheets/d/…"
                   autoCapitalize="none"
                   keyboardType="url"
                   size="medium"
@@ -562,6 +573,7 @@ const AddSheetModal = ({ visible, onClose, onRegistered }) => {
                         { color: colors.textSecondary },
                         selectedTab === tab && addModalStyles.tabLabelSelected,
                       ]}
+                      numberOfLines={1}
                     >
                       {tab}
                     </Text>
@@ -622,7 +634,13 @@ const CustomPicker = ({ value, options, onChange }) => {
         ]}
         onPress={() => setOpen(!open)}
       >
-        <Text style={customPickerStyles.triggerText} numberOfLines={1}>
+        <Text
+          style={[
+            customPickerStyles.triggerText,
+            { color: colors.textPrimary },
+          ]}
+          numberOfLines={1}
+        >
           {selected?.label || 'Select field…'}
         </Text>
         <Icon name="chevron-down" size={14} color={colors.primary} />
@@ -764,15 +782,26 @@ const MappingModal = ({ visible, syncData, onSaved, onClose, settings }) => {
             },
           ]}
         >
+          {/* Grab handle — sheet feel */}
+          <View style={styles.sheetHandleWrap}>
+            <View
+              style={[styles.sheetHandle, { backgroundColor: colors.border }]}
+            />
+          </View>
+
           <View
             style={[styles.modalHeader, { borderBottomColor: colors.border }]}
           >
-            <View>
-              <Text style={[typography.h4, { color: colors.textPrimary }]}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text
+                style={[typography.h4, { color: colors.textPrimary }]}
+                numberOfLines={1}
+              >
                 Configure Field Mapping
               </Text>
               <Text
                 style={[styles.modalSubtitle, { color: colors.textTertiary }]}
+                numberOfLines={1}
               >
                 {syncData?.sheetName} → {syncData?.tabName}
               </Text>
@@ -803,12 +832,13 @@ const MappingModal = ({ visible, syncData, onSaved, onClose, settings }) => {
                     gap: 10,
                   }}
                 >
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text
                       style={[
                         styles.mappingField,
                         { color: colors.textPrimary },
                       ]}
+                      numberOfLines={1}
                     >
                       {m.sheetColumn}
                     </Text>
@@ -954,14 +984,17 @@ const ConnectionCard = ({ conn, onDelete, onEditMapping }) => {
           >
             <Icon name="file-document" size={18} color="#0F9D58" />
           </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
+          <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
             <Text
               style={[styles.connName, { color: colors.textPrimary }]}
               numberOfLines={1}
             >
               {conn.sheetName}
             </Text>
-            <Text style={[styles.connSub, { color: colors.textTertiary }]}>
+            <Text
+              style={[styles.connSub, { color: colors.textTertiary }]}
+              numberOfLines={1}
+            >
               {conn.tabName} · {conn.googleEmail}
             </Text>
           </View>
@@ -1012,7 +1045,9 @@ const ConnectionCard = ({ conn, onDelete, onEditMapping }) => {
         {conn.lastError && (
           <View style={styles.errorBox}>
             <Icon name="alert-circle" size={12} color={colors.danger} />
-            <Text style={styles.errorText}>{conn.lastError}</Text>
+            <Text style={styles.errorText} numberOfLines={2}>
+              {conn.lastError}
+            </Text>
           </View>
         )}
         <View style={styles.connActions}>
@@ -1023,13 +1058,15 @@ const ConnectionCard = ({ conn, onDelete, onEditMapping }) => {
             size="small"
             onPress={() => onEditMapping(conn)}
           />
+          {/* Remove — subtle ghost-danger (bada red solid button heavy lagta tha) */}
           <ImprovedButton
             title="Remove"
             icon="trash-can-outline"
-            variant="danger"
+            variant="ghost"
             size="small"
             onPress={() => setShowDeleteConfirm(true)}
             loading={deleting}
+            textStyle={{ color: colors.danger }}
             style={{ marginLeft: 'auto' }}
           />
         </View>
@@ -1053,23 +1090,29 @@ const ConnectionCard = ({ conn, onDelete, onEditMapping }) => {
 ══════════════════════════════════════════════ */
 const ImportScreen = () => {
   const settings = useSelector(s => s.settings?.data);
-  const { colors, typography, borderRadius, spacing } = useUISystem();
+  const { colors, borderRadius, spacing } = useUISystem();
 
   const [connections, setConnections] = useState([]);
   const [loadingConn, setLoadingConn] = useState(false);
+  // Pull-to-refresh ka ALAG state — warna top indicator + section spinner
+  // dono ek saath dikhke "double loader" ban jate hain
+  const [refreshing, setRefreshing] = useState(false);
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [showMapping, setShowMapping] = useState(false);
   const [showSourceReport, setShowSourceReport] = useState(false);
   const [syncData, setSyncData] = useState(null);
 
-  const loadConnections = useCallback(async () => {
-    setLoadingConn(true);
+  // silent=true (pull-to-refresh) → sirf top indicator chale, cards waise rahe
+  const loadConnections = useCallback(async (silent = false) => {
+    if (silent) setRefreshing(true);
+    else setLoadingConn(true);
     try {
       const data = await googleSheetsService.getConnections();
       setConnections(Array.isArray(data) ? data : []);
     } catch {
     } finally {
-      setLoadingConn(false);
+      if (silent) setRefreshing(false);
+      else setLoadingConn(false);
     }
   }, []);
 
@@ -1108,16 +1151,36 @@ const ImportScreen = () => {
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
-            refreshing={loadingConn}
-            onRefresh={loadConnections}
+            refreshing={refreshing}
+            onRefresh={() => loadConnections(true)}
           />
         }
         showsVerticalScrollIndicator={false}
       >
-        <PageHeader
-          title="Import Leads"
-          subtitle="Connect Google Sheets to auto-import leads into Sharda CRM"
-        />
+        {/* ── Slim header — title+subtitle left, + Sheet right ── */}
+        <View style={styles.titleRow}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text
+              style={[styles.headerTitle, { color: colors.textPrimary }]}
+              numberOfLines={1}
+            >
+              Import Leads
+            </Text>
+            <Text
+              style={[styles.headerSub, { color: colors.textSecondary }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Connect Google Sheets to auto-import leads
+            </Text>
+          </View>
+          <ImprovedButton
+            title="Sheet"
+            icon="plus"
+            size="small"
+            onPress={() => setShowAddSheet(true)}
+          />
+        </View>
 
         {/* Dashboard Card */}
         <ImprovedCard
@@ -1134,38 +1197,39 @@ const ImportScreen = () => {
             >
               <Icon name="file-document" size={24} color="#0F9D58" />
             </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
+            <View style={{ flex: 1, marginLeft: 12, minWidth: 0 }}>
               <Text
                 style={[styles.dashCardTitle, { color: colors.textPrimary }]}
+                numberOfLines={1}
               >
                 Google Sheets
               </Text>
-              {activeCount > 0 && (
-                <FilterChip
-                  label={`Connected · ${activeCount}`}
-                  active
-                  color={colors.success}
-                  style={{ marginTop: 4, alignSelf: 'flex-start' }}
-                />
-              )}
-              {hasError && (
-                <FilterChip
-                  label={`Error · ${
-                    connections.filter(c => c.lastError).length
-                  }`}
-                  active
-                  color={colors.danger}
-                  style={{ marginTop: 4, alignSelf: 'flex-start' }}
-                />
-              )}
-              {!hasError && activeCount > 0 && (
-                <FilterChip
-                  label="All syncs healthy"
-                  active
-                  color={colors.success}
-                  style={{ marginTop: 4, alignSelf: 'flex-start' }}
-                />
-              )}
+              {/* Health chips — ek wrap row mein (Connected + Healthy / Error) */}
+              <View style={styles.chipsRow}>
+                {activeCount > 0 && (
+                  <FilterChip
+                    label={`Connected · ${activeCount}`}
+                    active
+                    color={colors.success}
+                  />
+                )}
+                {hasError && (
+                  <FilterChip
+                    label={`Error · ${
+                      connections.filter(c => c.lastError).length
+                    }`}
+                    active
+                    color={colors.danger}
+                  />
+                )}
+                {!hasError && activeCount > 0 && (
+                  <FilterChip
+                    label="All syncs healthy"
+                    active
+                    color={colors.success}
+                  />
+                )}
+              </View>
             </View>
           </View>
           <Text style={[styles.dashCardDesc, { color: colors.textSecondary }]}>
@@ -1187,19 +1251,12 @@ const ImportScreen = () => {
               onPress={loadConnections}
             />
           </View>
-          <ImprovedButton
-            title="Add Sheet"
-            icon="plus"
-            variant="primary"
-            onPress={() => setShowAddSheet(true)}
-            fullWidth
-            style={{ marginTop: 8 }}
-          />
         </ImprovedCard>
 
-        {/* Connected Sheets */}
+        {/* Connected Sheets — outer card HATAYA (double padding tha),
+            ab connection cards full width pe */}
         {connections.length > 0 && (
-          <ImprovedCard variant="elevated" padding="large">
+          <View>
             <View style={styles.sectionHeaderRow}>
               <Text
                 style={[styles.sectionTitle, { color: colors.textPrimary }]}
@@ -1226,14 +1283,18 @@ const ImportScreen = () => {
                 />
               ))
             )}
-          </ImprovedCard>
+          </View>
         )}
 
+        {/* First load — blank na dikhe, ek center spinner */}
+        {connections.length === 0 && loadingConn && (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: 48 }} />
+        )}
         {connections.length === 0 && !loadingConn && (
           <EmptyState
             icon="link-variant"
             title="No sheets connected"
-            message='Tap "Add Sheet" to connect your first Google Sheet'
+            message='Tap "+ Sheet" to connect your first Google Sheet'
           />
         )}
       </ScrollView>
@@ -1267,7 +1328,21 @@ const ImportScreen = () => {
 ══════════════════════════════════════════════ */
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
+  scrollContent: { padding: 16, paddingTop: 10, paddingBottom: 40 },
+
+  // Slim header (Payments/Calendar standard)
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  headerTitle: { fontSize: 15, fontWeight: '700', letterSpacing: -0.2 },
+  headerSub: { fontSize: 11, marginTop: 1 },
+
+  // Grab handle (modals)
+  sheetHandleWrap: { alignItems: 'center', paddingTop: 8 },
+
   dashCardTop: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1283,8 +1358,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dashCardTitle: { fontSize: 15, fontWeight: '700' },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
   dashCardDesc: { fontSize: 12, marginBottom: 12 },
-  dashActions: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  dashActions: { flexDirection: 'row', gap: 8 },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1342,7 +1418,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderBottomWidth: 1,
   },
   modalSubtitle: { fontSize: 12, marginTop: 2 },
@@ -1353,7 +1430,7 @@ const styles = StyleSheet.create({
   fixedRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   metricRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   metricLabel: { fontSize: 10, marginBottom: 4 },
-  metricVal: { fontSize: 22, fontWeight: '700' },
+  metricVal: { fontSize: 20, fontWeight: '700' },
   barRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1392,6 +1469,8 @@ const styles = StyleSheet.create({
   avatar: { width: 36, height: 36, borderRadius: 18 },
   googleEmail: { fontSize: 13, fontWeight: '600' },
   googleConnectedLabel: { fontSize: 11, color: '#16a34a', marginTop: 2 },
+  // Grab handle style yahan (sheetHandle bg color inline aata hai)
+  sheetHandle: { width: 36, height: 4, borderRadius: 2 },
 });
 
 const addModalStyles = StyleSheet.create({

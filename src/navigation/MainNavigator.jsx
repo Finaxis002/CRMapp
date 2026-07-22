@@ -60,7 +60,7 @@ const MainNavigator = () => {
           <Stack.Screen
             name="AddPayment"
             component={AddPaymentScreen}
-            options={{ animation: 'slide_from_bottom' }}
+            options={{ animation: 'default' }}
           />
           <Stack.Screen name="Attendance" component={AttendanceScreen} />
           <Stack.Screen name="Import" component={ImportScreen} />
@@ -69,7 +69,7 @@ const MainNavigator = () => {
           <Stack.Screen
             name="AddSchedule"
             component={AddScheduleScreen}
-            options={{ animation: 'slide_from_bottom' }}
+            options={{ animation: 'default' }}
           />
           {/* Admin section */}
           <Stack.Screen name="Team" component={TeamScreen} />

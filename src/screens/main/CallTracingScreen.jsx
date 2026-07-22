@@ -26,6 +26,7 @@ import ExcelJS from 'exceljs';
 import RNFS from 'react-native-fs';
 import Share from 'react-native-share';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
 import { useUISystem } from '../../hooks/useUISystem';
 import { useToast as useKitToast } from '../../components/ui/CustomToast';
 import {
@@ -36,15 +37,12 @@ import {
 import { leadsService } from '../../services/leadsService';
 
 // ─── UI Kit imports ────────────────────────────────────────────────────────
-import PageHeader from '../../components/ui/PageHeader';
 import ImprovedCard from '../../components/ui/ImprovedCard';
 import ImprovedButton from '../../components/ui/ImprovedButton';
-import ImprovedTextInput from '../../components/ui/ImprovedTextInput';
 import Avatar from '../../components/ui/Avatar';
 import EmptyState from '../../components/ui/EmptyState';
 import FilterChip from '../../components/ui/FilterChip';
 import BottomSheet from '../../components/ui/BottomSheet';
-import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import IconButton from '../../components/ui/IconButton';
 
 const BRAND = '#5a7bf6';
@@ -111,13 +109,6 @@ const formatDate = ts =>
     : '—';
 
 const cleanNumber = n => (n ? String(n).replace(/\D/g, '').slice(-10) : '—');
-
-const getInitials = (name = '') =>
-  name
-    .split(' ')
-    .map(p => p[0]?.toUpperCase())
-    .slice(0, 2)
-    .join('');
 
 const TYPE_META = {
   Incoming: { color: '#16a34a', bg: '#dcfce7' },
@@ -383,36 +374,41 @@ const exportSummaryXLSX = async (userName, logs = [], toast) => {
   }
 };
 
-// ── Summary card (refactored with UI Kit) ────────────────────────
+// ── Summary card ─────────────────────────────────────────────────
 const SummaryCard = ({ icon, label, value, color }) => {
   const { colors, borderRadius } = useUISystem();
   return (
     <ImprovedCard
       variant="outline"
-      padding="medium"
+      padding="small"
       style={{ flexBasis: '47%', flexGrow: 1 }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <View
           style={[
             styles.summaryIconBox,
             { backgroundColor: color + '1A', borderRadius: borderRadius.lg },
           ]}
         >
-          <Icon name={icon} size={18} color={color} />
+          <Icon name={icon} size={16} color={color} />
         </View>
         <View style={{ minWidth: 0 }}>
-          <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>
+          <Text
+            style={[styles.summaryValue, { color: colors.textPrimary }]}
+            numberOfLines={1}
+          >
             {value}
           </Text>
-          <Text style={styles.summaryLabel}>{label}</Text>
+          <Text style={styles.summaryLabel} numberOfLines={1}>
+            {label}
+          </Text>
         </View>
       </View>
     </ImprovedCard>
   );
 };
 
-// ── Stat row (refactored) ─────────────────────────────────────────
+// ── Stat row ──────────────────────────────────────────────────────
 const StatLine = ({ icon, label, value, color, sub }) => {
   const { colors } = useUISystem();
   return (
@@ -435,7 +431,7 @@ const StatLine = ({ icon, label, value, color, sub }) => {
   );
 };
 
-// ── User Summary Panel (refactored) ───────────────────────────────
+// ── User Summary Panel ────────────────────────────────────────────
 const UserSummaryPanel = ({
   userName,
   stats,
@@ -444,7 +440,7 @@ const UserSummaryPanel = ({
   onExport,
   exporting,
 }) => {
-  const { colors, borderRadius } = useUISystem();
+  const { colors } = useUISystem();
   const periods = [
     { key: 'page', label: 'Current Filter' },
     { key: 'today', label: 'Today' },
@@ -458,6 +454,7 @@ const UserSummaryPanel = ({
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text
               style={[styles.summaryPanelTitle, { color: colors.textPrimary }]}
+              numberOfLines={1}
             >
               {userName} — Summary
             </Text>
@@ -584,7 +581,7 @@ const UserSummaryPanel = ({
   );
 };
 
-// ── Per-user row (refactored with Avatar) ─────────────────────────
+// ── Per-user row ──────────────────────────────────────────────────
 const UserStatRow = ({ stat, index, onOpen }) => {
   const { colors, borderRadius } = useUISystem();
   const connectedRate =
@@ -596,6 +593,7 @@ const UserStatRow = ({ stat, index, onOpen }) => {
     <TouchableOpacity
       onPress={() => onOpen(stat)}
       style={[styles.userRow, { borderBottomColor: colors.border }]}
+      activeOpacity={0.7}
     >
       <Avatar name={stat.userName} size={38} rounded={19} variant="solid" />
       <View style={{ flex: 1, minWidth: 0 }}>
@@ -627,8 +625,12 @@ const UserStatRow = ({ stat, index, onOpen }) => {
           </Text>
         </View>
       </View>
-      <View style={[styles.rateBadge, { borderRadius: borderRadius.full }]}>
-        <Text style={styles.rateText}>{connectedRate}%</Text>
+      <View style={styles.rowRight}>
+        <View style={[styles.rateBadge, { borderRadius: borderRadius.full }]}>
+          <Text style={styles.rateText}>{connectedRate}%</Text>
+        </View>
+        {/* Tap affordance — row clickable hai, detail khulega */}
+        <Icon name="chevron-right" size={16} color="#9ca3af" />
       </View>
     </TouchableOpacity>
   );
@@ -638,7 +640,7 @@ const UserStatRow = ({ stat, index, onOpen }) => {
 let currentlyPlayingSound = { stop: null };
 
 const CallLogRow = ({ callLog, onOpenLead }) => {
-  const { colors, borderRadius } = useUISystem();
+  const { colors } = useUISystem();
   const toast = useKitToast();
   const type = callLog.callDirection || callLog.callType || 'Outgoing';
   const meta = TYPE_META[type] || TYPE_META.Outgoing;
@@ -735,10 +737,10 @@ const CallLogRow = ({ callLog, onOpenLead }) => {
               callLog.leadId?.name ||
               'Unknown Lead'}
           </Text>
-          <Text style={styles.logSub}>
+          <Text style={styles.logSub} numberOfLines={1}>
             📞 {cleanNumber(callLog.phoneNumber || callLog.phone)}
           </Text>
-          <Text style={styles.logSub}>
+          <Text style={styles.logSub} numberOfLines={1}>
             {displayDuration} · {formatDate(displayTime)}
           </Text>
         </View>
@@ -824,9 +826,9 @@ const CallLogRow = ({ callLog, onOpenLead }) => {
   );
 };
 
-// ── Lead preview drawer (refactored with BottomSheet) ─────────────
+// ── Lead preview drawer ───────────────────────────────────────────
 const LeadPreviewDrawer = ({ visible, leadId, onClose }) => {
-  const { colors, typography, borderRadius } = useUISystem();
+  const { colors } = useUISystem();
   const toast = useKitToast();
   const [lead, setLead] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -849,6 +851,7 @@ const LeadPreviewDrawer = ({ visible, leadId, onClose }) => {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, leadId]);
 
   const callLead = () => {
@@ -928,6 +931,7 @@ const LeadPreviewDrawer = ({ visible, leadId, onClose }) => {
                   fontWeight: '600',
                   fontSize: 13,
                 }}
+                numberOfLines={1}
               >
                 {lead.email || '—'}
               </Text>
@@ -944,6 +948,7 @@ const LeadPreviewDrawer = ({ visible, leadId, onClose }) => {
                   fontWeight: '600',
                   fontSize: 13,
                 }}
+                numberOfLines={1}
               >
                 {lead.assignedTo?.name || lead.assignedUser?.name || '—'}
               </Text>
@@ -983,7 +988,7 @@ const LeadPreviewDrawer = ({ visible, leadId, onClose }) => {
 
 // ── Main screen ──────────────────────────────────────────────────
 const CallTracingScreen = () => {
-  const { colors, typography, borderRadius } = useUISystem();
+  const { colors, borderRadius } = useUISystem();
   const toast = useKitToast();
   const [stats, setStats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1046,6 +1051,7 @@ const CallTracingScreen = () => {
       setLoading(false);
       setRefreshing(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange]);
 
   useEffect(() => {
@@ -1123,6 +1129,7 @@ const CallTracingScreen = () => {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailUser, drawerPeriod, dateRange]);
 
   const getLogType = log => log.callDirection || log.callType;
@@ -1230,12 +1237,21 @@ const CallTracingScreen = () => {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={styles.headerBlock}>
-        <PageHeader
-          title="Call Tracing"
-          subtitle="Track every call — who's calling, who's answering, what's on record."
-        />
+      {/* ── Slim header — title + subtitle (PageHeader hata diya) ── */}
+      <View style={styles.titleRow}>
+        <Text
+          style={[styles.headerTitle, { color: colors.textPrimary }]}
+          numberOfLines={1}
+        >
+          Call Tracing
+        </Text>
+        <Text
+          style={[styles.headerSub, { color: colors.textSecondary }]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          Track every call — who's calling, who's answering, what's on record.
+        </Text>
       </View>
 
       {/* Summary */}
@@ -1529,6 +1545,7 @@ const CallTracingScreen = () => {
                   color: colors.textTertiary,
                   marginTop: 2,
                 }}
+                numberOfLines={1}
               >
                 {liveStats.total} calls · {liveStats.connected} connected ·{' '}
                 {liveStats.notConnected} not connected
@@ -1698,8 +1715,11 @@ const CallTracingScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, paddingTop: 12 },
-  headerBlock: { paddingHorizontal: 16, marginBottom: 10 },
+  screen: { flex: 1, paddingTop: 10 },
+  // Slim header (baaki screens ka standard)
+  titleRow: { paddingHorizontal: 16, marginBottom: 10 },
+  headerTitle: { fontSize: 15, fontWeight: '700', letterSpacing: -0.2 },
+  headerSub: { fontSize: 11, marginTop: 1 },
   summaryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1708,13 +1728,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   summaryIconBox: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  summaryValue: { fontSize: 17, fontWeight: '700' },
-  summaryLabel: { fontSize: 11, color: '#94a3b8' },
+  summaryValue: { fontSize: 16, fontWeight: '700' },
+  summaryLabel: { fontSize: 10.5, color: '#94a3b8' },
   quickFilterRow: { flexGrow: 0, marginBottom: 10 },
   searchRow: {
     flexDirection: 'row',
@@ -1729,8 +1749,9 @@ const styles = StyleSheet.create({
     gap: 6,
     borderWidth: 1,
     paddingHorizontal: 10,
+    height: 38,
   },
-  searchInput: { flex: 1, fontSize: 13, paddingVertical: 9 },
+  searchInput: { flex: 1, fontSize: 13, padding: 0 },
   sortByRow: {
     flexDirection: 'row',
     gap: 6,
@@ -1756,6 +1777,7 @@ const styles = StyleSheet.create({
   userSub: { fontSize: 11, color: '#94a3b8', marginTop: 1 },
   statsInline: { flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' },
   statChip: { fontSize: 10, fontWeight: '700' },
+  rowRight: { alignItems: 'flex-end', gap: 4 },
   rateBadge: {
     backgroundColor: '#16A34A1A',
     paddingHorizontal: 8,
@@ -1790,7 +1812,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 50,
+    paddingTop: 48,
     paddingBottom: 12,
     borderBottomWidth: 1,
     gap: 10,
@@ -1830,7 +1852,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    shrink: 0,
+    flexShrink: 0,
   },
   playCircleBtn: {
     width: 30,
