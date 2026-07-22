@@ -22,7 +22,7 @@ import IntegrationScreen from '../screens/main/IntegrationScreen';
 import ReportsScreen from '../screens/main/ReportsScreen';
 import NotificationsScreen from '../screens/main/NotificationsScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
-
+import AddScheduleScreen from '../components/ui/AddScheduleScreen';
 const Stack = createNativeStackNavigator();
 
 const MainNavigator = () => {
@@ -32,46 +32,50 @@ const MainNavigator = () => {
 
   return (
     <ThemeProvider>
-    <SidebarProvider>
-      {/* Custom sidebar rendered ONCE above everything */}
-      <CustomSidebar currentRoute={currentRoute} />
+      <SidebarProvider>
+        {/* Custom sidebar rendered ONCE above everything */}
+        <CustomSidebar currentRoute={currentRoute} />
 
-      <Stack.Navigator
-        screenOptions={{
-          header: props => <Topbar {...props} />,
-        }}
-        screenListeners={{
-          state: e => {
-            const state = e?.data?.state;
-            if (!state || !state.routes || state.index == null) return;
-            const route = state.routes[state.index];
-            if (route?.name && route.name !== currentRoute) {
-              setCurrentRoute(route.name);
-            }
-          },
-        }}
-      >
-        <Stack.Screen name="Dashboard" component={DashboardScreen} />
-        <Stack.Screen name="Leads" component={LeadsScreen} />
-        <Stack.Screen name="Pipeline" component={PipelineScreen} />
-        <Stack.Screen name="Calendar" component={CalendarScreen} />
-        <Stack.Screen name="Payments" component={PaymentsScreen} />
-        <Stack.Screen name="Attendance" component={AttendanceScreen} />
-        <Stack.Screen name="Import" component={ImportScreen} />
-        <Stack.Screen name="CrossSell" component={CrossSellDashboardScreen} />
-        <Stack.Screen name="CallTracing" component={CallTracingScreen} />
+        <Stack.Navigator
+          screenOptions={{
+            header: props => <Topbar {...props} />,
+          }}
+          screenListeners={{
+            state: e => {
+              const state = e?.data?.state;
+              if (!state || !state.routes || state.index == null) return;
+              const route = state.routes[state.index];
+              if (route?.name && route.name !== currentRoute) {
+                setCurrentRoute(route.name);
+              }
+            },
+          }}
+        >
+          <Stack.Screen name="Dashboard" component={DashboardScreen} />
+          <Stack.Screen name="Leads" component={LeadsScreen} />
+          <Stack.Screen name="Pipeline" component={PipelineScreen} />
+          <Stack.Screen name="Calendar" component={CalendarScreen} />
+          <Stack.Screen name="Payments" component={PaymentsScreen} />
+          <Stack.Screen name="Attendance" component={AttendanceScreen} />
+          <Stack.Screen name="Import" component={ImportScreen} />
+          <Stack.Screen name="CrossSell" component={CrossSellDashboardScreen} />
+          <Stack.Screen name="CallTracing" component={CallTracingScreen} />
+          <Stack.Screen
+            name="AddSchedule"
+            component={AddScheduleScreen}
+            options={{ animation: 'slide_from_bottom' }}
+          />
+          {/* Admin section */}
+          <Stack.Screen name="Team" component={TeamScreen} />
+          <Stack.Screen name="AdminPanel" component={AdminPanelScreen} />
+          <Stack.Screen name="Integrations" component={IntegrationScreen} />
+          <Stack.Screen name="Reports" component={ReportsScreen} />
 
-        {/* Admin section */}
-        <Stack.Screen name="Team" component={TeamScreen} />
-        <Stack.Screen name="AdminPanel" component={AdminPanelScreen} />
-        <Stack.Screen name="Integrations" component={IntegrationScreen} />
-        <Stack.Screen name="Reports" component={ReportsScreen} />
-
-        {/* Accessed from header icons (not from sidebar) */}
-        <Stack.Screen name="Notifications" component={NotificationsScreen} />
-        <Stack.Screen name="Settings" component={SettingsScreen} />
-      </Stack.Navigator>
-    </SidebarProvider>
+          {/* Accessed from header icons (not from sidebar) */}
+          <Stack.Screen name="Notifications" component={NotificationsScreen} />
+          <Stack.Screen name="Settings" component={SettingsScreen} />
+        </Stack.Navigator>
+      </SidebarProvider>
     </ThemeProvider>
   );
 };

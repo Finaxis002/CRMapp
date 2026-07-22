@@ -8,28 +8,22 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
-  TextInput,
-  FlatList,
   RefreshControl,
-  Platform,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Picker } from '@react-native-picker/picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { googleCalendarService } from '../../services/googleCalendarService.js';
-import AddEventModal from '../../components/common/AddEventModal.jsx';
 import api from '../../services/api.js';
 import { API_BASE_URL } from '../../config/index.js';
 import { useUISystem } from '../../hooks/useUISystem';
 import { useToast as useKitToast } from '../../components/ui/CustomToast';
-import PageHeader from '../../components/ui/PageHeader';
-import ImprovedButton from '../../components/ui/ImprovedButton';
+import BottomSheet from '../../components/ui/BottomSheet';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTHS = [
   'January',
@@ -45,7 +39,6 @@ const MONTHS = [
   'November',
   'December',
 ];
-const REMINDER_TYPES = ['Call', 'Email', 'Meeting', 'Follow-up', 'Payment'];
 
 const REMINDER_TYPE_CONFIG = {
   Call: {
@@ -53,35 +46,30 @@ const REMINDER_TYPE_CONFIG = {
     light: '#eff6ff',
     textColor: '#1d4ed8',
     icon: 'phone',
-    emoji: '📞',
   },
   Email: {
     color: '#a855f7',
     light: '#faf5ff',
     textColor: '#7e22ce',
     icon: 'email',
-    emoji: '📧',
   },
   Meeting: {
     color: '#22c55e',
     light: '#f0fdf4',
     textColor: '#15803d',
     icon: 'account-group',
-    emoji: '🤝',
   },
   'Follow-up': {
     color: '#f97316',
     light: '#fff7ed',
     textColor: '#c2410c',
     icon: 'bell',
-    emoji: '🔔',
   },
   Payment: {
     color: '#10b981',
     light: '#ecfdf5',
     textColor: '#065f46',
     icon: 'lightning-bolt',
-    emoji: '💰',
   },
 };
 
@@ -91,6 +79,7 @@ const EVENT_META = {
   textColor: '#4338ca',
   icon: 'calendar',
 };
+
 const TASK_META = {
   color: '#eab308',
   light: '#fefce8',
@@ -113,11 +102,11 @@ const getTypeConfig = type => {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
 const isSameDay = (a, b) =>
   a.getFullYear() === b.getFullYear() &&
   a.getMonth() === b.getMonth() &&
   a.getDate() === b.getDate();
-
 const isToday = d => isSameDay(d, new Date());
 
 const getCalendarDays = (year, month) => {
@@ -161,51 +150,6 @@ const formatDate = (date, time) => {
   return time ? `${dateStr} · ${formatTime12(time)}` : dateStr;
 };
 
-const toDateInputValue = date => {
-  if (!date) return '';
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return '';
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
-    2,
-    '0',
-  )}-${String(d.getDate()).padStart(2, '0')}`;
-};
-
-// ── Date/Time Helpers for Picker ──
-const parseDateInputValue = value => {
-  if (!value) return new Date();
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [year, month, day] = value.split('-').map(Number);
-    return new Date(year, month - 1, day);
-  }
-  const d = new Date(value);
-  return isNaN(d.getTime()) ? new Date() : d;
-};
-
-const parseTimeInputValue = (time, baseDate) => {
-  const d = parseDateInputValue(baseDate);
-  if (!time) {
-    d.setHours(10, 0, 0, 0);
-    return d;
-  }
-  const [hours, minutes] = String(time).split(':').map(Number);
-  d.setHours(
-    Number.isNaN(hours) ? 10 : hours,
-    Number.isNaN(minutes) ? 0 : minutes,
-    0,
-    0,
-  );
-  return d;
-};
-
-const toTimeInputValue = date => {
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return '10:00';
-  return `${String(d.getHours()).padStart(2, '0')}:${String(
-    d.getMinutes(),
-  ).padStart(2, '0')}`;
-};
-
 const getTaskLeadName = task => {
   if (task.leadId && typeof task.leadId === 'object')
     return task.leadId.name || '—';
@@ -213,6 +157,7 @@ const getTaskLeadName = task => {
 };
 
 // ── API Helpers ───────────────────────────────────────────────────────────────
+
 const getToken = async () => {
   try {
     const t =
@@ -260,25 +205,21 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
   const isEv = !!item.isEvent;
   const isTask = !!item.isTask;
   const isDone = isEv ? item.isDone : isTask ? item.taskCompleted : item.isDone;
-
   const badgeColor = isEv ? '#6366f1' : isTask ? '#eab308' : '#f59e0b';
   const badgeLabel = isEv ? 'Event' : isTask ? 'Task' : item.type || 'Reminder';
   const dotColor = isEv ? '#6366f1' : isTask ? '#eab308' : '#f59e0b';
-
   const title = isEv
     ? item.title
     : isTask
     ? item.text || 'Task'
     : `${item.type}: ${item.leadId?.name || '—'}`;
-
   const fullText = isEv
     ? item.note || ''
     : isTask
     ? item.text || ''
     : item.note || item.text || '';
-
   const dateVal = item.eventDate || item.reminderDate || item.taskDueDate;
-  const timeVal = item.eventTime || item.reminderTime || '';
+  const timeVal = item.eventTime || item.reminderTime || item.taskTime || '';
   const leadName = isTask ? getTaskLeadName(item) : item.leadId?.name || null;
   const assignedName = isEv
     ? Array.isArray(item.assignedTo)
@@ -301,6 +242,10 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
         onPress={onClose}
       >
         <TouchableOpacity style={s.detailCard} activeOpacity={1}>
+          {/* Grab handle — bottom-sheet feel + close affordance */}
+          <View style={s.sheetHandleWrap}>
+            <View style={s.sheetHandle} />
+          </View>
           {/* Header */}
           <View style={s.detailHeader}>
             <View style={s.detailHeaderLeft}>
@@ -333,13 +278,11 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
               <Icon name="close" size={18} color="#9ca3af" />
             </TouchableOpacity>
           </View>
-
           {/* Body */}
           <ScrollView style={s.detailBody} showsVerticalScrollIndicator={false}>
             <Text style={[s.detailTitle, isDone && s.strikethrough]}>
               {title}
             </Text>
-
             {!!fullText && (
               <View style={s.noteBox}>
                 <Text style={s.noteLabel}>
@@ -348,7 +291,6 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
                 <Text style={s.noteText}>{fullText}</Text>
               </View>
             )}
-
             {!!leadName && (
               <View style={s.infoRow}>
                 <View style={[s.infoIcon, { backgroundColor: '#eff6ff' }]}>
@@ -360,7 +302,6 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
                 </View>
               </View>
             )}
-
             {!!dateVal && (
               <View style={s.infoRow}>
                 <View style={[s.infoIcon, { backgroundColor: '#faf5ff' }]}>
@@ -374,7 +315,6 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
                 </View>
               </View>
             )}
-
             {!!assignedName && assignedName !== '—' && (
               <View style={s.infoRow}>
                 <View style={[s.infoIcon, { backgroundColor: '#f0fdf4' }]}>
@@ -387,7 +327,6 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
               </View>
             )}
           </ScrollView>
-
           {/* Footer */}
           <View style={s.detailFooter}>
             {onMarkDone && (
@@ -422,653 +361,12 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
                   onDelete();
                   onClose();
                 }}
-                style={[s.footerBtn, s.footerBtnDelete]}
+                style={s.footerDelBtn}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               >
-                <Icon name="close" size={14} color="#ef4444" />
-                <Text style={[s.footerBtnText, { color: '#ef4444' }]}>
-                  Delete
-                </Text>
+                <Icon name="trash-can-outline" size={16} color="#ef4444" />
               </TouchableOpacity>
             )}
-          </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
-    </Modal>
-  );
-};
-
-// ═════════════════════════════════════════════════════════════════════════════
-// ── AddReminderModal ─────────────────────────────────────────────────────────
-// ═════════════════════════════════════════════════════════════════════════════
-const AddReminderModal = ({
-  visible,
-  date,
-  users,
-  currentUser,
-  onClose,
-  onSaved,
-}) => {
-  const toast = useKitToast();
-  const today = toDateInputValue(new Date());
-  const [form, setForm] = useState({
-    leadSearch: '',
-    leadId: '',
-    leadName: '',
-    type: 'Call',
-    assignedTo: currentUser?._id || '',
-    reminderDate: date ? toDateInputValue(date) : today,
-    reminderTime: '10:00',
-    note: '',
-  });
-  const [leads, setLeads] = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  // ── Picker states ──
-  const [showReminderDatePicker, setShowReminderDatePicker] = useState(false);
-  const [showReminderTimePicker, setShowReminderTimePicker] = useState(false);
-
-  const setF = (key, val) => setForm(p => ({ ...p, [key]: val }));
-
-  const searchLeads = useCallback(async q => {
-    if (!q.trim()) {
-      setLeads([]);
-      return;
-    }
-    setSearching(true);
-    try {
-      const res = await apiFetch(
-        `/api/v1/leads?search=${encodeURIComponent(q)}&limit=5`,
-      );
-      const data = res.data?.items || res.data?.data || res.data || [];
-      setLeads(Array.isArray(data) ? data : []);
-    } catch {
-      setLeads([]);
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const t = setTimeout(() => searchLeads(form.leadSearch), 300);
-    return () => clearTimeout(t);
-  }, [form.leadSearch, searchLeads]);
-
-  const handleSave = async () => {
-    if (!form.leadId) {
-      toast.error('Select a lead');
-      return;
-    }
-    if (!form.assignedTo) {
-      toast.error('Assign to a user');
-      return;
-    }
-    if (!form.reminderDate) {
-      toast.error('Pick a date');
-      return;
-    }
-    const payload = {
-      leadId: form.leadId,
-      type: form.type,
-      assignedTo: form.assignedTo,
-      reminderDate: form.reminderDate,
-      reminderTime: form.reminderTime,
-    };
-    if (form.note?.trim()) payload.note = form.note.trim();
-    setSaving(true);
-    try {
-      const res = await apiFetch('/api/v1/reminders', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      if (res.success) {
-        toast.success(res.message || 'Reminder created!');
-        await onSaved(res.data);
-        onClose();
-      } else {
-        toast.error(res.message || 'Failed to create reminder');
-      }
-    } catch {
-      toast.error('Network error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <TouchableOpacity
-        style={s.modalOverlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
-        <TouchableOpacity style={s.modalCard} activeOpacity={1}>
-          {/* Header */}
-          <View style={s.modalHeader}>
-            <View style={s.modalHeaderLeft}>
-              <View style={[s.modalIcon, { backgroundColor: PRIMARY + '15' }]}>
-                <Icon name="bell" size={16} color={PRIMARY} />
-              </View>
-              <Text style={s.modalTitle}>Add Reminder</Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={s.closeBtn}>
-              <Icon name="close" size={18} color="#9ca3af" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            style={s.modalBody}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Lead */}
-            <Text style={s.fieldLabel}>Lead *</Text>
-            {form.leadId ? (
-              <View style={s.selectedLeadRow}>
-                <Text style={s.selectedLeadText}>{form.leadName}</Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    setForm(p => ({
-                      ...p,
-                      leadId: '',
-                      leadName: '',
-                      leadSearch: '',
-                    }))
-                  }
-                >
-                  <Icon name="close" size={14} color="#9ca3af" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View>
-                <TextInput
-                  style={s.input}
-                  placeholder="Search lead by name or phone…"
-                  placeholderTextColor="#9ca3af"
-                  value={form.leadSearch}
-                  onChangeText={v => setF('leadSearch', v)}
-                />
-                {form.leadSearch.length > 0 &&
-                  (leads.length > 0 || searching) && (
-                    <View style={s.dropdown}>
-                      {searching ? (
-                        <Text style={s.dropdownSearching}>Searching…</Text>
-                      ) : (
-                        leads.map(l => (
-                          <TouchableOpacity
-                            key={l._id}
-                            style={s.dropdownItem}
-                            onPress={() =>
-                              setForm(p => ({
-                                ...p,
-                                leadId: l._id,
-                                leadName: l.name,
-                                leadSearch: '',
-                              }))
-                            }
-                          >
-                            <Text style={s.dropdownName}>{l.name}</Text>
-                            <Text style={s.dropdownPhone}>{l.phone}</Text>
-                          </TouchableOpacity>
-                        ))
-                      )}
-                    </View>
-                  )}
-              </View>
-            )}
-
-            {/* Type & Assign */}
-            <View style={s.rowFields}>
-              <View style={s.halfField}>
-                <Text style={s.fieldLabel}>Type</Text>
-                <View style={s.pickerWrap}>
-                  <Picker
-                    itemStyle={s.pickerItem}
-                    mode="dropdown"
-                    selectedValue={form.type}
-                    onValueChange={v => setF('type', v)}
-                    style={s.picker}
-                    dropdownIconColor="#6b7280"
-                  >
-                    {REMINDER_TYPES.map(t => (
-                      <Picker.Item key={t} label={t} value={t} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
-              <View style={s.halfField}>
-                <Text style={s.fieldLabel}>Assign To *</Text>
-                <View style={s.pickerWrap}>
-                  <Picker
-                    itemStyle={s.pickerItem}
-                    mode="dropdown"
-                    selectedValue={form.assignedTo}
-                    onValueChange={v => setF('assignedTo', v)}
-                    style={s.picker}
-                    dropdownIconColor="#6b7280"
-                  >
-                    <Picker.Item label="Select user" value="" />
-                    {users.map(u => (
-                      <Picker.Item key={u._id} label={u.name} value={u._id} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
-            </View>
-
-            {/* Date & Time */}
-            <View style={s.rowFields}>
-              <View style={s.halfField}>
-                <Text style={s.fieldLabel}>Date *</Text>
-                <TouchableOpacity
-                  style={[s.input, s.datePickerInput]}
-                  activeOpacity={0.8}
-                  onPress={() => setShowReminderDatePicker(true)}
-                >
-                  <Text style={s.datePickerText}>
-                    {form.reminderDate || 'Select date'}
-                  </Text>
-                  <Icon
-                    name="calendar"
-                    size={18}
-                    color="#6b7280"
-                    style={s.datePickerIcon}
-                  />
-                </TouchableOpacity>
-              </View>
-              <View style={s.halfField}>
-                <Text style={s.fieldLabel}>Time</Text>
-                <TouchableOpacity
-                  style={[s.input, s.datePickerInput]}
-                  activeOpacity={0.8}
-                  onPress={() => setShowReminderTimePicker(true)}
-                >
-                  <Text style={s.datePickerText}>
-                    {form.reminderTime
-                      ? formatTime12(form.reminderTime)
-                      : 'Select time'}
-                  </Text>
-                  <Icon
-                    name="clock-outline"
-                    size={18}
-                    color="#6b7280"
-                    style={s.datePickerIcon}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Note */}
-            <Text style={s.fieldLabel}>Note</Text>
-            <TextInput
-              style={s.input}
-              value={form.note}
-              onChangeText={v => setF('note', v)}
-              placeholder="Optional note…"
-              placeholderTextColor="#9ca3af"
-            />
-          </ScrollView>
-
-          {/* ── Native Date Picker ── */}
-          {showReminderDatePicker && (
-            <DateTimePicker
-              value={parseDateInputValue(form.reminderDate)}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'calendar'}
-              onChange={(event, selectedDate) => {
-                if (Platform.OS === 'android') {
-                  setShowReminderDatePicker(false);
-                }
-                if (event?.type === 'dismissed') return;
-                if (selectedDate) {
-                  setF('reminderDate', toDateInputValue(selectedDate));
-                }
-              }}
-            />
-          )}
-
-          {/* ── Native Time Picker ── */}
-          {showReminderTimePicker && (
-            <DateTimePicker
-              value={parseTimeInputValue(form.reminderTime, form.reminderDate)}
-              mode="time"
-              is24Hour={false}
-              display={Platform.OS === 'ios' ? 'spinner' : 'clock'}
-              onChange={(event, selectedTime) => {
-                if (Platform.OS === 'android') {
-                  setShowReminderTimePicker(false);
-                }
-                if (event?.type === 'dismissed') return;
-                if (selectedTime) {
-                  setF('reminderTime', toTimeInputValue(selectedTime));
-                }
-              }}
-            />
-          )}
-
-          {/* Footer */}
-          <View style={s.modalFooter}>
-            <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
-              <Text style={s.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.saveBtn, saving && s.disabledBtn]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={s.saveBtnText}>Save Reminder</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
-    </Modal>
-  );
-};
-
-// ═════════════════════════════════════════════════════════════════════════════
-// ── AddTaskModal ──────────────────────────────────────────────────────────────
-// ═════════════════════════════════════════════════════════════════════════════
-const AddTaskModal = ({
-  visible,
-  date,
-  users,
-  currentUser,
-  onClose,
-  onSaved,
-}) => {
-  const toast = useKitToast();
-  const today = toDateInputValue(new Date());
-  const [form, setForm] = useState({
-    leadSearch: '',
-    leadId: '',
-    leadName: '',
-    text: '',
-    dueDate: date ? toDateInputValue(date) : today,
-    assignedTo: currentUser?._id || '',
-    notify: '',
-  });
-  const [leads, setLeads] = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  // ── Picker states ──
-  const [showTaskDatePicker, setShowTaskDatePicker] = useState(false);
-
-  const setF = (key, val) => setForm(p => ({ ...p, [key]: val }));
-
-  const searchLeads = useCallback(async q => {
-    if (!q.trim()) {
-      setLeads([]);
-      return;
-    }
-    setSearching(true);
-    try {
-      const res = await apiFetch(
-        `/api/v1/leads?search=${encodeURIComponent(q)}&limit=5`,
-      );
-      const data = res.data?.items || res.data?.data || res.data || [];
-      setLeads(Array.isArray(data) ? data : []);
-    } catch {
-      setLeads([]);
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const t = setTimeout(() => searchLeads(form.leadSearch), 300);
-    return () => clearTimeout(t);
-  }, [form.leadSearch, searchLeads]);
-
-  const handleSave = async () => {
-    if (!form.leadId) {
-      toast.error('Select a lead');
-      return;
-    }
-    if (!form.text.trim()) {
-      toast.error('Enter task description');
-      return;
-    }
-    if (!form.dueDate) {
-      toast.error('Due date is required');
-      return;
-    }
-    if (!form.assignedTo) {
-      toast.error('Assign to a user');
-      return;
-    }
-    const payload = {
-      activities: [
-        {
-          type: 'Task',
-          text: form.text.trim(),
-          taskDueDate: form.dueDate,
-          taskAssignedTo: form.assignedTo,
-          notifiedUsers: form.notify ? [form.notify] : [],
-        },
-      ],
-    };
-    setSaving(true);
-    try {
-      const res = await apiFetch(`/api/v1/leads/${form.leadId}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      });
-      if (res.success) {
-        toast.success('Task created & synced to Google Calendar ✅');
-        await onSaved();
-        onClose();
-      } else {
-        toast.error(res.message || 'Failed to create task');
-      }
-    } catch {
-      toast.error('Network error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <TouchableOpacity
-        style={s.modalOverlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
-        <TouchableOpacity style={s.modalCard} activeOpacity={1}>
-          <View style={s.modalHeader}>
-            <View style={s.modalHeaderLeft}>
-              <View style={[s.modalIcon, { backgroundColor: '#eab30820' }]}>
-                <Icon name="checkbox-marked" size={16} color="#eab308" />
-              </View>
-              <Text style={s.modalTitle}>Add Task</Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={s.closeBtn}>
-              <Icon name="close" size={18} color="#9ca3af" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            style={s.modalBody}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <Text style={s.fieldLabel}>Lead *</Text>
-            {form.leadId ? (
-              <View style={s.selectedLeadRow}>
-                <Text style={s.selectedLeadText}>{form.leadName}</Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    setForm(p => ({
-                      ...p,
-                      leadId: '',
-                      leadName: '',
-                      leadSearch: '',
-                    }))
-                  }
-                >
-                  <Icon name="close" size={14} color="#9ca3af" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View>
-                <TextInput
-                  style={s.input}
-                  placeholder="Search lead by name or phone…"
-                  placeholderTextColor="#9ca3af"
-                  value={form.leadSearch}
-                  onChangeText={v => setF('leadSearch', v)}
-                />
-                {form.leadSearch.length > 0 &&
-                  (leads.length > 0 || searching) && (
-                    <View style={s.dropdown}>
-                      {searching ? (
-                        <Text style={s.dropdownSearching}>Searching…</Text>
-                      ) : (
-                        leads.map(l => (
-                          <TouchableOpacity
-                            key={l._id}
-                            style={s.dropdownItem}
-                            onPress={() =>
-                              setForm(p => ({
-                                ...p,
-                                leadId: l._id,
-                                leadName: l.name,
-                                leadSearch: '',
-                              }))
-                            }
-                          >
-                            <Text style={s.dropdownName}>{l.name}</Text>
-                            <Text style={s.dropdownPhone}>{l.phone}</Text>
-                          </TouchableOpacity>
-                        ))
-                      )}
-                    </View>
-                  )}
-              </View>
-            )}
-
-            <Text style={s.fieldLabel}>Task Description</Text>
-            <TextInput
-              style={[s.input, { height: 72, textAlignVertical: 'top' }]}
-              value={form.text}
-              onChangeText={v => setF('text', v)}
-              placeholder="Task details..."
-              placeholderTextColor="#9ca3af"
-              multiline
-            />
-
-            <View style={s.rowFields}>
-              <View style={s.halfField}>
-                <Text style={s.fieldLabel}>Due Date *</Text>
-                <TouchableOpacity
-                  style={[s.input, s.datePickerInput]}
-                  activeOpacity={0.8}
-                  onPress={() => setShowTaskDatePicker(true)}
-                >
-                  <Text style={s.datePickerText}>
-                    {form.dueDate || 'Select due date'}
-                  </Text>
-                  <Icon
-                    name="calendar"
-                    size={18}
-                    color="#6b7280"
-                    style={s.datePickerIcon}
-                  />
-                </TouchableOpacity>
-              </View>
-              <View style={s.halfField}>
-                <Text style={s.fieldLabel}>Assign To *</Text>
-                <View style={s.pickerWrap}>
-                  <Picker
-                    itemStyle={s.pickerItem}
-                    mode="dropdown"
-                    selectedValue={form.assignedTo}
-                    onValueChange={v => setF('assignedTo', v)}
-                    style={s.picker}
-                    dropdownIconColor="#6b7280"
-                  >
-                    <Picker.Item label="Select user" value="" />
-                    {users.map(u => (
-                      <Picker.Item key={u._id} label={u.name} value={u._id} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
-            </View>
-
-            <Text style={s.fieldLabel}>Notify User</Text>
-            <View style={s.pickerWrap}>
-              <Picker
-                selectedValue={form.notify}
-                onValueChange={v => setF('notify', v)}
-                style={s.picker}
-                itemStyle={s.pickerItem}
-                mode="dropdown"
-                dropdownIconColor="#6b7280"
-              >
-                <Picker.Item label="None" value="" />
-                {users.map(u => (
-                  <Picker.Item key={u._id} label={u.name} value={u._id} />
-                ))}
-              </Picker>
-            </View>
-            <Text style={s.hintText}>
-              Select a user to notify on task creation.
-            </Text>
-          </ScrollView>
-
-          {/* ── Native Date Picker ── */}
-          {showTaskDatePicker && (
-            <DateTimePicker
-              value={parseDateInputValue(form.dueDate)}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'calendar'}
-              onChange={(event, selectedDate) => {
-                if (Platform.OS === 'android') {
-                  setShowTaskDatePicker(false);
-                }
-                if (event?.type === 'dismissed') return;
-                if (selectedDate) {
-                  setF('dueDate', toDateInputValue(selectedDate));
-                }
-              }}
-            />
-          )}
-
-          <View style={s.modalFooter}>
-            <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
-              <Text style={s.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                s.saveBtn,
-                { backgroundColor: '#eab308' },
-                saving && s.disabledBtn,
-              ]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={s.saveBtnText}>Save Task</Text>
-              )}
-            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </TouchableOpacity>
@@ -1232,7 +530,6 @@ const DayPanelModal = ({
               <Icon name="close" size={18} color="#9ca3af" />
             </TouchableOpacity>
           </View>
-
           <ScrollView
             style={s.dayPanelScroll}
             contentContainerStyle={s.dayPanelContent}
@@ -1253,7 +550,7 @@ const DayPanelModal = ({
                   >
                     <Text
                       style={{
-                        color: PRIMARY,
+                        color: '#f59e0b',
                         fontSize: 12,
                         fontWeight: '600',
                       }}
@@ -1353,12 +650,18 @@ const DayPanelModal = ({
                               <Text style={s.doneChipText}>Done</Text>
                             </TouchableOpacity>
                           )}
+                          {/* Tap affordance — row clickable hai, detail khulega */}
+                          <Icon
+                            name="chevron-right"
+                            size={16}
+                            color="#9ca3af"
+                            style={{ marginLeft: -6 }}
+                          />
                         </TouchableOpacity>
                       );
                     })}
                   </View>
                 )}
-
                 {dayEvents.length > 0 && (
                   <View style={{ marginBottom: 16 }}>
                     <Text style={s.sectionLabel}>EVENTS</Text>
@@ -1413,11 +716,17 @@ const DayPanelModal = ({
                             <Text style={s.doneChipText}>Done</Text>
                           </TouchableOpacity>
                         )}
+                        {/* Tap affordance — row clickable hai */}
+                        <Icon
+                          name="chevron-right"
+                          size={16}
+                          color="#9ca3af"
+                          style={{ marginLeft: -6 }}
+                        />
                       </TouchableOpacity>
                     ))}
                   </View>
                 )}
-
                 {dayTasks.length > 0 && (
                   <View style={{ marginBottom: 16 }}>
                     <Text style={s.sectionLabel}>TASKS</Text>
@@ -1462,6 +771,9 @@ const DayPanelModal = ({
                           <Text
                             style={[s.dayItemSub, { color: TASK_META.color }]}
                           >
+                            {task.taskTime
+                              ? `${formatTime12(task.taskTime)} · `
+                              : ''}
                             Lead: {getTaskLeadName(task)}
                           </Text>
                         </View>
@@ -1481,6 +793,13 @@ const DayPanelModal = ({
                             <Icon name="close" size={12} color="#ef4444" />
                           </TouchableOpacity>
                         </View>
+                        {/* Tap affordance — row clickable hai */}
+                        <Icon
+                          name="chevron-right"
+                          size={16}
+                          color="#9ca3af"
+                          style={{ marginLeft: -6 }}
+                        />
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -1511,10 +830,31 @@ const ItemCard = ({
   const isEv = !!item.isEvent;
   const isTask = !!item.isTask;
   const today = new Date();
-
   const badgeColor = isEv ? '#6366f1' : isTask ? '#eab308' : '#f59e0b';
   const dotColor = badgeColor;
   const badgeLabel = isEv ? 'Event' : isTask ? 'Task' : item.type || 'Reminder';
+
+  // Compact meta — EK hi line: "date/time · lead · assignee" (height bachao)
+  const dateVal = item.eventDate || item.reminderDate || item.taskDueDate;
+  const timeStr = item.eventTime || item.reminderTime || item.taskTime || '';
+  const dateTimeText =
+    showUndo || !isSameDay(new Date(dateVal || 0), today)
+      ? formatDate(dateVal, timeStr)
+      : formatTime12(timeStr || '10:00');
+  const assigneeText =
+    (isEv
+      ? Array.isArray(item.assignedTo)
+        ? item.assignedTo
+            .map(u => (typeof u === 'object' ? u?.name : ''))
+            .filter(Boolean)
+            .join(', ')
+        : item.assignedTo?.name
+      : isTask
+      ? item.taskAssignedTo?.name
+      : item.assignedTo?.name) || '—';
+  const metaText = isTask
+    ? `${dateTimeText} · ${getTaskLeadName(item)} · ${assigneeText}`
+    : `${dateTimeText} · ${assigneeText}`;
 
   return (
     <TouchableOpacity
@@ -1591,7 +931,6 @@ const ItemCard = ({
           )}
         </View>
       </View>
-
       <View
         style={{
           flexDirection: 'row',
@@ -1612,53 +951,20 @@ const ItemCard = ({
             : `${item.type}: ${item.leadId?.name || '—'}`}
         </Text>
       </View>
-
-      {isTask && (
-        <Text
-          style={{
-            marginLeft: 16,
-            fontSize: 10,
-            color: '#ca8a04',
-            fontWeight: '600',
-            marginTop: 2,
-          }}
-        >
-          Lead: {getTaskLeadName(item)}
+      {/* Meta — single compact line (ellipsis safe) */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
+          marginLeft: 16,
+          marginTop: 4,
+        }}
+      >
+        <Icon name="clock-outline" size={11} color="#6b7280" />
+        <Text style={s.itemCardMeta} numberOfLines={1} ellipsizeMode="tail">
+          {metaText}
         </Text>
-      )}
-
-      <View style={{ marginLeft: 16, marginTop: 4, gap: 2 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Icon name="calendar" size={11} color="#6b7280" />
-          <Text style={s.itemCardMeta}>
-            {showUndo ||
-            !isSameDay(
-              new Date(
-                item.eventDate || item.reminderDate || item.taskDueDate || 0,
-              ),
-              today,
-            )
-              ? formatDate(
-                  item.eventDate || item.reminderDate || item.taskDueDate,
-                  item.eventTime || item.reminderTime || '',
-                )
-              : formatTime12(item.eventTime || item.reminderTime || '10:00')}
-          </Text>
-        </View>
-        {!showUndo && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Icon name="account-group" size={11} color="#6b7280" />
-            <Text style={s.itemCardMeta} numberOfLines={1}>
-              {isEv
-                ? Array.isArray(item.assignedTo)
-                  ? item.assignedTo.map(u => u?.name).join(', ')
-                  : item.assignedTo?.name
-                : isTask
-                ? item.taskAssignedTo?.name || '—'
-                : item.assignedTo?.name || '—'}
-            </Text>
-          </View>
-        )}
       </View>
     </TouchableOpacity>
   );
@@ -1684,6 +990,8 @@ const RemindersView = ({
   const toast = useKitToast();
   const isAdmin = user?.role === 'master' || user?.role === 'admin';
   const today = new Date();
+  // 'today' | 'pending' | 'completed' — top tabs se turant switch
+  const [remTab, setRemTab] = useState('today');
 
   const filterRemindersByRole = list => {
     if (!user) return list;
@@ -1701,6 +1009,7 @@ const RemindersView = ({
       return aid === user._id || notified;
     });
   };
+
   const filterEventsByRole = list => {
     if (!user) return list;
     if (isAdmin)
@@ -1719,6 +1028,7 @@ const RemindersView = ({
         : (e.assignedTo?._id || e.assignedTo) === user._id,
     );
   };
+
   const filterTasksByRole = list => {
     if (!user) return list;
     if (isAdmin)
@@ -1743,6 +1053,7 @@ const RemindersView = ({
       toast.error('Failed to update status.');
     }
   };
+
   const markEventDone = async (id, cur) => {
     try {
       const res = await apiFetch(`/api/v1/events/${id}/done`, {
@@ -1847,62 +1158,114 @@ const RemindersView = ({
       }),
   };
 
-  const Section = ({ emoji, title, count, items, showUndo }) => (
-    <View style={s.reminderColumn}>
-      <Text style={s.reminderColTitle}>
-        {emoji} {title} ({count})
-      </Text>
-      {items.length === 0 ? (
-        <Text style={s.emptyText}>No items.</Text>
+  // Tabs — Today / Pending / Completed ek saath top pe, neeche sirf active list
+  const reminderTabs = [
+    {
+      key: 'today',
+      label: 'Today',
+      icon: 'calendar-today',
+      color: '#6366f1',
+      count: todayTotal,
+      items: combinedToday,
+      showUndo: false,
+    },
+    {
+      key: 'pending',
+      label: 'Pending',
+      icon: 'clock-outline',
+      color: '#f59e0b',
+      count: combinedPending.length,
+      items: combinedPending,
+      showUndo: false,
+    },
+    {
+      key: 'completed',
+      label: 'Completed',
+      icon: 'check-circle-outline',
+      color: '#16a34a',
+      count: completedTotal,
+      items: combinedCompleted,
+      showUndo: true,
+    },
+  ];
+  const activeTab = reminderTabs.find(t => t.key === remTab) || reminderTabs[0];
+
+  return (
+    <View style={{ marginTop: 4 }}>
+      {/* ── Tab bar — ek hi row mein teeno, top se turant switch ── */}
+      <View style={s.remTabs}>
+        {reminderTabs.map(t => {
+          const active = remTab === t.key;
+          return (
+            <TouchableOpacity
+              key={t.key}
+              style={[
+                s.remTab,
+                active && { backgroundColor: t.color, borderColor: t.color },
+              ]}
+              onPress={() => setRemTab(t.key)}
+              activeOpacity={0.75}
+            >
+              <Icon name={t.icon} size={12} color={active ? '#fff' : t.color} />
+              <Text
+                style={[s.remTabText, { color: active ? '#fff' : '#374151' }]}
+                numberOfLines={1}
+              >
+                {t.label}
+              </Text>
+              <View
+                style={[
+                  s.remTabCount,
+                  {
+                    backgroundColor: active
+                      ? 'rgba(255,255,255,0.25)'
+                      : t.color + '1a',
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    s.remTabCountText,
+                    { color: active ? '#fff' : t.color },
+                  ]}
+                >
+                  {t.count}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Active tab ke cards — MAIN ScrollView mein hi render hote hain,
+          isliye pull-to-refresh waise hi kaam karta rahega */}
+      {activeTab.items.length === 0 ? (
+        <Text style={[s.emptyText, { textAlign: 'center', marginTop: 28 }]}>
+          No {activeTab.label.toLowerCase()} items.
+        </Text>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled>
-          {items.map(
+        <View style={{ marginTop: 8 }}>
+          {activeTab.items.map(
             item =>
               item && (
                 <ItemCard
                   key={item._id}
                   item={item}
-                  showUndo={showUndo}
+                  showUndo={activeTab.showUndo}
                   {...cardProps}
                 />
               ),
           )}
-        </ScrollView>
+        </View>
       )}
     </View>
-  );
-
-  return (
-    <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-      <Section
-        emoji="📅"
-        title="Today's"
-        count={todayTotal}
-        items={combinedToday}
-        showUndo={false}
-      />
-      <Section
-        emoji="⏳"
-        title="Pending"
-        count={combinedPending.length}
-        items={combinedPending}
-        showUndo={false}
-      />
-      <Section
-        emoji="✅"
-        title="Completed"
-        count={completedTotal}
-        items={combinedCompleted}
-        showUndo={true}
-      />
-    </ScrollView>
   );
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ── Main CalendarScreen ───────────────────────────────────────────────────────
 // ═════════════════════════════════════════════════════════════════════════════
-const CalendarScreen = () => {
+const CalendarScreen = ({ navigation, route }) => {
   const { user } = useSelector(state => state.auth);
   const { colors, typography, spacing, borderRadius, isDark } = useUISystem();
   const toast = useKitToast();
@@ -1925,18 +1288,13 @@ const CalendarScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addModalDate, setAddModalDate] = useState(null);
-  const [showEventModal, setShowEventModal] = useState(false);
-  const [eventModalDate, setEventModalDate] = useState(null);
-  const [showTaskModal, setShowTaskModal] = useState(false);
-  const [taskModalDate, setTaskModalDate] = useState(null);
   const [filterUser, setFilterUser] = useState(() =>
     user?._id ? String(user._id) : 'all',
   );
   const [detailItem, setDetailItem] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [showFilterPicker, setShowFilterPicker] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
 
   const isCalendarAdmin = user?.role === 'admin' || user?.role === 'master';
 
@@ -2059,6 +1417,26 @@ const CalendarScreen = () => {
     fetchGcalStatus,
   ]);
 
+  // AddSchedule se kuch CREATE hoke wapas aaye TABHI refresh karo —
+  // bina change ke back pe / har focus pe refresh nahi (API calls bachao).
+  // Manual refresh = pull-to-refresh (RefreshControl).
+  useEffect(() => {
+    if (!route?.params?.scheduleUpdated) return;
+    handleRefreshAll();
+    navigation?.setParams?.({ scheduleUpdated: undefined });
+  }, [route?.params?.scheduleUpdated, handleRefreshAll, navigation]);
+
+  // ── Add screen navigation (Reminder / Event / Task — ek hi screen) ──
+  const openAdd = (type, date) => {
+    if (!navigation?.navigate) return;
+    navigation.navigate('AddSchedule', {
+      type,
+      date: (date || new Date()).toISOString(),
+      users,
+      currentUserId: String(user?._id || ''),
+    });
+  };
+
   // ── GCal ──
   const handleGcalConnect = async () => {
     try {
@@ -2069,12 +1447,14 @@ const CalendarScreen = () => {
       setGcalConnecting(false);
     }
   };
+
   const handleGcalDisconnect = () =>
     setDeleteConfirm({
       id: 'gcal',
       type: 'gcal',
       label: 'Disconnect Google Calendar?',
     });
+
   const doGcalDisconnect = async () => {
     try {
       setGcalConnecting(true);
@@ -2102,6 +1482,7 @@ const CalendarScreen = () => {
       toast.error('Failed to mark done');
     }
   };
+
   const handleMarkEventDone = async eventId => {
     try {
       const res = await apiFetch(`/api/v1/events/${eventId}/done`, {
@@ -2113,6 +1494,7 @@ const CalendarScreen = () => {
       toast.error('Failed to mark done');
     }
   };
+
   const handleMarkTaskDone = async (taskId, currentCompleted) => {
     try {
       const res = await apiFetch(`/api/v1/activities/${taskId}`, {
@@ -2125,6 +1507,7 @@ const CalendarScreen = () => {
       toast.error('Failed to update task');
     }
   };
+
   const handleDeleteTask = taskId =>
     setDeleteConfirm({
       id: taskId,
@@ -2198,6 +1581,7 @@ const CalendarScreen = () => {
       else handleMarkDone(detailItem._id);
     };
   };
+
   const getDetailDeleteHandler = () => {
     if (!detailItem) return null;
     if (detailItem.isTask) return () => handleDeleteTask(detailItem._id);
@@ -2222,6 +1606,7 @@ const CalendarScreen = () => {
       if (filterUser === 'all') return true;
       return String(r.assignedTo?._id || r.assignedTo || '') === filterUser;
     });
+
   const getEventsForDay = date =>
     events.filter(e => {
       if (!isSameDay(new Date(e.eventDate), date)) return false;
@@ -2230,6 +1615,7 @@ const CalendarScreen = () => {
         return e.assignedTo.some(u => String(u?._id || u) === filterUser);
       return String(e.assignedTo?._id || e.assignedTo || '') === filterUser;
     });
+
   const getTasksForDay = date =>
     tasks.filter(t => {
       if (!t.taskDueDate || !isSameDay(new Date(t.taskDueDate), date))
@@ -2239,12 +1625,66 @@ const CalendarScreen = () => {
         String(t.taskAssignedTo?._id || t.taskAssignedTo || '') === filterUser
       );
     });
+
   const filteredReminders = reminders.filter(r => {
     if (filterUser === 'all') return true;
     return String(r.assignedTo?._id || r.assignedTo || '') === filterUser;
   });
 
   const DAY_CELL_W = Math.floor((SCREEN_WIDTH - 16) / 7);
+
+  // ── View mode dropdown sheet (heading line wala dropdown) ──
+  const VIEW_OPTIONS = [
+    { key: 'calendar', label: 'Calendar', icon: 'calendar' },
+    { key: 'reminders', label: 'Reminders', icon: 'bell' },
+  ];
+
+  const viewSheet = (
+    <BottomSheet
+      visible={viewOpen}
+      onClose={() => setViewOpen(false)}
+      title="View Mode"
+      maxHeight={220}
+    >
+      {VIEW_OPTIONS.map(opt => {
+        const active = activeView === opt.key;
+        return (
+          <TouchableOpacity
+            key={opt.key}
+            onPress={() => {
+              setActiveView(opt.key);
+              setViewOpen(false);
+            }}
+            style={[
+              s.viewSheetRow,
+              active && { backgroundColor: PRIMARY + '14' },
+            ]}
+            activeOpacity={0.7}
+          >
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+            >
+              <Icon
+                name={opt.icon}
+                size={16}
+                color={active ? PRIMARY : '#6b7280'}
+              />
+              <Text
+                style={{
+                  fontSize: 13.5,
+                  color: active ? PRIMARY : '#111827',
+                  fontWeight: active ? '600' : '400',
+                }}
+              >
+                {opt.label}
+              </Text>
+            </View>
+            {active && <Icon name="check" size={18} color={PRIMARY} />}
+          </TouchableOpacity>
+        );
+      })}
+    </BottomSheet>
+  );
 
   if (loading)
     return (
@@ -2266,105 +1706,72 @@ const CalendarScreen = () => {
         }
         contentContainerStyle={{ paddingBottom: 40 }}
       >
-        {/* ── Header ── */}
+        {/* ── Header — compact: title+subtitle left, view dropdown right ── */}
         <View style={s.header}>
-          <PageHeader title="Calendar & Reminders" subtitle="Reminders, events and follow-ups" />
-
-          {/* View Toggle */}
-          <View style={s.toggleRow}>
-            <View style={s.toggleGroup}>
-              <TouchableOpacity
-                onPress={() => setActiveView('calendar')}
-                style={[
-                  s.toggleBtn,
-                  activeView === 'calendar' && s.toggleBtnActive,
-                ]}
-              >
-                <Icon
-                  name="calendar"
-                  size={14}
-                  color={activeView === 'calendar' ? '#111827' : '#9ca3af'}
-                />
-                <Text
-                  style={[
-                    s.toggleBtnText,
-                    activeView === 'calendar' && s.toggleBtnTextActive,
-                  ]}
-                >
-                  Calendar
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setActiveView('reminders')}
-                style={[
-                  s.toggleBtn,
-                  activeView === 'reminders' && s.toggleBtnActive,
-                ]}
-              >
-                <Icon
-                  name="bell"
-                  size={14}
-                  color={activeView === 'reminders' ? '#111827' : '#9ca3af'}
-                />
-                <Text
-                  style={[
-                    s.toggleBtnText,
-                    activeView === 'reminders' && s.toggleBtnTextActive,
-                  ]}
-                >
-                  Reminders
-                </Text>
-              </TouchableOpacity>
+          <View style={s.titleRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={s.headerTitle} numberOfLines={1}>
+                Calendar
+              </Text>
+              <Text style={s.headerSub} numberOfLines={1} ellipsizeMode="tail">
+                Reminders, events and follow-ups
+              </Text>
             </View>
-
-            {/* Filter Picker (admin only) */}
-            {isCalendarAdmin && (
-              <TouchableOpacity
-                style={s.filterPickerBtn}
-                onPress={() => setShowFilterPicker(true)}
-              >
-                <Icon name="account-filter" size={14} color="#6b7280" />
-                <Text style={s.filterPickerText} numberOfLines={1}>
-                  {filterUser === 'all'
-                    ? 'All Users'
-                    : users.find(u => String(u._id) === filterUser)?.name ||
-                      'User'}
-                </Text>
-                <Icon name="chevron-down" size={14} color="#9ca3af" />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={s.viewTrigger}
+              onPress={() => setViewOpen(true)}
+              activeOpacity={0.7}
+            >
+              <Icon
+                name={activeView === 'calendar' ? 'calendar' : 'bell'}
+                size={12}
+                color={PRIMARY}
+              />
+              <Text style={s.viewTriggerText} numberOfLines={1}>
+                {activeView === 'calendar' ? 'Calendar' : 'Reminders'}
+              </Text>
+              <Icon name="chevron-down" size={13} color="#9ca3af" />
+            </TouchableOpacity>
           </View>
 
-          {/* Action Buttons */}
+          {/* Filter Picker (admin only) — apni row mein */}
+          {isCalendarAdmin && (
+            <TouchableOpacity
+              style={[s.filterPickerBtn, { marginTop: 8, maxWidth: undefined }]}
+              onPress={() => setShowFilterPicker(true)}
+            >
+              <Icon name="account-filter" size={14} color="#6b7280" />
+              <Text style={s.filterPickerText} numberOfLines={1}>
+                {filterUser === 'all'
+                  ? 'All Users'
+                  : users.find(u => String(u._id) === filterUser)?.name ||
+                    'User'}
+              </Text>
+              <Icon name="chevron-down" size={14} color="#9ca3af" />
+            </TouchableOpacity>
+          )}
+
+          {/* Action Buttons — compact, AddSchedule screen pe navigate */}
           <View style={s.actionRow}>
             <TouchableOpacity
               style={[s.actionBtn, { backgroundColor: '#eab308' }]}
-              onPress={() => {
-                setTaskModalDate(today);
-                setShowTaskModal(true);
-              }}
+              onPress={() => openAdd('Task', today)}
             >
-              <Icon name="checkbox-marked" size={14} color="#fff" />
+              <Icon name="checkbox-marked" size={13} color="#fff" />
               <Text style={s.actionBtnText}>Task</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.actionBtn, { backgroundColor: '#6366f1' }]}
-              onPress={() => {
-                setEventModalDate(today);
-                setShowEventModal(true);
-              }}
+              onPress={() => openAdd('Event', today)}
             >
-              <Icon name="calendar-plus" size={14} color="#fff" />
+              <Icon name="calendar-plus" size={13} color="#fff" />
               <Text style={s.actionBtnText}>Event</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[s.actionBtn, { backgroundColor: PRIMARY }]}
-              onPress={() => {
-                setAddModalDate(today);
-                setShowAddModal(true);
-              }}
+              style={[s.actionBtn, { backgroundColor: '#f59e0b' }]}
+              onPress={() => openAdd('Reminder', today)}
             >
-              <Icon name="plus" size={14} color="#fff" />
+              <Icon name="plus" size={13} color="#fff" />
               <Text style={s.actionBtnText}>Reminder</Text>
             </TouchableOpacity>
           </View>
@@ -2395,19 +1802,6 @@ const CalendarScreen = () => {
               <View
                 style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}
               >
-                <TouchableOpacity
-                  onPress={async () => {
-                    await handleRefreshAll();
-                  }}
-                  style={s.calRefreshBtn}
-                  disabled={refreshing}
-                >
-                  <Icon
-                    name={refreshing ? 'loading' : 'refresh'}
-                    size={16}
-                    color="#374151"
-                  />
-                </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() =>
                     setCurrentDate(
@@ -2500,7 +1894,6 @@ const CalendarScreen = () => {
                   </View>
                 ))}
               </View>
-
               {/* Days */}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                 {calDays.map(({ date, currentMonth }, idx) => {
@@ -2514,7 +1907,6 @@ const CalendarScreen = () => {
                     ...dayTasks.map(t => ({ kind: 'task', data: t })),
                   ];
                   const total = allItems.length;
-
                   return (
                     <TouchableOpacity
                       key={idx}
@@ -2654,6 +2046,9 @@ const CalendarScreen = () => {
         )}
       </ScrollView>
 
+      {/* ── View mode dropdown ── */}
+      {viewSheet}
+
       {/* ── Filter User Modal (admin) ── */}
       {showFilterPicker && (
         <Modal
@@ -2724,16 +2119,16 @@ const CalendarScreen = () => {
         tasks={tasks}
         onClose={() => setSelectedDate(null)}
         onAddReminder={d => {
-          setAddModalDate(d);
-          setShowAddModal(true);
+          setSelectedDate(null);
+          openAdd('Reminder', d);
         }}
         onAddEvent={d => {
-          setEventModalDate(d);
-          setShowEventModal(true);
+          setSelectedDate(null);
+          openAdd('Event', d);
         }}
         onAddTask={d => {
-          setTaskModalDate(d);
-          setShowTaskModal(true);
+          setSelectedDate(null);
+          openAdd('Task', d);
         }}
         onMarkDone={handleMarkDone}
         onMarkEventDone={handleMarkEventDone}
@@ -2758,46 +2153,6 @@ const CalendarScreen = () => {
         onCancel={() => setDeleteConfirm(null)}
         onConfirm={handleConfirmDelete}
       />
-
-      {/* ── Add Reminder ── */}
-      <AddReminderModal
-        visible={showAddModal}
-        date={addModalDate}
-        users={users}
-        currentUser={user}
-        onClose={() => setShowAddModal(false)}
-        onSaved={async newReminder => {
-          if (newReminder) setReminders(prev => [...prev, newReminder]);
-          await fetchReminders();
-          await fetchTodayReminders();
-        }}
-      />
-
-      {/* ── Add Event (using existing component) ── */}
-      {showEventModal && (
-        <AddEventModal
-          date={eventModalDate}
-          users={users}
-          currentUser={user}
-          onClose={() => setShowEventModal(false)}
-          onSaved={async newEvent => {
-            if (newEvent) setEvents(prev => [...prev, newEvent]);
-            await fetchEvents();
-          }}
-        />
-      )}
-
-      {/* ── Add Task ── */}
-      <AddTaskModal
-        visible={showTaskModal}
-        date={taskModalDate}
-        users={users}
-        currentUser={user}
-        onClose={() => setShowTaskModal(false)}
-        onSaved={async () => {
-          await fetchTasks();
-        }}
-      />
     </View>
   );
 };
@@ -2809,44 +2164,44 @@ export default CalendarScreen;
 // ═════════════════════════════════════════════════════════════════════════════
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#f9fafb' },
-
-  // Header
-  header: { padding: 16, gap: 12 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: '#111827' },
-  headerSub: { fontSize: 13, color: '#6b7280', marginTop: 2 },
-
-  // Toggle
-  toggleRow: {
+  // Header — compact (Leads/Dashboard jaisi density)
+  header: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10 },
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
   },
-  toggleGroup: {
-    flexDirection: 'row',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 12,
-    padding: 4,
-    gap: 2,
+  headerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    letterSpacing: -0.2,
   },
-  toggleBtn: {
+  headerSub: { fontSize: 11, color: '#6b7280', marginTop: 1 },
+  // View mode dropdown trigger (heading line wala)
+  viewTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 9,
-  },
-  toggleBtnActive: {
+    gap: 5,
     backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexShrink: 0,
   },
-  toggleBtnText: { fontSize: 13, fontWeight: '600', color: '#9ca3af' },
-  toggleBtnTextActive: { color: '#111827' },
-
+  viewTriggerText: { fontSize: 12, fontWeight: '600', color: '#111827' },
+  viewSheetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
   // Filter Picker
   filterPickerBtn: {
     flexDirection: 'row',
@@ -2861,20 +2216,18 @@ const s = StyleSheet.create({
     maxWidth: 130,
   },
   filterPickerText: { fontSize: 12, color: '#374151', flex: 1 },
-
-  // Action buttons
-  actionRow: { flexDirection: 'row', gap: 8 },
+  // Action buttons — compact
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
   actionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 9,
+    gap: 5,
+    paddingVertical: 8,
     borderRadius: 10,
   },
-  actionBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-
+  actionBtnText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },
   // Calendar Nav
   calNav: {
     flexDirection: 'row',
@@ -2895,13 +2248,6 @@ const s = StyleSheet.create({
     width: 160,
     textAlign: 'center',
   },
-  calRefreshBtn: {
-    padding: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#fff',
-  },
   todayBtn: {
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -2911,7 +2257,6 @@ const s = StyleSheet.create({
     backgroundColor: '#fff',
   },
   todayBtnText: { fontSize: 13, fontWeight: '700', color: '#374151' },
-
   // GCal Bar
   gcalBar: {
     flexDirection: 'row',
@@ -2953,7 +2298,6 @@ const s = StyleSheet.create({
     borderColor: '#fca5a5',
   },
   gcalBtnText: { fontSize: 12, fontWeight: '700' },
-
   // Calendar Grid
   calGrid: {
     backgroundColor: '#fff',
@@ -3005,11 +2349,9 @@ const s = StyleSheet.create({
     maxHeight: SCREEN_HEIGHT * 0.85,
     overflow: 'hidden',
   },
-
   dayPanelScroll: {
     flex: 1,
   },
-
   dayPanelContent: {
     padding: 16,
     paddingBottom: 32,
@@ -3021,13 +2363,11 @@ const s = StyleSheet.create({
   moreText: { fontSize: 9, color: '#9ca3af', fontWeight: '600' },
   calChip: { borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1 },
   calChipText: { fontSize: 9, color: '#fff', fontWeight: '600' },
-
   // Legend
   legendRow: { marginTop: 12, marginBottom: 8 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { fontSize: 11, color: '#6b7280' },
-
   // Modal base
   modalOverlay: {
     flex: 1,
@@ -3050,126 +2390,9 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
   },
-  modalHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  modalIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   modalTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  modalBody: { padding: 20, maxHeight: 440 },
-  modalFooter: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-  },
   closeBtn: { padding: 6, borderRadius: 8, backgroundColor: '#f9fafb' },
-
-  // Form
-  fieldLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#6b7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-    marginTop: 12,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#111827',
-    backgroundColor: '#f9fafb',
-  },
-  datePickerInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 44,
-  },
-  datePickerText: {
-    fontSize: 14,
-    color: '#111827',
-    fontWeight: '500',
-    flex: 1,
-  },
-  datePickerIcon: {
-    marginLeft: 8,
-  },
-  pickerWrap: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    height: 54,
-    justifyContent: 'center',
-    overflow: 'visible',
-  },
-  picker: { height: 54, width: '100%', color: '#111827', fontSize: 13 },
-  pickerItem: {
-    fontSize: 13,
-    color: '#111827',
-  },
-  rowFields: { flexDirection: 'row', gap: 10 },
-  halfField: { flex: 1 },
-  hintText: { fontSize: 11, color: '#9ca3af', marginTop: 4 },
-
-  // Lead search dropdown
-  selectedLeadRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: '#f3f4f6',
-  },
-  selectedLeadText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-    flex: 1,
-  },
-  dropdown: {
-    marginTop: 2,
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    overflow: 'hidden',
-    zIndex: 10,
-    elevation: 5,
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    gap: 8,
-  },
-  dropdownName: { fontSize: 13, fontWeight: '600', color: '#111827' },
-  dropdownPhone: { fontSize: 11, color: '#9ca3af' },
-  dropdownSearching: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-
-  // Buttons
+  // Buttons (Delete confirm uses these)
   cancelBtn: {
     flex: 1,
     borderRadius: 12,
@@ -3191,8 +2414,6 @@ const s = StyleSheet.create({
     gap: 6,
   },
   saveBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  disabledBtn: { opacity: 0.5 },
-
   // Day Item (in DayPanel)
   sectionLabel: {
     fontSize: 10,
@@ -3230,41 +2451,53 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   doneChipText: { fontSize: 11, fontWeight: '600', color: '#374151' },
-
-  // Reminders view columns
-  reminderColumn: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
+  // Reminders view — top tabs (Today / Pending / Completed)
+  remTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 2,
+  },
+  remTab: {
+    flex: 1,
+    height: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#f3f4f6',
-    padding: 16,
-    marginBottom: 16,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#fff',
+    paddingHorizontal: 6,
   },
-  reminderColTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 12,
+  remTabText: { fontSize: 12, fontWeight: '700', flexShrink: 1 },
+  remTabCount: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
   },
+  remTabCountText: { fontSize: 10, fontWeight: '800' },
   emptyText: { fontSize: 13, color: '#9ca3af' },
-
-  // Item Card
+  // Item Card — compact density
   itemCard: {
     backgroundColor: '#fff',
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#f3f4f6',
-    padding: 12,
-    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 1,
   },
   itemCardTitle: { fontSize: 13, fontWeight: '700', color: '#111827', flex: 1 },
-  itemCardMeta: { fontSize: 10, color: '#6b7280' },
+  itemCardMeta: { fontSize: 10.5, color: '#6b7280', flex: 1 },
   iconBtn: { padding: 5, borderRadius: 7 },
-
   // Detail modal
   detailCard: {
     backgroundColor: '#fff',
@@ -3273,29 +2506,37 @@ const s = StyleSheet.create({
     maxHeight: '85%',
     overflow: 'hidden',
   },
+  // Grab handle (sheet feel)
+  sheetHandleWrap: { alignItems: 'center', paddingTop: 8 },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#e5e7eb',
+  },
   detailHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
   },
   detailHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  detailBody: { padding: 20 },
+  detailBody: { padding: 14 },
   detailTitle: {
-    fontSize: 18,
+    fontSize: 15.5,
     fontWeight: '800',
     color: '#111827',
-    lineHeight: 24,
-    marginBottom: 12,
+    lineHeight: 20,
+    marginBottom: 8,
   },
   detailFooter: {
     flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: '#f3f4f6',
     backgroundColor: '#fafafa',
@@ -3306,7 +2547,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 11,
+    paddingVertical: 10,
     borderRadius: 12,
   },
   footerBtnDone: { backgroundColor: '#22c55e' },
@@ -3315,23 +2556,26 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fed7aa',
   },
-  footerBtnDelete: {
-    flex: 0,
-    paddingHorizontal: 14,
+  // Delete — compact icon-only square (destructive confirm pehle se hai)
+  footerDelBtn: {
+    width: 41,
+    height: 41,
+    borderRadius: 12,
     backgroundColor: '#fee2e2',
     borderWidth: 1,
     borderColor: '#fca5a5',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  footerBtnText: { fontSize: 13, fontWeight: '700' },
-
+  footerBtnText: { fontSize: 12.5, fontWeight: '700' },
   // Note box
   noteBox: {
     backgroundColor: '#f9fafb',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#f3f4f6',
-    padding: 12,
-    marginBottom: 12,
+    padding: 10,
+    marginBottom: 8,
   },
   noteLabel: {
     fontSize: 9,
@@ -3339,21 +2583,20 @@ const s = StyleSheet.create({
     color: '#9ca3af',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    marginBottom: 4,
+    marginBottom: 3,
   },
-  noteText: { fontSize: 13, color: '#374151', lineHeight: 20 },
-
+  noteText: { fontSize: 12.5, color: '#374151', lineHeight: 18 },
   // Info rows in detail
   infoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   infoIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -3367,7 +2610,6 @@ const s = StyleSheet.create({
     marginBottom: 2,
   },
   infoValue: { fontSize: 14, fontWeight: '600', color: '#111827' },
-
   // Badge & dot
   badge: {
     flexDirection: 'row',
@@ -3379,7 +2621,6 @@ const s = StyleSheet.create({
   badgeText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
   dotBig: { width: 10, height: 10, borderRadius: 5 },
   dotSmall: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
-
   // Filter option
   filterOption: {
     flexDirection: 'row',
@@ -3392,7 +2633,6 @@ const s = StyleSheet.create({
   },
   filterOptionActive: { backgroundColor: PRIMARY + '08' },
   filterOptionText: { fontSize: 15, color: '#374151' },
-
   // Common
   strikethrough: { textDecorationLine: 'line-through', opacity: 0.6 },
 });

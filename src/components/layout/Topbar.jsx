@@ -28,6 +28,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 
 const BRAND = '#5a7bf6';
 
+const HIDDEN_ROUTES = ['AddSchedule'];
+
 const pageTitles = {
   Dashboard: 'Dashboard',
   Leads: 'Leads',
@@ -99,6 +101,8 @@ const Topbar = ({ navigation, route }) => {
     });
     return () => sub.remove();
   }, [searchOpen]);
+
+  if (HIDDEN_ROUTES.includes(route.name)) return null;
 
   return (
     <View
