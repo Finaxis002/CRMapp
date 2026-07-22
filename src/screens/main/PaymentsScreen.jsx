@@ -1,15 +1,13 @@
-// screens/PaymentsScreen.jsx — REFACTORED with UI Kit
+// screens/PaymentsScreen.jsx — REFACTORED with UI Kit (header compacted)
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  TextInput,
   Modal,
   Alert,
-  ActivityIndicator,
   FlatList,
   RefreshControl,
   Platform,
@@ -19,20 +17,18 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { canUser } from '../../utils/permissions';
 import { API_BASE_URL } from '../../config';
 import { useUISystem } from '../../hooks/useUISystem';
 import { useToast as useKitToast } from '../../components/ui/CustomToast';
 
 // ─── UI Kit imports ────────────────────────────────────────────────────────
-import PageHeader from '../../components/ui/PageHeader';
 import ImprovedButton from '../../components/ui/ImprovedButton';
 import ImprovedCard from '../../components/ui/ImprovedCard';
 import ImprovedTextInput from '../../components/ui/ImprovedTextInput';
 import ImprovedDropdown from '../../components/ui/ImprovedDropdown';
-import DateField from '../../components/ui/DateField';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import BottomSheet from '../../components/ui/BottomSheet';
 import EmptyState from '../../components/ui/EmptyState';
@@ -119,7 +115,7 @@ const StatsCard = ({
   valueColor,
   wide,
 }) => {
-  const { colors, borderRadius, elevation } = useUISystem();
+  const { colors, borderRadius } = useUISystem();
 
   return (
     <ImprovedCard
@@ -132,10 +128,13 @@ const StatsCard = ({
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'flex-start',
-          marginBottom: 8,
+          marginBottom: 6,
         }}
       >
-        <Text style={[styles.statsLabel, { color: colors.textSecondary }]}>
+        <Text
+          style={[styles.statsLabel, { color: colors.textSecondary }]}
+          numberOfLines={2}
+        >
           {label}
         </Text>
         <View
@@ -152,15 +151,22 @@ const StatsCard = ({
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'flex-end',
+          gap: 8,
         }}
       >
-        <Text style={[styles.statsValue, { color: valueColor }]}>{value}</Text>
+        <Text
+          style={[styles.statsValue, { color: valueColor }]}
+          numberOfLines={1}
+        >
+          {value}
+        </Text>
         {sub && (
           <Text
             style={[
               styles.statsSub,
               { color: colors.textSecondary, textAlign: 'right' },
             ]}
+            numberOfLines={1}
           >
             {sub}
           </Text>
@@ -170,6 +176,52 @@ const StatsCard = ({
   );
 };
 
+// ─── Slim screen header (shared by both connected & not-connected states) ────
+// PageHeader ki jagah compact: title 15/700 + subtitle 11 + right actions
+const SlimHeader = ({ colors, borderRadius, showActions, onFilter, onAdd }) => (
+  <View
+    style={[styles.headerContainer, { backgroundColor: colors.background }]}
+  >
+    <View style={styles.titleRow}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text
+          style={[styles.headerTitle, { color: colors.textPrimary }]}
+          numberOfLines={1}
+        >
+          Payments
+        </Text>
+        <Text
+          style={[styles.headerSub, { color: colors.textSecondary }]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          Track payments and collect via Razorpay
+        </Text>
+      </View>
+      {showActions && (
+        <View style={styles.headerActions}>
+          <IconButton
+            name="tune-variant"
+            onPress={onFilter}
+            color={colors.textSecondary}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: borderRadius.md,
+            }}
+          />
+          <ImprovedButton
+            title="Payment"
+            icon="plus"
+            size="small"
+            onPress={onAdd}
+          />
+        </View>
+      )}
+    </View>
+  </View>
+);
+
 // ─── Razorpay Connect Card ────────────────────────────────────────────────────
 const RazorpayConnectCard = ({ onConnect, loading }) => {
   const { colors, borderRadius } = useUISystem();
@@ -178,7 +230,7 @@ const RazorpayConnectCard = ({ onConnect, loading }) => {
     <ImprovedCard
       variant="outline"
       padding="large"
-      style={{ marginHorizontal: 16 }}
+      style={{ marginHorizontal: 16, marginTop: 4 }}
     >
       <View style={styles.connectHeader}>
         <View
@@ -220,21 +272,7 @@ const RazorpayConnectCard = ({ onConnect, loading }) => {
   );
 };
 
-// ─── Currency & Payment Mode options ─────────────────────────────────────────
-const CURRENCY_OPTIONS = [
-  { label: 'INR', value: 'INR' },
-  { label: 'USD', value: 'USD' },
-  { label: 'EUR', value: 'EUR' },
-];
-
-const PAYMENT_MODE_OPTIONS = [
-  { label: 'Razorpay (Online Checkout)', value: 'Razorpay' },
-  { label: 'UPI (Manual)', value: 'UPI' },
-  { label: 'Bank Transfer', value: 'Bank Transfer' },
-  { label: 'Cash', value: 'Cash' },
-  { label: 'Cheque', value: 'Cheque' },
-];
-
+// ─── Status filter options (currency/mode options ab AddPaymentScreen mein) ──
 const STATUS_OPTIONS = [
   { label: 'All Status', value: '' },
   { label: 'Pending', value: 'Pending' },
@@ -243,428 +281,6 @@ const STATUS_OPTIONS = [
   { label: 'Overdue', value: 'Overdue' },
   { label: 'Cancelled', value: 'Cancelled' },
 ];
-
-// ─── Payment Modal ────────────────────────────────────────────────────────────
-const PaymentModal = ({ visible, onClose, onSuccess }) => {
-  const { colors, typography, spacing, borderRadius } = useUISystem();
-  const toast = useKitToast();
-
-  const [form, setForm] = useState({
-    leadId: '',
-    amount: '',
-    currency: 'INR',
-    paymentMode: 'Razorpay',
-    description: '',
-    dueDate: '',
-  });
-  const [leadSearch, setLeadSearch] = useState('');
-  const [selectedLead, setSelectedLead] = useState(null);
-  const [leadSuggestions, setLeadSuggestions] = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [showLeadSuggestions, setShowLeadSuggestions] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [showDatePicker, setShowDatePicker] = useState(false);
-
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const searchLeads = useCallback(async q => {
-    if (!q.trim()) {
-      setLeadSuggestions([]);
-      return;
-    }
-    setSearching(true);
-    try {
-      const data = await apiFetch(
-        `/leads?search=${encodeURIComponent(q)}&limit=8`,
-      );
-      const payload = data?.data || data || [];
-      setLeadSuggestions(Array.isArray(payload) ? payload : []);
-    } catch {
-      setLeadSuggestions([]);
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (leadSearch) searchLeads(leadSearch);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [leadSearch, searchLeads]);
-
-  const handleManual = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      await apiFetch(API_BASE, {
-        method: 'POST',
-        body: {
-          leadId: form.leadId,
-          amount: Number(form.amount),
-          currency: form.currency,
-          paymentMode: form.paymentMode,
-          description: form.description,
-          dueDate: form.dueDate || undefined,
-        },
-      });
-      onSuccess('Payment recorded!');
-      onClose();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRazorpayCheckout = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const { payment, razorpayOrder } = await apiFetch(
-        `${API_BASE}/razorpay/create-order`,
-        {
-          method: 'POST',
-          body: {
-            leadId: form.leadId,
-            amount: Number(form.amount),
-            currency: form.currency,
-            description: form.description,
-            dueDate: form.dueDate || undefined,
-          },
-        },
-      );
-
-      Alert.alert(
-        'Razorpay Checkout',
-        `Order created: ${razorpayOrder.id}\nAmount: ₹${razorpayOrder.amount}`,
-        [
-          {
-            text: 'Simulate Payment',
-            onPress: async () => {
-              try {
-                await apiFetch(`${API_BASE}/razorpay/verify`, {
-                  method: 'POST',
-                  body: {
-                    razorpay_order_id: razorpayOrder.id,
-                    razorpay_payment_id: 'pay_simulated',
-                    razorpay_signature: 'simulated_signature',
-                    paymentId: payment._id,
-                  },
-                });
-                onSuccess('Payment successful! ✓');
-                onClose();
-              } catch (err) {
-                setError('Verification failed: ' + err.message);
-              }
-              setLoading(false);
-            },
-          },
-          { text: 'Cancel', style: 'cancel', onPress: () => setLoading(false) },
-        ],
-      );
-    } catch (err) {
-      setError(err.message);
-      setLoading(false);
-    }
-  };
-
-  const handleSubmit = () => {
-    if (!form.leadId || !form.amount || Number(form.amount) <= 0) {
-      setError('Lead and a valid amount are required.');
-      return;
-    }
-    form.paymentMode === 'Razorpay' ? handleRazorpayCheckout() : handleManual();
-  };
-
-  const handleDateChange = (event, selectedDate) => {
-    setShowDatePicker(Platform.OS === 'ios');
-    if (selectedDate) set('dueDate', selectedDate.toISOString().split('T')[0]);
-  };
-
-  const renderLeadSuggestion = ({ item }) => (
-    <TouchableOpacity
-      style={[styles.leadSuggestionItem, { borderBottomColor: colors.border }]}
-      onPress={() => {
-        set('leadId', item._id);
-        setSelectedLead(item);
-        setLeadSearch('');
-        setShowLeadSuggestions(false);
-      }}
-    >
-      <Text style={[styles.leadSuggestionName, { color: colors.textPrimary }]}>
-        {item.name || 'Unnamed'}
-      </Text>
-      <Text
-        style={[styles.leadSuggestionPhone, { color: colors.textSecondary }]}
-      >
-        {item.phone || 'No phone'}
-      </Text>
-    </TouchableOpacity>
-  );
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
-    >
-      <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
-        <View
-          style={[
-            styles.modalContent,
-            {
-              backgroundColor: colors.surface,
-              borderTopLeftRadius: borderRadius['2xl'],
-              borderTopRightRadius: borderRadius['2xl'],
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.modalHeader,
-              { borderBottomColor: colors.border, marginBottom: 16 },
-            ]}
-          >
-            <Text
-              style={[typography.h3, { color: colors.textPrimary, flex: 1 }]}
-            >
-              Record Payment
-            </Text>
-            <TouchableOpacity onPress={onClose} hitSlop={10}>
-              <Icon name="close" size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          {error ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
-
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Lead */}
-            {form.leadId && selectedLead ? (
-              <View
-                style={[
-                  styles.selectedLeadContainer,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.backgroundSecondary,
-                    borderRadius: borderRadius.md,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.selectedLeadText,
-                    { color: colors.textPrimary },
-                  ]}
-                >
-                  {`${selectedLead.name || 'Unnamed'} — ${
-                    selectedLead.phone || 'No phone'
-                  }`}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    set('leadId', '');
-                    setSelectedLead(null);
-                    setLeadSearch('');
-                  }}
-                >
-                  <Icon
-                    name="close-circle"
-                    size={20}
-                    color={colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={{ marginBottom: spacing.md }}>
-                <Text
-                  style={[
-                    typography.label,
-                    { color: colors.textPrimary, marginBottom: spacing.xs },
-                  ]}
-                >
-                  Lead *
-                </Text>
-                <View
-                  style={[
-                    styles.input,
-                    {
-                      borderColor: colors.border,
-                      backgroundColor: colors.surface,
-                      borderRadius: borderRadius.md,
-                    },
-                  ]}
-                >
-                  <TextInput
-                    style={{ flex: 1, color: colors.textPrimary, fontSize: 14 }}
-                    placeholder="Search lead by name or phone…"
-                    placeholderTextColor={colors.placeholder}
-                    value={leadSearch}
-                    onChangeText={text => {
-                      setLeadSearch(text);
-                      setShowLeadSuggestions(true);
-                      if (selectedLead) {
-                        setSelectedLead(null);
-                        set('leadId', '');
-                      }
-                    }}
-                    onFocus={() => setShowLeadSuggestions(true)}
-                  />
-                </View>
-                {showLeadSuggestions && leadSearch && (
-                  <View
-                    style={[
-                      styles.suggestionsContainer,
-                      {
-                        backgroundColor: colors.surface,
-                        borderColor: colors.border,
-                        borderRadius: borderRadius.md,
-                      },
-                    ]}
-                  >
-                    {searching ? (
-                      <View
-                        style={[
-                          styles.suggestionItem,
-                          { borderBottomColor: colors.border },
-                        ]}
-                      >
-                        <ActivityIndicator
-                          size="small"
-                          color={colors.primary}
-                        />
-                        <Text
-                          style={[
-                            styles.suggestionText,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          Searching…
-                        </Text>
-                      </View>
-                    ) : leadSuggestions.length > 0 ? (
-                      leadSuggestions
-                        .slice(0, 8)
-                        .map(item => (
-                          <View key={item._id}>
-                            {renderLeadSuggestion({ item })}
-                          </View>
-                        ))
-                    ) : (
-                      <View
-                        style={[
-                          styles.suggestionItem,
-                          { borderBottomColor: colors.border },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.suggestionText,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          No leads found.
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Amount & Currency */}
-            <View style={styles.rowFormGroup}>
-              <View style={styles.flex1}>
-                <ImprovedTextInput
-                  label="Amount *"
-                  value={form.amount}
-                  onChangeText={text => set('amount', text)}
-                  placeholder="0"
-                  keyboardType="numeric"
-                  size="medium"
-                />
-              </View>
-              <View style={styles.currencyContainer}>
-                <ImprovedDropdown
-                  label="Currency"
-                  placeholder="INR"
-                  selectedValue={form.currency}
-                  items={CURRENCY_OPTIONS}
-                  onValueChange={v => set('currency', v)}
-                  searchable={false}
-                />
-              </View>
-            </View>
-
-            {/* Payment Mode */}
-            <ImprovedDropdown
-              label="Payment Mode *"
-              selectedValue={form.paymentMode}
-              items={PAYMENT_MODE_OPTIONS}
-              onValueChange={v => set('paymentMode', v)}
-              searchable={false}
-            />
-
-            {/* Description */}
-            <ImprovedTextInput
-              label="Description"
-              value={form.description}
-              onChangeText={text => set('description', text)}
-              placeholder="Invoice / purpose…"
-              size="medium"
-            />
-
-            {/* Due Date */}
-            <DateField
-              value={form.dueDate || ''}
-              placeholder="Select Due Date"
-              mode="date"
-              onPress={() => setShowDatePicker(true)}
-            />
-            {showDatePicker && (
-              <DateTimePicker
-                value={form.dueDate ? new Date(form.dueDate) : new Date()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handleDateChange}
-              />
-            )}
-
-            {/* Actions */}
-            <View style={[styles.modalActions, { marginTop: spacing.xl }]}>
-              <ImprovedButton
-                title="Cancel"
-                variant="outline"
-                onPress={onClose}
-                style={{ flex: 1 }}
-              />
-              <ImprovedButton
-                title={
-                  form.paymentMode === 'Razorpay'
-                    ? 'Pay via Razorpay →'
-                    : 'Record Payment'
-                }
-                variant="primary"
-                onPress={handleSubmit}
-                loading={loading}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-};
 
 // ─── Generate Link Modal ──────────────────────────────────────────────────────
 const GenerateLinkModal = ({ visible, payment, onClose, onSuccess }) => {
@@ -719,14 +335,22 @@ const GenerateLinkModal = ({ visible, payment, onClose, onSuccess }) => {
             },
           ]}
         >
+          {/* Grab handle — sheet feel */}
+          <View style={styles.sheetHandleWrap}>
+            <View
+              style={[styles.sheetHandle, { backgroundColor: colors.border }]}
+            />
+          </View>
+
           <View style={styles.modalHeader}>
             <Text
               style={[typography.h3, { color: colors.textPrimary, flex: 1 }]}
+              numberOfLines={1}
             >
               Generate Payment Link
             </Text>
             <TouchableOpacity onPress={onClose} hitSlop={10}>
-              <Icon name="close" size={24} color={colors.textSecondary} />
+              <Icon name="close" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -763,7 +387,9 @@ const GenerateLinkModal = ({ visible, payment, onClose, onSuccess }) => {
                   },
                 ]}
               >
-                <Text style={styles.linkText}>{link}</Text>
+                <Text style={styles.linkText} numberOfLines={2}>
+                  {link}
+                </Text>
               </View>
               <ImprovedButton
                 title="Copy Link"
@@ -804,8 +430,8 @@ const GenerateLinkModal = ({ visible, payment, onClose, onSuccess }) => {
 };
 
 // ─── Main PaymentsScreen ──────────────────────────────────────────────────────
-const PaymentsScreen = ({ navigation }) => {
-  const { colors, typography, borderRadius, spacing } = useUISystem();
+const PaymentsScreen = ({ navigation, route }) => {
+  const { colors, typography, borderRadius } = useUISystem();
   const toast = useKitToast();
 
   const currentUser = useSelector(state => state.auth.user);
@@ -832,7 +458,6 @@ const PaymentsScreen = ({ navigation }) => {
   const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [showModal, setShowModal] = useState(false);
   const [linkModal, setLinkModal] = useState(null);
   const [razorpayConnected, setRazorpayConnected] = useState(false);
   const [authReady, setAuthReady] = useState(false);
@@ -869,6 +494,7 @@ const PaymentsScreen = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, statusFilter, selectedUserId, canFilterByUser]);
 
   const fetchStats = useCallback(async () => {
@@ -960,6 +586,15 @@ const PaymentsScreen = ({ navigation }) => {
     setRefreshing(false);
   };
 
+  // AddPayment screen se payment CREATE hoke wapas aaye tabhi refresh —
+  // plain back pe kuch nahi (API calls bachao). Manual = pull-to-refresh.
+  useEffect(() => {
+    if (!route?.params?.paymentsUpdated) return;
+    fetchPayments();
+    fetchStats();
+    navigation?.setParams?.({ paymentsUpdated: undefined });
+  }, [route?.params?.paymentsUpdated, fetchPayments, fetchStats, navigation]);
+
   useEffect(() => {
     const checkAuth = async () => {
       const token = await AsyncStorage.getItem('accessToken');
@@ -1003,21 +638,32 @@ const PaymentsScreen = ({ navigation }) => {
     >
       <View style={styles.paymentHeader}>
         <View style={styles.paymentLeadInfo}>
-          <Text style={[styles.paymentLeadName, { color: colors.textPrimary }]}>
+          <Text
+            style={[styles.paymentLeadName, { color: colors.textPrimary }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {item.leadId?.name || '—'}
           </Text>
           <Text
             style={[styles.paymentLeadPhone, { color: colors.textSecondary }]}
+            numberOfLines={1}
           >
             {item.leadId?.phone || ''}
           </Text>
         </View>
         <View style={styles.paymentAmountContainer}>
-          <Text style={[styles.paymentAmount, { color: colors.textPrimary }]}>
+          <Text
+            style={[styles.paymentAmount, { color: colors.textPrimary }]}
+            numberOfLines={1}
+          >
             {item.currency === 'INR' ? '₹' : item.currency}
             {item.amount.toLocaleString('en-IN')}
           </Text>
-          <Text style={[styles.paymentMode, { color: colors.textSecondary }]}>
+          <Text
+            style={[styles.paymentMode, { color: colors.textSecondary }]}
+            numberOfLines={1}
+          >
             {item.paymentMode}
           </Text>
         </View>
@@ -1044,6 +690,7 @@ const PaymentsScreen = ({ navigation }) => {
           </Text>
           <Text
             style={[styles.paymentDetailValue, { color: colors.textPrimary }]}
+            numberOfLines={1}
           >
             {item.paymentDate
               ? new Date(item.paymentDate).toLocaleDateString('en-IN')
@@ -1058,6 +705,8 @@ const PaymentsScreen = ({ navigation }) => {
           </Text>
           <Text
             style={[styles.paymentDetailValue, { color: colors.textPrimary }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
           >
             {item.leadId?.assignedTo?.name || '—'}
           </Text>
@@ -1070,6 +719,8 @@ const PaymentsScreen = ({ navigation }) => {
           </Text>
           <Text
             style={[styles.paymentDetailValue, { color: colors.textPrimary }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
           >
             {item.recordedBy?.name || '—'}
           </Text>
@@ -1120,35 +771,14 @@ const PaymentsScreen = ({ navigation }) => {
 
   const renderHeader = () => (
     <>
-      {/* ══ HEADER with PageHeader + right prop ══ */}
-      <View
-        style={[styles.headerContainer, { backgroundColor: colors.background }]}
-      >
-        <PageHeader
-          title="Payments"
-          subtitle="Track payments and collect via Razorpay"
-          right={
-            <View style={styles.headerActions}>
-              <IconButton
-                name="tune-variant"
-                onPress={() => setShowFilterModal(true)}
-                color={colors.textSecondary}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: borderRadius.md,
-                }}
-              />
-              <ImprovedButton
-                title="Payment"
-                icon="plus"
-                size="small"
-                onPress={() => setShowModal(true)}
-              />
-            </View>
-          }
-        />
-      </View>
+      {/* ══ Slim header — title + subtitle left, filter + add right ══ */}
+      <SlimHeader
+        colors={colors}
+        borderRadius={borderRadius}
+        showActions
+        onFilter={() => setShowFilterModal(true)}
+        onAdd={() => navigation?.navigate?.('AddPayment')}
+      />
 
       {/* Razorpay Status */}
       <ImprovedCard
@@ -1283,17 +913,7 @@ const PaymentsScreen = ({ navigation }) => {
         style={[styles.container, { backgroundColor: colors.background }]}
         edges={['bottom']}
       >
-        <View
-          style={[
-            styles.headerContainer,
-            { backgroundColor: colors.background },
-          ]}
-        >
-          <PageHeader
-            title="Payments"
-            subtitle="Track payments and collect via Razorpay"
-          />
-        </View>
+        <SlimHeader colors={colors} borderRadius={borderRadius} />
         <RazorpayConnectCard onConnect={handleConnect} loading={rzpLoading} />
       </SafeAreaView>
     );
@@ -1310,11 +930,13 @@ const PaymentsScreen = ({ navigation }) => {
         keyExtractor={item => item._id}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
-          <EmptyState
-            icon="receipt"
-            title="No payments found"
-            message="Record your first payment to get started"
-          />
+          loading ? null : (
+            <EmptyState
+              icon="receipt"
+              title="No payments found"
+              message="Record your first payment to get started"
+            />
+          )
         }
         refreshControl={
           <RefreshControl
@@ -1350,16 +972,6 @@ const PaymentsScreen = ({ navigation }) => {
             </View>
           ) : null
         }
-      />
-
-      <PaymentModal
-        visible={showModal}
-        onClose={() => setShowModal(false)}
-        onSuccess={msg => {
-          toast.success(msg);
-          fetchPayments();
-          fetchStats();
-        }}
       />
 
       {linkModal && (
@@ -1447,12 +1059,20 @@ const PaymentsScreen = ({ navigation }) => {
 // ─── Styles (reduced — only custom styling not covered by UI kit) ────────────
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  // Slim header (Calendar/Kanban standard)
   headerContainer: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 6,
   },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerTitle: { fontSize: 15, fontWeight: '700', letterSpacing: -0.2 },
+  headerSub: { fontSize: 11, marginTop: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+
+  // Sheet grab handle (modals)
+  sheetHandleWrap: { alignItems: 'center', paddingBottom: 4 },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2 },
 
   // Razorpay status
   razorpayStatus: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1469,12 +1089,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+    flexShrink: 1,
   },
   statsValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '600',
-    lineHeight: 26,
+    lineHeight: 24,
     marginBottom: 2,
+    flexShrink: 1,
   },
   statsSub: { fontSize: 11 },
   statsIconWrap: {
@@ -1504,12 +1126,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    gap: 8,
   },
-  paymentLeadInfo: { flex: 1 },
-  paymentLeadName: { fontSize: 16, fontWeight: '600' },
+  paymentLeadInfo: { flex: 1, minWidth: 0 },
+  paymentLeadName: { fontSize: 15, fontWeight: '600' },
   paymentLeadPhone: { fontSize: 12, marginTop: 2 },
   paymentAmountContainer: { alignItems: 'flex-end' },
-  paymentAmount: { fontSize: 16, fontWeight: 'bold' },
+  paymentAmount: { fontSize: 15, fontWeight: '700' },
   paymentMode: { fontSize: 12, marginTop: 2 },
   paymentDivider: { height: 1, marginVertical: 8 },
   paymentDetails: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -1556,24 +1179,15 @@ const styles = StyleSheet.create({
 
   // Modal shared
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalContent: { padding: 20, maxHeight: '90%' },
+  modalContent: { padding: 16, paddingTop: 10, maxHeight: '92%' },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  modalActions: { flexDirection: 'row', gap: 12 },
+  modalActions: { flexDirection: 'row', gap: 10 },
 
   // Form
-  rowFormGroup: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-    alignItems: 'flex-end',
-  },
-  flex1: { flex: 1 },
-  currencyContainer: { width: 100 },
-  input: { borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
 
   // Error
   errorContainer: {
@@ -1584,42 +1198,9 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 12,
   },
-  errorText: { fontSize: 14, color: '#DC2626' },
+  errorText: { fontSize: 13, color: '#DC2626' },
 
   // Lead suggestions
-  suggestionsContainer: {
-    position: 'absolute',
-    top: 48,
-    left: 0,
-    right: 0,
-    borderWidth: 1,
-    maxHeight: 200,
-    zIndex: 1000,
-  },
-  suggestionsList: { maxHeight: 200 },
-  suggestionItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-  },
-  leadSuggestionItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-  },
-  leadSuggestionName: { fontSize: 14, fontWeight: '500' },
-  leadSuggestionPhone: { fontSize: 12 },
-  suggestionText: { fontSize: 14 },
-  selectedLeadContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 12,
-  },
-  selectedLeadText: { fontSize: 14 },
 
   // Link modal
   linkModalContent: { maxHeight: '70%' },
@@ -1628,7 +1209,7 @@ const styles = StyleSheet.create({
   linkContainer: { marginVertical: 8 },
   linkDisplay: { borderWidth: 1, padding: 12, marginBottom: 12 },
   linkText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#4F46E5',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },

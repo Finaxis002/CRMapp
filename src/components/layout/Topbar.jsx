@@ -28,7 +28,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 
 const BRAND = '#5a7bf6';
 
-const HIDDEN_ROUTES = ['AddSchedule'];
+
+const HIDDEN_ROUTES_MOBILE = ['AddSchedule', 'AddPayment'];
 
 const pageTitles = {
   Dashboard: 'Dashboard',
@@ -102,7 +103,7 @@ const Topbar = ({ navigation, route }) => {
     return () => sub.remove();
   }, [searchOpen]);
 
-  if (HIDDEN_ROUTES.includes(route.name)) return null;
+  if (HIDDEN_ROUTES_MOBILE.includes(route.name)) return null;
 
   return (
     <View
