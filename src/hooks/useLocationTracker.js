@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Platform, PermissionsAndroid, Alert, Linking } from 'react-native';
-import Geolocation from '@react-native-community/geolocation';
+import Geolocation from 'react-native-geolocation-service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../config';
 
