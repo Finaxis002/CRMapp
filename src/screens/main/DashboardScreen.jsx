@@ -65,29 +65,48 @@ const getCurrentUser = async () => {
 const toISTDate = date =>
   date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
+const getISTDateParts = date => {
+  // IST date parts ko reliably nikalne ke liye Intl.DateTimeFormat use karo
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+  });
+  const parts = formatter.formatToParts(date);
+  const map = {};
+  parts.forEach(p => (map[p.type] = p.value));
+  const weekdayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    year: parseInt(map.year, 10),
+    month: parseInt(map.month, 10),
+    day: parseInt(map.day, 10),
+    weekday: weekdayMap[map.weekday],
+  };
+};
+
 const getDateParams = activeFilter => {
   const now = new Date();
+
   if (activeFilter === 'Today') {
     const today = toISTDate(now);
     return { dateFrom: today, dateTo: today };
   }
+
   if (activeFilter === 'This Week') {
-    const istDay = new Date(
-      now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
-    ).getDay();
-    const diffToMonday = istDay === 0 ? 6 : istDay - 1;
+    const { weekday } = getISTDateParts(now);
+    const diffToMonday = weekday === 0 ? 6 : weekday - 1;
     const monday = new Date(now.getTime() - diffToMonday * 24 * 60 * 60 * 1000);
     return { dateFrom: toISTDate(monday), dateTo: toISTDate(now) };
   }
+
   if (activeFilter === 'This Month') {
-    const istNow = new Date(
-      now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
-    );
-    const firstDay = `${istNow.getFullYear()}-${String(
-      istNow.getMonth() + 1,
-    ).padStart(2, '0')}-01`;
+    const { year, month } = getISTDateParts(now);
+    const firstDay = `${year}-${String(month).padStart(2, '0')}-01`;
     return { dateFrom: firstDay, dateTo: toISTDate(now) };
   }
+
   return {};
 };
 
@@ -269,11 +288,11 @@ const DashboardScreen = ({ navigation }) => {
   };
 
   const PERIOD_OPTIONS = [
-    { key: 'All', icon: 'layers' },
-    { key: 'Today', icon: 'sun' },
-    { key: 'This Week', icon: 'calendar' },
-    { key: 'This Month', icon: 'calendar' },
-  ];
+  { key: 'All', icon: 'layers' },
+  { key: 'Today', icon: 'sun' },
+  { key: 'This Week', icon: 'calendar' },
+  { key: 'This Month', icon: 'grid' },
+];
 
   useEffect(() => {
     let mounted = true;
@@ -404,14 +423,16 @@ const DashboardScreen = ({ navigation }) => {
       : 'Your sales at a glance';
 
   const periodSheet = (
-    <BottomSheet
-      visible={periodOpen}
-      onClose={() => setPeriodOpen(false)}
-      title="Time Period"
-      maxHeight={360}
-    >
+  <BottomSheet
+    visible={periodOpen}
+    onClose={() => setPeriodOpen(false)}
+    title="Time Period"
+    maxHeight={400}
+  >
+    <View style={{ gap: 8, paddingBottom: 4 }}>
       {PERIOD_OPTIONS.map(opt => {
         const active = activeFilter === opt.key;
+        const label = opt.key === 'All' ? 'All Time' : opt.key;
         return (
           <TouchableOpacity
             key={opt.key}
@@ -419,41 +440,61 @@ const DashboardScreen = ({ navigation }) => {
               setActiveFilter(opt.key);
               setPeriodOpen(false);
             }}
+            activeOpacity={0.7}
             style={[
               styles.periodRow,
-              { borderBottomColor: colors.borderLight },
-              active && { backgroundColor: colors.primarySoft },
+              {
+                backgroundColor: active
+                  ? colors.primarySoft
+                  : colors.backgroundSecondary,
+                borderColor: active ? colors.primary : colors.border,
+                borderRadius: borderRadius.lg,
+              },
             ]}
-            activeOpacity={0.7}
           >
             <View
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+              style={[
+                styles.periodIconWrap,
+                {
+                  backgroundColor: active ? colors.primary : colors.surface,
+                  borderRadius: borderRadius.md,
+                },
+              ]}
             >
               <Feather
                 name={opt.icon}
                 size={16}
-                color={active ? colors.primary : colors.textSecondary}
+                color={active ? colors.textInverse : colors.textSecondary}
               />
-              <Text
-                style={[
-                  typography.body2,
-                  {
-                    color: active ? colors.primary : colors.textPrimary,
-                    fontWeight: active ? '600' : '400',
-                  },
-                ]}
-              >
-                {opt.key === 'All' ? 'All Time' : opt.key}
-              </Text>
             </View>
+
+            <Text
+              style={[
+                typography.body2,
+                styles.periodLabel,
+                {
+                  color: active ? colors.primary : colors.textPrimary,
+                  fontWeight: active ? '700' : '500',
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {label}
+            </Text>
+
             {active && (
-              <Feather name="check" size={18} color={colors.primary} />
+              <View
+                style={[styles.periodCheck, { backgroundColor: colors.primary }]}
+              >
+                <Feather name="check" size={12} color={colors.textInverse} />
+              </View>
             )}
           </TouchableOpacity>
         );
       })}
-    </BottomSheet>
-  );
+    </View>
+  </BottomSheet>
+);
 
   // ─── Loading State ───────────────────────────────────────────────────────
   const pulse = useSkeletonPulse(loading);
@@ -1117,13 +1158,30 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   periodRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+  paddingHorizontal: 12,
+  paddingVertical: 12,
+  borderWidth: 1.5,
+},
+periodIconWrap: {
+  width: 32,
+  height: 32,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+periodLabel: {
+  flex: 1,
+  fontSize: 14,
+},
+periodCheck: {
+  width: 20,
+  height: 20,
+  borderRadius: 10,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

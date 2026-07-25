@@ -35,7 +35,7 @@ const TYPE_META = {
 };
 
 function ToastItem({ toast, onDismiss }) {
-  const { colors, spacing, borderRadius, elevation, typography } = useUISystem();
+  const { colors } = useUISystem();
   const translateY = useRef(new Animated.Value(-24)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const meta = TYPE_META[toast.type] || TYPE_META.info;
@@ -83,64 +83,35 @@ function ToastItem({ toast, onDismiss }) {
     <Animated.View
       style={[
         styles.toast,
-        elevation.md,
         {
-          backgroundColor: colors.surface,
-          borderRadius: borderRadius.lg,
-          borderLeftWidth: 4,
-          borderLeftColor: accent,
-          marginBottom: spacing.sm,
           opacity,
           transform: [{ translateY }],
         },
       ]}
     >
-      <View
-        style={[
-          styles.iconWrap,
-          { backgroundColor: soft, borderRadius: borderRadius.full },
-        ]}
+      <Pressable
+        onPress={toast.action?.label ? undefined : dismiss}
+        style={styles.toastPill}
       >
-        <Text style={[styles.iconText, { color: accent }]}>{meta.icon}</Text>
-      </View>
-
-      <View style={styles.body}>
-        {!!toast.title && (
-          <Text
-            style={[typography.label, { color: colors.textPrimary, marginBottom: 2 }]}
-            numberOfLines={1}
-          >
-            {toast.title}
-          </Text>
-        )}
-        <Text
-          style={[typography.body2, { color: colors.textSecondary }]}
-          numberOfLines={3}
-        >
-          {toast.message}
+        <View style={[styles.dot, { backgroundColor: accent }]} />
+        <Text style={styles.toastText} numberOfLines={2}>
+          {toast.title ? `${toast.title} — ${toast.message}` : toast.message}
         </Text>
-      </View>
-
-      {toast.action?.label ? (
-        <Pressable
-          onPress={() => {
-            toast.action.onPress?.();
-            dismiss();
-          }}
-          hitSlop={8}
-          style={styles.actionBtn}
-        >
-          <Text style={[typography.label, { color: accent }]}>
-            {toast.action.label}
-          </Text>
-        </Pressable>
-      ) : (
-        <Pressable onPress={dismiss} hitSlop={8} style={styles.closeBtn}>
-          <Text style={{ color: colors.textTertiary, fontSize: 18, lineHeight: 20 }}>
-            ×
-          </Text>
-        </Pressable>
-      )}
+        {toast.action?.label && (
+          <Pressable
+            onPress={() => {
+              toast.action.onPress?.();
+              dismiss();
+            }}
+            hitSlop={8}
+            style={{ marginLeft: 8 }}
+          >
+            <Text style={[styles.toastText, { color: accent, fontWeight: '700' }]}>
+              {toast.action.label}
+            </Text>
+          </Pressable>
+        )}
+      </Pressable>
     </Animated.View>
   );
 }
@@ -207,30 +178,37 @@ export function useToast() {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 54 : 28,
-    left: 16,
-    right: 16,
+    bottom: Platform.OS === 'ios' ? 40 : 32,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
     zIndex: 9999,
     elevation: 9999,
   },
   toast: {
+    marginBottom: 8,
+    maxWidth: '88%',
+  },
+  toastPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    minHeight: 56,
+    backgroundColor: 'rgba(30,30,30,0.94)',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    gap: 8,
   },
-  iconWrap: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    flexShrink: 0,
   },
-  iconText: { fontSize: 14, fontWeight: '700' },
-  body: { flex: 1, paddingRight: 8 },
-  actionBtn: { paddingHorizontal: 8, paddingVertical: 6 },
-  closeBtn: { paddingHorizontal: 6, paddingVertical: 4 },
+  toastText: {
+    fontSize: 13,
+    color: '#fff',
+    flexShrink: 1,
+  },
 });
 
 export default ToastProvider;
