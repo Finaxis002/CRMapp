@@ -880,9 +880,20 @@ const LeadFormModal = ({
           fd,
           { headers: { Authorization: `Bearer ${token}` } },
         );
-        setSavedRecordings(prev => [...prev, data.data.recording]);
+        const newRecording = data.data.recording;
+        setSavedRecordings(prev => [...prev, newRecording]);
+        if (lead) {
+          lead.recordings = Array.isArray(lead.recordings)
+            ? [...lead.recordings, newRecording]
+            : [newRecording];
+          lead.recording = {
+            label: newRecording.label,
+            url: newRecording.url,
+          };
+        }
         setRecordingFile(null);
         handleChange('recordingLabel', '');
+        handleChange('recordingUrl', '');
         toast.success('Recording saved successfully!');
       } else {
         toast.success('Save the lead — URL recording will be saved.');
@@ -997,11 +1008,22 @@ const LeadFormModal = ({
           });
           fd.append('label', form.recordingLabel || recordingFile.name);
           const token = await AsyncStorage.getItem('accessToken');
-          await axios.post(
+          const { data } = await axios.post(
             `/api/v1/leads/${savedLead._id}/recordings/upload`,
             fd,
             { headers: { Authorization: `Bearer ${token}` } },
           );
+          const uploadedRecording = data.data.recording;
+          setSavedRecordings(prev => [...prev, uploadedRecording]);
+          if (savedLead) {
+            savedLead.recordings = Array.isArray(savedLead.recordings)
+              ? [...savedLead.recordings, uploadedRecording]
+              : [uploadedRecording];
+            savedLead.recording = {
+              label: uploadedRecording.label,
+              url: uploadedRecording.url,
+            };
+          }
         } catch {
           toast.error('Lead created but recording upload failed.');
         }
