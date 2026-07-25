@@ -140,7 +140,13 @@ const CallLogCard = ({
 
   return (
     <View
-      style={[styles.card, { backgroundColor: '#fff', borderColor: '#e5e7eb' }]}
+      style={[
+        styles.card,
+        {
+          backgroundColor: theme.bgSurface || '#fff',
+          borderColor: theme.border || '#e5e7eb',
+        },
+      ]}
     >
       <View style={styles.row}>
         <View style={[styles.iconWrap, { backgroundColor: meta.bg }]}>
@@ -168,10 +174,10 @@ const CallLogCard = ({
             )}
           </View>
 
-          <Text style={styles.phone}>
+          <Text style={[styles.phone, { color: theme.textPrimary || '#111827' }]}>
             📞 {cleanNumber(callLog.phoneNumber || callLog.phone)}
           </Text>
-          <Text style={styles.meta}>
+          <Text style={[styles.meta, { color: theme.textMuted || '#6b7280' }]}>
             {durationLabel} · {formatDate(displayTime)}
           </Text>
         </View>
@@ -195,7 +201,10 @@ const CallLogCard = ({
             </>
           )}
           {showDelete && onDelete ? (
-            <TouchableOpacity onPress={onDelete} style={styles.deleteBtn}>
+            <TouchableOpacity
+              onPress={onDelete}
+              style={[styles.deleteBtn, { backgroundColor: theme.bgSurface || '#fff' }]}
+            >
               <Text style={styles.deleteBtnText}>Delete</Text>
             </TouchableOpacity>
           ) : null}
@@ -203,7 +212,7 @@ const CallLogCard = ({
       </View>
 
       {hasRecording && loaded && !hasError && (
-        <View style={styles.playerContainer}>
+        <View style={[styles.playerContainer, { backgroundColor: theme.bgContent || '#f8fafc' }]}>
           <Text style={styles.timerText}>{formatTimeDisplay(currentTime)}</Text>
           <Slider
             style={styles.slider}
@@ -236,15 +245,35 @@ const CallLogCard = ({
       )}
 
       {!hasRecording && (
-        <Text style={styles.noRec}>No recording for this call</Text>
+        <Text style={[styles.noRec, { color: theme.textMuted || '#9ca3af' }]}>
+          No recording for this call
+        </Text>
       )}
 
       {callLog.aiAnalysis?.summary ? (
-        <View style={styles.summaryBox}>
-          <Text style={styles.summaryLabel}>🤖 AI Summary</Text>
-          <Text style={styles.summaryText}>{callLog.aiAnalysis.summary}</Text>
+        <View
+          style={[
+            styles.summaryBox,
+            {
+              backgroundColor: theme.bgContent || '#f5f3ff',
+              borderLeftColor: theme.accent || '#7c3aed',
+            },
+          ]}
+        >
+          <Text
+            style={[styles.summaryLabel, { color: theme.accent || '#7c3aed' }]}
+          >
+            🤖 AI Summary
+          </Text>
+          <Text
+            style={[styles.summaryText, { color: theme.textPrimary || '#374151' }]}
+          >
+            {callLog.aiAnalysis.summary}
+          </Text>
           {callLog.aiAnalysis.intent ? (
-            <Text style={styles.intentText}>
+            <Text
+              style={[styles.intentText, { color: theme.textMuted || '#6b7280' }]}
+            >
               Intent: {callLog.aiAnalysis.intent}
             </Text>
           ) : null}
@@ -252,9 +281,13 @@ const CallLogCard = ({
       ) : null}
 
       {showMeta ? (
-        <View style={styles.metaFooter}>
-          <Text style={styles.metaFooterText}>{senderName}</Text>
-          <Text style={styles.metaFooterText}>{formatDate(displayTime)}</Text>
+        <View style={[styles.metaFooter, { borderTopColor: theme.border || '#f1f5f9' }]}>
+          <Text style={[styles.metaFooterText, { color: theme.textMuted || '#9ca3af' }]}>
+            {senderName}
+          </Text>
+          <Text style={[styles.metaFooterText, { color: theme.textMuted || '#9ca3af' }]}>
+            {formatDate(displayTime)}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -344,26 +377,21 @@ const styles = StyleSheet.create({
   noRec: { fontSize: 12, color: '#9ca3af', marginTop: 12 },
   summaryBox: {
     marginTop: 12,
-    backgroundColor: '#f5f3ff',
     borderRadius: 10,
     padding: 12,
     borderLeftWidth: 3,
-    borderLeftColor: '#7c3aed',
   },
   summaryLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#7c3aed',
     marginBottom: 4,
   },
   summaryText: {
     fontSize: 12,
-    color: '#374151',
     lineHeight: 18,
   },
   intentText: {
     fontSize: 11,
-    color: '#6b7280',
     marginTop: 6,
     fontStyle: 'italic',
   },

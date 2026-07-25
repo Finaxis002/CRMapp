@@ -19,7 +19,7 @@ import { API_BASE_URL } from '../../config/index.js';
 import { useUISystem } from '../../hooks/useUISystem';
 import { useToast as useKitToast } from '../../components/ui/CustomToast';
 import BottomSheet from '../../components/ui/BottomSheet';
-
+import { recolorStyles, dc } from '../../themes/darkThemeMap';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -40,62 +40,62 @@ const MONTHS = [
   'December',
 ];
 
-const REMINDER_TYPE_CONFIG = {
+const REMINDER_TYPE_CONFIG = isDark => ({
   Call: {
     color: '#3b82f6',
-    light: '#eff6ff',
-    textColor: '#1d4ed8',
+    light: dc('#eff6ff', isDark),
+    textColor: dc('#1d4ed8', isDark),
     icon: 'phone',
   },
   Email: {
     color: '#a855f7',
-    light: '#faf5ff',
-    textColor: '#7e22ce',
+    light: dc('#faf5ff', isDark),
+    textColor: dc('#7e22ce', isDark),
     icon: 'email',
   },
   Meeting: {
     color: '#22c55e',
-    light: '#f0fdf4',
-    textColor: '#15803d',
+    light: dc('#f0fdf4', isDark),
+    textColor: dc('#15803d', isDark),
     icon: 'account-group',
   },
   'Follow-up': {
     color: '#f97316',
-    light: '#fff7ed',
-    textColor: '#c2410c',
+    light: dc('#fff7ed', isDark),
+    textColor: dc('#c2410c', isDark),
     icon: 'bell',
   },
   Payment: {
     color: '#10b981',
-    light: '#ecfdf5',
-    textColor: '#065f46',
+    light: dc('#ecfdf5', isDark),
+    textColor: dc('#065f46', isDark),
     icon: 'lightning-bolt',
   },
-};
+});
 
-const EVENT_META = {
+const getEventMeta = isDark => ({
   color: '#6366f1',
-  light: '#eef2ff',
-  textColor: '#4338ca',
+  light: dc('#eef2ff', isDark),
+  textColor: dc('#4338ca', isDark),
   icon: 'calendar',
-};
+});
 
-const TASK_META = {
+const getTaskMeta = isDark => ({
   color: '#eab308',
-  light: '#fefce8',
-  textColor: '#854d0e',
+  light: dc('#fefce8', isDark),
+  textColor: dc('#854d0e', isDark),
   icon: 'checkbox-marked',
-};
+});
 
 const PRIMARY = '#6366f1';
 
-const getTypeConfig = type => {
-  if (type === 'Task') return TASK_META;
+const getTypeConfig = (type, isDark) => {
+  if (type === 'Task') return getTaskMeta(isDark);
   return (
-    REMINDER_TYPE_CONFIG[type] || {
+    REMINDER_TYPE_CONFIG(isDark)[type] || {
       color: '#6b7280',
-      light: '#f9fafb',
-      textColor: '#374151',
+      light: dc('#f9fafb', isDark),
+      textColor: dc('#374151', isDark),
       icon: 'bell',
     }
   );
@@ -200,7 +200,7 @@ const parseApiList = res => {
 // ═════════════════════════════════════════════════════════════════════════════
 // ── ItemDetailModal ──────────────────────────────────────────────────────────
 // ═════════════════════════════════════════════════════════════════════════════
-const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
+const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete, isDark, s }) => {
   if (!item) return null;
   const isEv = !!item.isEvent;
   const isTask = !!item.isTask;
@@ -267,7 +267,10 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
                 <View
                   style={[
                     s.badge,
-                    { backgroundColor: '#dcfce7', borderColor: '#bbf7d0' },
+                    {
+                      backgroundColor: dc('#dcfce7', isDark),
+                      borderColor: dc('#bbf7d0', isDark),
+                    },
                   ]}
                 >
                   <Text style={[s.badgeText, { color: '#16a34a' }]}>DONE</Text>
@@ -275,7 +278,7 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
               )}
             </View>
             <TouchableOpacity onPress={onClose} style={s.closeBtn}>
-              <Icon name="close" size={18} color="#9ca3af" />
+              <Icon name="close" size={18} color={dc('#9ca3af', isDark)} />
             </TouchableOpacity>
           </View>
           {/* Body */}
@@ -293,7 +296,7 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
             )}
             {!!leadName && (
               <View style={s.infoRow}>
-                <View style={[s.infoIcon, { backgroundColor: '#eff6ff' }]}>
+                <View style={[s.infoIcon, { backgroundColor: dc('#eff6ff', isDark) }]}>
                   <Icon name="account" size={14} color="#3b82f6" />
                 </View>
                 <View>
@@ -304,7 +307,7 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
             )}
             {!!dateVal && (
               <View style={s.infoRow}>
-                <View style={[s.infoIcon, { backgroundColor: '#faf5ff' }]}>
+                <View style={[s.infoIcon, { backgroundColor: dc('#faf5ff', isDark) }]}>
                   <Icon name="calendar" size={14} color="#a855f7" />
                 </View>
                 <View>
@@ -317,7 +320,7 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete }) => {
             )}
             {!!assignedName && assignedName !== '—' && (
               <View style={s.infoRow}>
-                <View style={[s.infoIcon, { backgroundColor: '#f0fdf4' }]}>
+                <View style={[s.infoIcon, { backgroundColor: dc('#f0fdf4', isDark) }]}>
                   <Icon name="account-group" size={14} color="#22c55e" />
                 </View>
                 <View>
@@ -382,6 +385,8 @@ const DeleteConfirmModal = ({
   deleteConfirm,
   onCancel,
   onConfirm,
+  isDark,
+  s,
 }) => (
   <Modal
     visible={visible}
@@ -411,14 +416,14 @@ const DeleteConfirmModal = ({
               width: 36,
               height: 36,
               borderRadius: 18,
-              backgroundColor: '#fee2e2',
+              backgroundColor: dc('#fee2e2', isDark),
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
             <Icon name="close" size={16} color="#dc2626" />
           </View>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: dc('#111827', isDark) }}>
             {deleteConfirm?.type === 'gcal'
               ? 'Disconnect?'
               : `Delete ${deleteConfirm?.type || ''}?`}
@@ -427,7 +432,7 @@ const DeleteConfirmModal = ({
         <Text
           style={{
             fontSize: 13,
-            color: '#6b7280',
+            color: dc('#6b7280', isDark),
             marginLeft: 48,
             marginBottom: 20,
           }}
@@ -475,8 +480,12 @@ const DayPanelModal = ({
   onMarkTaskDone,
   onDeleteTask,
   onOpenDetail,
+  isDark,
+  s,
 }) => {
   if (!date) return null;
+  const eventMeta = getEventMeta(isDark);
+  const taskMeta = getTaskMeta(isDark);
   const dayReminders = reminders.filter(r =>
     isSameDay(new Date(r.reminderDate), date),
   );
@@ -508,7 +517,7 @@ const DayPanelModal = ({
               <Text
                 style={{
                   fontSize: 11,
-                  color: '#9ca3af',
+                  color: dc('#9ca3af', isDark),
                   textTransform: 'uppercase',
                   fontWeight: '600',
                   letterSpacing: 0.5,
@@ -517,7 +526,7 @@ const DayPanelModal = ({
                 {date.toLocaleDateString('en-IN', { weekday: 'long' })}
               </Text>
               <Text
-                style={{ fontSize: 17, fontWeight: '700', color: '#111827' }}
+                style={{ fontSize: 17, fontWeight: '700', color: dc('#111827', isDark) }}
               >
                 {date.toLocaleDateString('en-IN', {
                   day: 'numeric',
@@ -527,7 +536,7 @@ const DayPanelModal = ({
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={s.closeBtn}>
-              <Icon name="close" size={18} color="#9ca3af" />
+              <Icon name="close" size={18} color={dc('#9ca3af', isDark)} />
             </TouchableOpacity>
           </View>
           <ScrollView
@@ -537,8 +546,8 @@ const DayPanelModal = ({
           >
             {empty ? (
               <View style={{ alignItems: 'center', paddingVertical: 32 }}>
-                <Icon name="bell-outline" size={32} color="#d1d5db" />
-                <Text style={{ color: '#9ca3af', marginTop: 8, fontSize: 14 }}>
+                <Icon name="bell-outline" size={32} color={dc('#d1d5db', isDark)} />
+<Text style={{ color: dc('#9ca3af', isDark), marginTop: 8, fontSize: 14 }}>
                   No events for this day
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 16, marginTop: 12 }}>
@@ -598,7 +607,7 @@ const DayPanelModal = ({
                   <View style={{ marginBottom: 16 }}>
                     <Text style={s.sectionLabel}>CRM REMINDERS</Text>
                     {dayReminders.map(r => {
-                      const cfg = getTypeConfig(r.type);
+                      const cfg = getTypeConfig(r.type, isDark);
                       return (
                         <TouchableOpacity
                           key={r._id}
@@ -652,11 +661,11 @@ const DayPanelModal = ({
                           )}
                           {/* Tap affordance — row clickable hai, detail khulega */}
                           <Icon
-                            name="chevron-right"
-                            size={16}
-                            color="#9ca3af"
-                            style={{ marginLeft: -6 }}
-                          />
+  name="chevron-right"
+  size={16}
+  color={dc('#9ca3af', isDark)}
+  style={{ marginLeft: -6 }}
+/>
                         </TouchableOpacity>
                       );
                     })}
@@ -674,8 +683,8 @@ const DayPanelModal = ({
                         style={[
                           s.dayItem,
                           {
-                            backgroundColor: EVENT_META.light,
-                            borderColor: EVENT_META.color + '40',
+                            backgroundColor: eventMeta.light,
+                            borderColor: eventMeta.color + '40',
                             opacity: ev.isDone ? 0.5 : 1,
                           },
                         ]}
@@ -683,7 +692,7 @@ const DayPanelModal = ({
                         <View
                           style={[
                             s.dayItemIcon,
-                            { backgroundColor: EVENT_META.color },
+                            { backgroundColor: eventMeta.color },
                           ]}
                         >
                           <Icon name="calendar" size={13} color="#fff" />
@@ -692,7 +701,7 @@ const DayPanelModal = ({
                           <Text
                             style={[
                               s.dayItemTitle,
-                              { color: EVENT_META.textColor },
+                              { color: eventMeta.textColor },
                               ev.isDone && s.strikethrough,
                             ]}
                             numberOfLines={1}
@@ -700,7 +709,7 @@ const DayPanelModal = ({
                             {ev.title}
                           </Text>
                           <Text
-                            style={[s.dayItemSub, { color: EVENT_META.color }]}
+                            style={[s.dayItemSub, { color: eventMeta.color }]}
                           >
                             {formatTime12(ev.eventTime)} ·{' '}
                             {Array.isArray(ev.assignedTo)
@@ -718,11 +727,11 @@ const DayPanelModal = ({
                         )}
                         {/* Tap affordance — row clickable hai */}
                         <Icon
-                          name="chevron-right"
-                          size={16}
-                          color="#9ca3af"
-                          style={{ marginLeft: -6 }}
-                        />
+  name="chevron-right"
+  size={16}
+  color={dc('#9ca3af', isDark)}
+  style={{ marginLeft: -6 }}
+/>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -743,8 +752,8 @@ const DayPanelModal = ({
                         style={[
                           s.dayItem,
                           {
-                            backgroundColor: TASK_META.light,
-                            borderColor: TASK_META.color + '40',
+                            backgroundColor: taskMeta.light,
+                            borderColor: taskMeta.color + '40',
                             opacity: task.taskCompleted ? 0.5 : 1,
                           },
                         ]}
@@ -752,7 +761,7 @@ const DayPanelModal = ({
                         <View
                           style={[
                             s.dayItemIcon,
-                            { backgroundColor: TASK_META.color },
+                            { backgroundColor: taskMeta.color },
                           ]}
                         >
                           <Icon name="checkbox-marked" size={13} color="#fff" />
@@ -761,7 +770,7 @@ const DayPanelModal = ({
                           <Text
                             style={[
                               s.dayItemTitle,
-                              { color: TASK_META.textColor },
+                              { color: taskMeta.textColor },
                               task.taskCompleted && s.strikethrough,
                             ]}
                             numberOfLines={1}
@@ -769,7 +778,7 @@ const DayPanelModal = ({
                             {task.text || 'Task'}
                           </Text>
                           <Text
-                            style={[s.dayItemSub, { color: TASK_META.color }]}
+                            style={[s.dayItemSub, { color: taskMeta.color }]}
                           >
                             {task.taskTime
                               ? `${formatTime12(task.taskTime)} · `
@@ -795,11 +804,11 @@ const DayPanelModal = ({
                         </View>
                         {/* Tap affordance — row clickable hai */}
                         <Icon
-                          name="chevron-right"
-                          size={16}
-                          color="#9ca3af"
-                          style={{ marginLeft: -6 }}
-                        />
+  name="chevron-right"
+  size={16}
+  color={dc('#9ca3af', isDark)}
+  style={{ marginLeft: -6 }}
+/>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -826,6 +835,7 @@ const ItemCard = ({
   onDeleteEvent,
   onDeleteReminder,
   onOpenDetail,
+  s,
 }) => {
   const isEv = !!item.isEvent;
   const isTask = !!item.isTask;
@@ -986,6 +996,7 @@ const RemindersView = ({
   onDeleteTask,
   onOpenDetail,
   setDeleteConfirm,
+  s,
 }) => {
   const toast = useKitToast();
   const isAdmin = user?.role === 'master' || user?.role === 'admin';
@@ -1156,6 +1167,7 @@ const RemindersView = ({
         type: 'reminder',
         label: 'This reminder will be deleted.',
       }),
+    s,
   };
 
   // Tabs — Today / Pending / Completed ek saath top pe, neeche sirf active list
@@ -1268,6 +1280,7 @@ const RemindersView = ({
 const CalendarScreen = ({ navigation, route }) => {
   const { user } = useSelector(state => state.auth);
   const { colors, typography, spacing, borderRadius, isDark } = useUISystem();
+const s = React.useMemo(() => createStyles(isDark), [isDark]);
   const toast = useKitToast();
   const today = new Date();
 
@@ -1667,12 +1680,12 @@ const CalendarScreen = ({ navigation, route }) => {
               <Icon
                 name={opt.icon}
                 size={16}
-                color={active ? PRIMARY : '#6b7280'}
+                color={active ? PRIMARY : dc('#6b7280', isDark)}
               />
               <Text
                 style={{
                   fontSize: 13.5,
-                  color: active ? PRIMARY : '#111827',
+                  color: active ? PRIMARY : dc('#111827', isDark),
                   fontWeight: active ? '600' : '400',
                 }}
               >
@@ -1688,7 +1701,14 @@ const CalendarScreen = ({ navigation, route }) => {
 
   if (loading)
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: dc('#f9fafb', isDark),
+        }}
+      >
         <ActivityIndicator size="large" color={PRIMARY} />
       </View>
     );
@@ -1740,14 +1760,14 @@ const CalendarScreen = ({ navigation, route }) => {
               style={[s.filterPickerBtn, { marginTop: 8, maxWidth: undefined }]}
               onPress={() => setShowFilterPicker(true)}
             >
-              <Icon name="account-filter" size={14} color="#6b7280" />
+              <Icon name="account-filter" size={14} color={dc('#6b7280', isDark)} />
               <Text style={s.filterPickerText} numberOfLines={1}>
                 {filterUser === 'all'
                   ? 'All Users'
                   : users.find(u => String(u._id) === filterUser)?.name ||
                     'User'}
               </Text>
-              <Icon name="chevron-down" size={14} color="#9ca3af" />
+              <Icon name="chevron-down" size={14} color={dc('#9ca3af', isDark)} />
             </TouchableOpacity>
           )}
 
@@ -1787,7 +1807,7 @@ const CalendarScreen = ({ navigation, route }) => {
                   onPress={() => setCurrentDate(new Date(year, month - 1, 1))}
                   style={s.navArrow}
                 >
-                  <Icon name="chevron-left" size={20} color="#374151" />
+                  <Icon name="chevron-left" size={20} color={dc('#374151', isDark)} />
                 </TouchableOpacity>
                 <Text style={s.calMonthTitle}>
                   {MONTHS[month]} {year}
@@ -1796,7 +1816,7 @@ const CalendarScreen = ({ navigation, route }) => {
                   onPress={() => setCurrentDate(new Date(year, month + 1, 1))}
                   style={s.navArrow}
                 >
-                  <Icon name="chevron-right" size={20} color="#374151" />
+                  <Icon name="chevron-right" size={20} color={dc('#374151', isDark)} />
                 </TouchableOpacity>
               </View>
               <View
@@ -1937,7 +1957,7 @@ const CalendarScreen = ({ navigation, route }) => {
                       <View style={{ gap: 1 }}>
                         {allItems.slice(0, 2).map((item, i) => {
                           if (item.kind === 'reminder') {
-                            const cfg = getTypeConfig(item.data.type);
+                            const cfg = getTypeConfig(item.data.type, isDark);
                             return (
                               <View
                                 key={i}
@@ -2007,7 +2027,7 @@ const CalendarScreen = ({ navigation, route }) => {
               style={s.legendRow}
               contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}
             >
-              {Object.entries(REMINDER_TYPE_CONFIG).map(([type, cfg]) => (
+              {Object.entries(REMINDER_TYPE_CONFIG(isDark)).map(([type, cfg]) => (
                 <View key={type} style={s.legendItem}>
                   <View style={[s.legendDot, { backgroundColor: cfg.color }]} />
                   <Text style={s.legendText}>{type}</Text>
@@ -2041,6 +2061,7 @@ const CalendarScreen = ({ navigation, route }) => {
               onDeleteTask={handleDeleteTask}
               onOpenDetail={handleOpenDetail}
               setDeleteConfirm={setDeleteConfirm}
+              s={s}
             />
           </View>
         )}
@@ -2072,7 +2093,7 @@ const CalendarScreen = ({ navigation, route }) => {
                   onPress={() => setShowFilterPicker(false)}
                   style={s.closeBtn}
                 >
-                  <Icon name="close" size={18} color="#9ca3af" />
+                  <Icon name="close" size={18} color={dc('#9ca3af', isDark)} />
                 </TouchableOpacity>
               </View>
               <ScrollView>
@@ -2113,6 +2134,7 @@ const CalendarScreen = ({ navigation, route }) => {
       {/* ── Day Panel ── */}
       <DayPanelModal
         visible={!!selectedDate}
+        isDark={isDark}
         date={selectedDate}
         reminders={filteredReminders}
         events={selectedDate ? getEventsForDay(selectedDate) : []}
@@ -2135,6 +2157,7 @@ const CalendarScreen = ({ navigation, route }) => {
         onMarkTaskDone={handleMarkTaskDone}
         onDeleteTask={handleDeleteTask}
         onOpenDetail={handleOpenDetail}
+        s={s}
       />
 
       {/* ── Detail Popup ── */}
@@ -2144,6 +2167,8 @@ const CalendarScreen = ({ navigation, route }) => {
         onClose={handleCloseDetail}
         onMarkDone={getDetailDoneHandler()}
         onDelete={getDetailDeleteHandler()}
+        isDark={isDark}
+        s={s}
       />
 
       {/* ── Delete Confirm ── */}
@@ -2152,6 +2177,8 @@ const CalendarScreen = ({ navigation, route }) => {
         deleteConfirm={deleteConfirm}
         onCancel={() => setDeleteConfirm(null)}
         onConfirm={handleConfirmDelete}
+        isDark={isDark}
+        s={s}
       />
     </View>
   );
@@ -2162,8 +2189,9 @@ export default CalendarScreen;
 // ═════════════════════════════════════════════════════════════════════════════
 // ── Styles ────────────────────────────────────────────────────────────────────
 // ═════════════════════════════════════════════════════════════════════════════
-const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f9fafb' },
+const createStyles = (isDark) => {
+  const rawStyles = {
+  screen: { flex: 1, backgroundColor: isDark ? '#020617' : '#f9fafb' },
   // Header — compact (Leads/Dashboard jaisi density)
   header: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10 },
   titleRow: {
@@ -2635,4 +2663,7 @@ const s = StyleSheet.create({
   filterOptionText: { fontSize: 15, color: '#374151' },
   // Common
   strikethrough: { textDecorationLine: 'line-through', opacity: 0.6 },
-});
+  };
+
+  return StyleSheet.create(recolorStyles(rawStyles, isDark));
+};

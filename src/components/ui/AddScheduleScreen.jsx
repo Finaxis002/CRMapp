@@ -30,7 +30,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { API_BASE_URL } from '../../config';
 import { useToast as useKitToast } from './CustomToast';
-
+import { recolorStyles, dc } from '../../themes/darkThemeMap';
+import { useUISystem } from '../../hooks/useUISystem';
 // ── Type config — ek hi screen mein teeno modes ──────────────────────────────
 
 const TYPE_CONFIG = {
@@ -131,9 +132,9 @@ const fmtTime12 = time => {
 
 // ── Uniform field wrapper ────────────────────────────────────────────────────
 
-const Field = ({ label, children }) => (
-  <View style={st.field}>
-    <Text style={st.fieldLabel}>{label}</Text>
+const Field = ({ label, children, styles }) => (
+  <View style={styles.field}>
+    <Text style={styles.fieldLabel}>{label}</Text>
     {children}
   </View>
 );
@@ -149,6 +150,12 @@ const AddScheduleScreen = ({ navigation, route }) => {
     [params.users],
   );
   const currentUserId = params.currentUserId || '';
+
+  const { isDark } = useUISystem();
+  const styles = useMemo(() => recolorStyles(st, isDark), [isDark]);
+  const placeholderColor = dc('#9ca3af', isDark);
+  const mutedIconColor = dc('#9ca3af', isDark);
+  const headerBackIconColor = dc('#374151', isDark);
 
   const [type, setType] = useState(
     TYPE_CONFIG[params.type] ? params.type : 'Reminder',
@@ -333,19 +340,19 @@ const AddScheduleScreen = ({ navigation, route }) => {
 
   // ── User picker row (single & multi dono modes) ──
   const renderUserList = (selectedIds, onToggle, multi = false) => (
-    <View style={st.userList}>
+    <View style={styles.userList}>
       <ScrollView style={{ maxHeight: 160 }} nestedScrollEnabled>
         {users.map(u => {
           const selected = selectedIds.includes(String(u._id));
           return (
             <TouchableOpacity
               key={u._id}
-              style={[st.userRow, selected && st.userRowActive]}
+              style={[styles.userRow, selected && styles.userRowActive]}
               onPress={() => onToggle(String(u._id))}
             >
               <Text
                 style={[
-                  st.userRowText,
+                  styles.userRowText,
                   selected && { color: '#4338ca', fontWeight: '600' },
                 ]}
               >
@@ -356,7 +363,7 @@ const AddScheduleScreen = ({ navigation, route }) => {
           );
         })}
         {users.length === 0 && (
-          <Text style={st.emptyUsers}>No users loaded</Text>
+          <Text style={styles.emptyUsers}>No users loaded</Text>
         )}
       </ScrollView>
     </View>
@@ -364,27 +371,27 @@ const AddScheduleScreen = ({ navigation, route }) => {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#f9fafb' }}
+      style={{ flex: 1, backgroundColor: dc('#f9fafb', isDark) }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* ── Custom form header — shared Topbar is screen pe hide rehta hai ── */}
-      <View style={[st.header, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: dc('#ffffff', isDark), borderBottomColor: dc('#f1f5f9', isDark) }]}>
         <TouchableOpacity
-          style={st.backBtn}
+          style={[styles.backBtn, { backgroundColor: dc('#f3f4f6', isDark) }]}
           onPress={() => navigation?.goBack?.()}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           activeOpacity={0.7}
         >
-          <Icon name="arrow-left" size={20} color="#334155" />
+          <Icon name="arrow-left" size={20} color={headerBackIconColor} />
         </TouchableOpacity>
-        <View style={[st.headerIconWrap, { backgroundColor: cfg.soft }]}>
+        <View style={[styles.headerIconWrap, { backgroundColor: dc(cfg.soft, isDark) }]}>
           <Icon name={cfg.icon} size={15} color={cfg.color} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={st.headerTitle} numberOfLines={1}>
+          <Text style={[styles.headerTitle, { color: dc('#111827', isDark) }]} numberOfLines={1}>
             Add {type}
           </Text>
-          <Text style={st.headerSub} numberOfLines={1} ellipsizeMode="tail">
+          <Text style={[styles.headerSub, { color: dc('#9ca3af', isDark) }]} numberOfLines={1} ellipsizeMode="tail">
             {cfg.subtitle}
           </Text>
         </View>
@@ -394,19 +401,20 @@ const AddScheduleScreen = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
-          st.container,
+          styles.container,
           { paddingBottom: 24 + insets.bottom },
         ]}
       >
         {/* ── Type switch — same row teeno — uniform segmented pills ── */}
-        <View style={st.typeRow}>
+        <View style={styles.typeRow}>
           {Object.values(TYPE_CONFIG).map(t => {
             const active = type === t.key;
             return (
               <TouchableOpacity
                 key={t.key}
                 style={[
-                  st.typePill,
+                  styles.typePill,
+                  { backgroundColor: dc('#fff', isDark), borderColor: dc('#e5e7eb', isDark) },
                   active && { backgroundColor: t.color, borderColor: t.color },
                 ]}
                 onPress={() => setType(t.key)}
@@ -419,8 +427,8 @@ const AddScheduleScreen = ({ navigation, route }) => {
                 />
                 <Text
                   style={[
-                    st.typePillText,
-                    active ? { color: '#fff' } : { color: '#374151' },
+                    styles.typePillText,
+                    active ? { color: '#fff' } : { color: dc('#374151', isDark) },
                   ]}
                 >
                   {t.label}
@@ -432,11 +440,11 @@ const AddScheduleScreen = ({ navigation, route }) => {
 
         {/* ── EVENT: Title ── */}
         {type === 'Event' && (
-          <Field label="EVENT TITLE *">
+          <Field label="EVENT TITLE *" styles={styles}>
             <TextInput
-              style={st.input}
+              style={[styles.input, { backgroundColor: dc('#fff', isDark), borderColor: dc('#e5e7eb', isDark), color: dc('#111827', isDark) }]}
               placeholder="e.g. Team sync, Product demo…"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={placeholderColor}
               value={form.title}
               onChangeText={v => setF('title', v)}
             />
@@ -445,10 +453,10 @@ const AddScheduleScreen = ({ navigation, route }) => {
 
         {/* ── REMINDER/TASK: Lead search ── */}
         {needLead && (
-          <Field label="LEAD *">
+          	<Field label="LEAD *" styles={styles}>
             {form.leadId ? (
-              <View style={st.selectedLeadRow}>
-                <Text style={st.selectedLeadText} numberOfLines={1}>
+              <View style={styles.selectedLeadRow}>
+                <Text style={styles.selectedLeadText} numberOfLines={1}>
                   {form.leadName}
                 </Text>
                 <TouchableOpacity
@@ -462,36 +470,36 @@ const AddScheduleScreen = ({ navigation, route }) => {
                   }
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Icon name="close" size={14} color="#9ca3af" />
+                  <Icon name="close" size={14} color={mutedIconColor} />
                 </TouchableOpacity>
               </View>
             ) : (
               <>
-                <View style={st.searchWrap}>
+                <View style={styles.searchWrap}>
                   <Icon
                     name="magnify"
                     size={14}
-                    color="#9ca3af"
+                    color={mutedIconColor}
                     style={{ marginRight: 6 }}
                   />
                   <TextInput
-                    style={st.searchInput}
+                    style={styles.searchInput}
                     placeholder="Search lead by name or phone…"
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={placeholderColor}
                     value={form.leadSearch}
                     onChangeText={v => setF('leadSearch', v)}
                   />
                 </View>
                 {form.leadSearch.length > 0 &&
                   (leads.length > 0 || searching) && (
-                    <View style={st.leadDropdown}>
+                    <View style={styles.leadDropdown}>
                       {searching ? (
-                        <Text style={st.dropdownHint}>Searching…</Text>
+                        <Text style={styles.dropdownHint}>Searching…</Text>
                       ) : (
                         leads.map(l => (
                           <TouchableOpacity
                             key={l._id}
-                            style={st.leadOption}
+                            style={styles.leadOption}
                             onPress={() =>
                               setForm(p => ({
                                 ...p,
@@ -501,10 +509,10 @@ const AddScheduleScreen = ({ navigation, route }) => {
                               }))
                             }
                           >
-                            <Text style={st.leadOptionName} numberOfLines={1}>
+                            <Text style={styles.leadOptionName} numberOfLines={1}>
                               {l.name}
                             </Text>
-                            <Text style={st.leadOptionPhone}>{l.phone}</Text>
+                            <Text style={styles.leadOptionPhone}>{l.phone}</Text>
                           </TouchableOpacity>
                         ))
                       )}
@@ -517,15 +525,15 @@ const AddScheduleScreen = ({ navigation, route }) => {
 
         {/* ── REMINDER: Type chips ── */}
         {type === 'Reminder' && (
-          <Field label="REMINDER TYPE">
-            <View style={st.chipsRow}>
+          <Field label="REMINDER TYPE" styles={styles}>
+            <View style={styles.chipsRow}>
               {REMINDER_TYPES.map(rt => {
                 const active = form.reminderType === rt;
                 return (
                   <TouchableOpacity
                     key={rt}
                     style={[
-                      st.chip,
+                      styles.chip,
                       active && {
                         backgroundColor: '#f59e0b',
                         borderColor: '#f59e0b',
@@ -535,8 +543,8 @@ const AddScheduleScreen = ({ navigation, route }) => {
                   >
                     <Text
                       style={[
-                        st.chipText,
-                        active ? { color: '#fff' } : { color: '#374151' },
+                        styles.chipText,
+                        active ? { color: '#fff' } : { color: dc('#374151', isDark) },
                       ]}
                     >
                       {rt}
@@ -550,11 +558,11 @@ const AddScheduleScreen = ({ navigation, route }) => {
 
         {/* ── TASK: Description ── */}
         {type === 'Task' && (
-          <Field label="TASK DESCRIPTION *">
+          <Field label="TASK DESCRIPTION *" styles={styles}>
             <TextInput
-              style={[st.input, st.textArea]}
+              style={[styles.input, styles.textArea]}
               placeholder="Task details…"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={placeholderColor}
               multiline
               numberOfLines={3}
               textAlignVertical="top"
@@ -566,12 +574,12 @@ const AddScheduleScreen = ({ navigation, route }) => {
 
         {/* ── EVENT: Multi user select ── */}
         {type === 'Event' && (
-          <Field label="ASSIGN TO *">
+          <Field label="ASSIGN TO *" styles={styles}>
             <TouchableOpacity
-              style={st.selectTrigger}
+              style={[styles.selectTrigger, { backgroundColor: dc('#fff', isDark), borderColor: dc('#e5e7eb', isDark) }]}
               onPress={() => setUserPickerOpen(p => !p)}
             >
-              <Text style={st.selectTriggerText} numberOfLines={1}>
+              <Text style={[styles.selectTriggerText, { color: dc('#111827', isDark) }]} numberOfLines={1}>
                 {form.eventUsers.length
                   ? form.eventUsers.map(userNameById).join(', ')
                   : 'Select team members…'}
@@ -579,7 +587,7 @@ const AddScheduleScreen = ({ navigation, route }) => {
               <Icon
                 name={userPickerOpen ? 'chevron-up' : 'chevron-down'}
                 size={16}
-                color="#9ca3af"
+                color={mutedIconColor}
               />
             </TouchableOpacity>
             {userPickerOpen &&
@@ -598,36 +606,36 @@ const AddScheduleScreen = ({ navigation, route }) => {
         )}
 
         {/* ── Date + Time — teeno types ke liye uniform row (web jaisa) ── */}
-        <View style={st.twoCol}>
+        <View style={styles.twoCol}>
           <View style={{ flex: 1 }}>
-            <Field label={type === 'Task' ? 'DUE DATE *' : 'DATE *'}>
+            <Field label={type === 'Task' ? 'DUE DATE *' : 'DATE *'} styles={styles}>
               <TouchableOpacity
-                style={st.selectTrigger}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Text style={st.selectTriggerText}>
+  style={[styles.selectTrigger, { backgroundColor: dc('#fff', isDark), borderColor: dc('#e5e7eb', isDark) }]}
+  onPress={() => setShowDatePicker(true)}
+>
+  <Text style={[styles.selectTriggerText, { color: dc('#111827', isDark) }]}>
                   {fmtDate(
                     type === 'Task' ? form.taskDueDate : form.reminderDate,
                   ) || 'Select date'}
-                </Text>
-                <Icon name="calendar" size={14} color="#9ca3af" />
-              </TouchableOpacity>
+                 </Text>
+  <Icon name="calendar" size={14} color={mutedIconColor} />
+</TouchableOpacity>
             </Field>
           </View>
           <View style={{ flex: 1 }}>
-            <Field label="TIME">
+            <Field label="TIME" styles={styles}>
               <TouchableOpacity
-                style={st.selectTrigger}
+                style={[styles.selectTrigger, { backgroundColor: dc('#fff', isDark), borderColor: dc('#e5e7eb', isDark) }]}
                 onPress={() => setShowTimePicker(true)}
               >
-                <Text style={st.selectTriggerText}>
+                <Text style={[styles.selectTriggerText, { color: dc('#111827', isDark) }]}>
                   {fmtTime12(
                     fmtTime(
                       type === 'Task' ? form.taskTime : form.reminderTime,
                     ),
                   )}
                 </Text>
-                <Icon name="clock-outline" size={14} color="#9ca3af" />
+                <Icon name="clock-outline" size={14} color={mutedIconColor} />
               </TouchableOpacity>
             </Field>
           </View>
@@ -635,12 +643,12 @@ const AddScheduleScreen = ({ navigation, route }) => {
 
         {/* ── Assign to (single) — Reminder + Task ── */}
         {type !== 'Event' && (
-          <Field label="ASSIGN TO *">
+          <Field label="ASSIGN TO *" styles={styles}>
             <TouchableOpacity
-              style={st.selectTrigger}
+              style={[styles.selectTrigger, { backgroundColor: dc('#fff', isDark), borderColor: dc('#e5e7eb', isDark) }]}
               onPress={() => setUserPickerOpen(p => !p)}
             >
-              <Text style={st.selectTriggerText} numberOfLines={1}>
+              <Text style={[styles.selectTriggerText, { color: dc('#111827', isDark) }]} numberOfLines={1}>
                 {form.assignedTo
                   ? userNameById(form.assignedTo)
                   : 'Select user'}
@@ -648,7 +656,7 @@ const AddScheduleScreen = ({ navigation, route }) => {
               <Icon
                 name={userPickerOpen ? 'chevron-up' : 'chevron-down'}
                 size={16}
-                color="#9ca3af"
+                color={mutedIconColor}
               />
             </TouchableOpacity>
             {userPickerOpen &&
@@ -664,18 +672,18 @@ const AddScheduleScreen = ({ navigation, route }) => {
 
         {/* ── TASK: Notify user ── */}
         {type === 'Task' && (
-          <Field label="NOTIFY USER">
+          <Field label="NOTIFY USER" styles={styles}>
             <TouchableOpacity
-              style={st.selectTrigger}
+              style={[styles.selectTrigger, { backgroundColor: dc('#fff', isDark), borderColor: dc('#e5e7eb', isDark) }]}
               onPress={() => setNotifyPickerOpen(p => !p)}
             >
-              <Text style={st.selectTriggerText} numberOfLines={1}>
+              <Text style={[styles.selectTriggerText, { color: dc('#111827', isDark) }]} numberOfLines={1}>
                 {form.notify ? userNameById(form.notify) : 'None'}
               </Text>
               <Icon
                 name={notifyPickerOpen ? 'chevron-up' : 'chevron-down'}
                 size={16}
-                color="#9ca3af"
+                color={mutedIconColor}
               />
             </TouchableOpacity>
             {notifyPickerOpen &&
@@ -688,11 +696,11 @@ const AddScheduleScreen = ({ navigation, route }) => {
 
         {/* ── Note (Reminder + Event) ── */}
         {type !== 'Task' && (
-          <Field label="NOTE">
+          <Field label="NOTE" styles={styles}>
             <TextInput
-              style={[st.input, st.textArea]}
+              style={[styles.input, styles.textArea]}
               placeholder="Optional note…"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={placeholderColor}
               multiline
               numberOfLines={3}
               textAlignVertical="top"
@@ -705,7 +713,7 @@ const AddScheduleScreen = ({ navigation, route }) => {
         {/* ── Save ── */}
         <TouchableOpacity
           style={[
-            st.saveBtn,
+            styles.saveBtn,
             { backgroundColor: cfg.color },
             saving && { opacity: 0.6 },
           ]}
@@ -718,7 +726,7 @@ const AddScheduleScreen = ({ navigation, route }) => {
           ) : (
             <>
               <Icon name={cfg.icon} size={15} color="#fff" />
-              <Text style={st.saveBtnText}>{cfg.saveLabel}</Text>
+              <Text style={styles.saveBtnText}>{cfg.saveLabel}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -730,6 +738,7 @@ const AddScheduleScreen = ({ navigation, route }) => {
           value={type === 'Task' ? form.taskDueDate : form.reminderDate}
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'calendar'}
+          themeVariant={isDark ? 'dark' : 'light'}
           onChange={(event, selectedDate) => {
             if (Platform.OS === 'android') setShowDatePicker(false);
             if (event?.type === 'dismissed') return;
@@ -746,6 +755,7 @@ const AddScheduleScreen = ({ navigation, route }) => {
           mode="time"
           is24Hour={false}
           display={Platform.OS === 'ios' ? 'spinner' : 'clock'}
+          themeVariant={isDark ? 'dark' : 'light'}
           onChange={(event, selectedTime) => {
             if (Platform.OS === 'android') setShowTimePicker(false);
             if (event?.type === 'dismissed') return;

@@ -123,10 +123,17 @@ const CustomDropdown = ({ value, onChange, options, label, theme }) => {
           setModalValue(value);
           setVisible(true);
         }}
-        style={[styles.dropdownButton, { borderColor: theme.border }]}
+        style={[
+          styles.dropdownButton,
+          { borderColor: theme.border, backgroundColor: theme.bgSurface },
+        ]}
       >
         <Text
-          style={[styles.dropdownText, !value && styles.dropdownPlaceholder]}
+          style={[
+            styles.dropdownText,
+            { color: theme.textPrimary },
+            !value && styles.dropdownPlaceholder,
+          ]}
         >
           {selectedLabel}
         </Text>
@@ -230,16 +237,16 @@ const InteractionsTab = ({
 
   // Default theme
   const defaultTheme = {
-    bgSurface: theme.bgSurface || '#fff',
-    bgContent: theme.bgContent || '#f8f9fb',
-    border: theme.border || '#e5e7eb',
-    textPrimary: theme.textPrimary || '#111827',
-    textSecondary: theme.textSecondary || '#6b7280',
-    textMuted: theme.textMuted || '#9ca3af',
-    accent: theme.accent || '#6366f1',
+    bgSurface: theme.surface || theme.surfaceElevated || (isDark ? '#1E293B' : '#fff'),
+    bgContent: theme.background || (isDark ? '#0F172A' : '#f8f9fb'),
+    border: theme.borderSolid || theme.border || (isDark ? '#334155' : '#e5e7eb'),
+    textPrimary: theme.textPrimary || (isDark ? '#F8FAFC' : '#111827'),
+    textSecondary: theme.textSecondary || (isDark ? '#94A3B8' : '#6b7280'),
+    textMuted: theme.textTertiary || (isDark ? '#64748B' : '#9ca3af'),
+    accent: theme.primary || theme.accent || '#6366f1',
     danger: theme.danger || '#ef4444',
-    phoneIcon: theme.phoneIcon || '#16a34a',
-    phoneBg: theme.phoneBg || '#dcfce7',
+    phoneIcon: isDark ? '#4ade80' : '#16a34a',
+    phoneBg: theme.successSoft || (isDark ? 'rgba(74,222,128,0.15)' : '#dcfce7'),
     success: theme.success || '#22c55e',
   };
 
@@ -651,18 +658,18 @@ const InteractionsTab = ({
   const renderItem = item => {
     // ── AUTO-TRACKED CALL ──
     if (item.isAutoTracked) {
-      return (
-        <View style={{ marginBottom: 14 }} key={`auto-${item._id}`}>
-          <CallLogCard
-            callLog={item}
-            theme={defaultTheme}
-            showDelete={isAdminUser}
-            onDelete={() => handleDelete(item)}
-            showMeta
-          />
-        </View>
-      );
-    }
+  return (
+    <View style={{ marginBottom: 14 }} key={`auto-${item._id}`}>
+      <CallLogCard
+        callLog={item}
+        theme={defaultTheme}
+        showDelete={isAdminUser}
+        onDelete={() => handleDelete(item)}
+        showMeta
+      />
+    </View>
+  );
+}
 
     // ── NORMAL ACTIVITY CARD ──
     const editable = isEditableRecent(item);
@@ -1278,7 +1285,6 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 12,
     borderWidth: 1,
-    backgroundColor: '#fff',
     paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1286,7 +1292,6 @@ const styles = StyleSheet.create({
   },
   dropdownText: {
     fontSize: 13,
-    color: '#111',
   },
   dropdownPlaceholder: {
     color: '#9ca3af',

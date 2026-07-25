@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
+import { useRoute } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useUISystem } from '../../hooks/useUISystem';
 import { leadsService } from '../../services/leadsService.js';
@@ -75,6 +76,7 @@ const DEFAULT_STATUS_OPTIONS = [
 //  MAIN SCREEN
 // ─────────────────────────────────────────────────────────────
 const LeadsScreen = () => {
+  const route = useRoute();
   const { colors, typography, spacing, borderRadius, isDark } = useUISystem();
   const toast = useKitToast();
   const dispatch = useDispatch();
@@ -139,10 +141,10 @@ const LeadsScreen = () => {
 
   // ── Filters ──
   const [filters, setFilters] = useState({
-    status: '',
+    status: route.params?.status || '',
     priority: '',
-    dateFrom: '',
-    dateTo: '',
+    dateFrom: route.params?.dateFrom || '',
+    dateTo: route.params?.dateTo || '',
     assignedTo: '',
     coAssignedTo: '',
     search: '',
@@ -205,7 +207,16 @@ const LeadsScreen = () => {
     const t = setTimeout(() => setDebouncedSearch(globalSearch.trim()), 400);
     return () => clearTimeout(t);
   }, [globalSearch]);
-
+useEffect(() => {
+    if (!route.params) return;
+    setFilters(prev => ({
+      ...prev,
+      status: route.params.status ?? prev.status,
+      dateFrom: route.params.dateFrom ?? prev.dateFrom,
+      dateTo: route.params.dateTo ?? prev.dateTo,
+    }));
+    setPagination(prev => ({ ...prev, page: 1 }));
+  }, [route.params?.status, route.params?.dateFrom, route.params?.dateTo]);
   useEffect(() => {
     if (!currentUser || settings === null) return;
     setPagination(prev => (prev.page === 1 ? prev : { ...prev, page: 1 }));
