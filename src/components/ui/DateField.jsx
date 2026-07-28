@@ -15,6 +15,29 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useUISystem } from '../../hooks/useUISystem';
 
+const formatTimeDisplay = value => {
+  if (!value) return '';
+
+  const raw = String(value).trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+
+  if (!match) return raw;
+
+  const hours = Number(match[1]);
+  const minutes = String(match[2]).padStart(2, '0');
+  const meridiem = match[3]?.toUpperCase();
+
+  if (meridiem) {
+    const normalizedHours = hours % 12 || 12;
+    return `${String(normalizedHours).padStart(2, '0')}:${minutes} ${meridiem}`;
+  }
+
+  const normalizedHours = hours % 24;
+  const suffix = normalizedHours >= 12 ? 'PM' : 'AM';
+  const displayHours = normalizedHours % 12 || 12;
+  return `${String(displayHours).padStart(2, '0')}:${minutes} ${suffix}`;
+};
+
 export default function DateField({
   value,
   onPress,
@@ -26,6 +49,7 @@ export default function DateField({
 }) {
   const { colors, typography, borderRadius, sizes } = useUISystem();
   const ph = placeholder || (mode === 'time' ? 'Select time' : 'Select date');
+  const displayValue = mode === 'time' ? formatTimeDisplay(value) : value;
 
   const height =
     sizes?.inputHeight != null ? Math.min(sizes.inputHeight, 44) : 44;
@@ -57,7 +81,7 @@ export default function DateField({
         ]}
         numberOfLines={1}
       >
-        {value || ph}
+        {displayValue || ph}
       </Text>
       <Icon
         name={mode === 'time' ? 'clock-outline' : 'calendar'}

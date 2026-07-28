@@ -16,6 +16,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 import api from '../../../services/api';
 import CallLogCard from '../../../services/callLogCard.js';
+import DateField from '../../ui/DateField';
 
 const hexToRgba = (hex, alpha = 1) => {
   if (!hex) return `rgba(0,0,0,${alpha})`;
@@ -104,6 +105,29 @@ const formatDate = dateOrItem => {
     hour: '2-digit',
     minute: '2-digit',
   });
+};
+
+const toInputTime = date => {
+  const d = new Date(date);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(
+    d.getMinutes(),
+  ).padStart(2, '0')}`;
+};
+
+const normalizeTimeValue = value => {
+  const raw = String(value || '10:00').trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+
+  if (!match) return '10:00';
+
+  let hours = Number(match[1]);
+  const minutes = match[2];
+  const meridiem = match[3]?.toUpperCase();
+
+  if (meridiem === 'AM' && hours === 12) hours = 0;
+  if (meridiem === 'PM' && hours < 12) hours += 12;
+
+  return `${String(hours).padStart(2, '0')}:${minutes}`;
 };
 
 // =============================================
@@ -228,25 +252,31 @@ const InteractionsTab = ({
     direction: 'Outgoing',
     outcome: 'Spoke',
     dueDate: '',
+    dueTime: '10:00',
     assignedTo: '',
   });
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const { user } = useSelector(state => state.auth);
   const isAdminUser = user?.role === 'admin';
+  const currentUserId = user?._id || user?.id || user?.userId || '';
 
   // Default theme
   const defaultTheme = {
-    bgSurface: theme.surface || theme.surfaceElevated || (isDark ? '#1E293B' : '#fff'),
+    bgSurface:
+      theme.surface || theme.surfaceElevated || (isDark ? '#1E293B' : '#fff'),
     bgContent: theme.background || (isDark ? '#0F172A' : '#f8f9fb'),
-    border: theme.borderSolid || theme.border || (isDark ? '#334155' : '#e5e7eb'),
+    border:
+      theme.borderSolid || theme.border || (isDark ? '#334155' : '#e5e7eb'),
     textPrimary: theme.textPrimary || (isDark ? '#F8FAFC' : '#111827'),
     textSecondary: theme.textSecondary || (isDark ? '#94A3B8' : '#6b7280'),
     textMuted: theme.textTertiary || (isDark ? '#64748B' : '#9ca3af'),
     accent: theme.primary || theme.accent || '#6366f1',
     danger: theme.danger || '#ef4444',
     phoneIcon: isDark ? '#4ade80' : '#16a34a',
-    phoneBg: theme.successSoft || (isDark ? 'rgba(74,222,128,0.15)' : '#dcfce7'),
+    phoneBg:
+      theme.successSoft || (isDark ? 'rgba(74,222,128,0.15)' : '#dcfce7'),
     success: theme.success || '#22c55e',
   };
 
@@ -334,10 +364,13 @@ const InteractionsTab = ({
       direction: 'Outgoing',
       outcome: 'Spoke',
       dueDate: '',
-      assignedTo: users[0]?._id || '',
+      dueTime: '10:00',
+      assignedTo: currentUserId || users[0]?._id || '',
     });
     setError(null);
     setShowEditForm(false);
+    setShowDatePicker(false);
+    setShowTimePicker(false);
   };
 
   const prepareEditForm = item => {
@@ -351,8 +384,13 @@ const InteractionsTab = ({
       dueDate: item.taskDueDate
         ? new Date(item.taskDueDate).toISOString().split('T')[0]
         : '',
+      dueTime: item.taskDueDate ? toInputTime(item.taskDueDate) : '10:00',
       assignedTo:
-        item.taskAssignedTo?._id || item.taskAssignedTo || users[0]?._id || '',
+        item.taskAssignedTo?._id ||
+        item.taskAssignedTo ||
+        currentUserId ||
+        users[0]?._id ||
+        '',
     });
     setError(null);
     setShowEditForm(true);
@@ -372,9 +410,12 @@ const InteractionsTab = ({
     }
 
     if (editItem.type === 'Task') {
-      payload.taskDueDate = editForm.dueDate
-        ? new Date(editForm.dueDate)
-        : undefined;
+      let taskDueDate = undefined;
+      if (editForm.dueDate) {
+        const time = normalizeTimeValue(editForm.dueTime || '10:00');
+        taskDueDate = new Date(`${editForm.dueDate}T${time}:00`);
+      }
+      payload.taskDueDate = taskDueDate;
       payload.taskAssignedTo = editForm.assignedTo || undefined;
     }
 
@@ -523,7 +564,10 @@ const InteractionsTab = ({
         );
       }
 
-      case 'task':
+      case 'task': {
+        const dueDate = item.taskDueDate ? new Date(item.taskDueDate) : null;
+        const assigned = item.taskAssignedTo?.name || item.taskAssignedTo || '';
+
         return (
           <>
             <Text
@@ -531,16 +575,21 @@ const InteractionsTab = ({
             >
               {text || 'Task recorded.'}
             </Text>
-            {item.taskDueDate && (
+            {(dueDate || assigned) && (
               <Text
                 style={[styles.metaText, { color: defaultTheme.textMuted }]}
               >
-                Due by{' '}
-                {new Date(item.taskDueDate).toLocaleDateString('en-IN', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: 'numeric',
-                })}
+                {dueDate &&
+                  `Due ${dueDate.toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                  })}, ${dueDate.toLocaleTimeString('en-IN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true,
+                  })}`}
+                {assigned && dueDate ? ' · ' : ''}
+                {assigned && `Assigned to ${assigned}`}
               </Text>
             )}
             {item.isCompleted && (
@@ -548,6 +597,7 @@ const InteractionsTab = ({
             )}
           </>
         );
+      }
 
       case 'email':
         return (
@@ -658,18 +708,18 @@ const InteractionsTab = ({
   const renderItem = item => {
     // ── AUTO-TRACKED CALL ──
     if (item.isAutoTracked) {
-  return (
-    <View style={{ marginBottom: 14 }} key={`auto-${item._id}`}>
-      <CallLogCard
-        callLog={item}
-        theme={defaultTheme}
-        showDelete={isAdminUser}
-        onDelete={() => handleDelete(item)}
-        showMeta
-      />
-    </View>
-  );
-}
+      return (
+        <View style={{ marginBottom: 14 }} key={`auto-${item._id}`}>
+          <CallLogCard
+            callLog={item}
+            theme={defaultTheme}
+            showDelete={isAdminUser}
+            onDelete={() => handleDelete(item)}
+            showMeta
+          />
+        </View>
+      );
+    }
 
     // ── NORMAL ACTIVITY CARD ──
     const editable = isEditableRecent(item);
@@ -892,44 +942,28 @@ const InteractionsTab = ({
                   >
                     Due Date
                   </Text>
-                  <TouchableOpacity
+                  <DateField
+                    value={editForm.dueDate}
+                    mode="date"
+                    placeholder="Select date"
                     onPress={() => setShowDatePicker(true)}
-                    style={[
-                      styles.dateButton,
-                      {
-                        borderColor: defaultTheme.border,
-                        backgroundColor: defaultTheme.bgSurface,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.dateButtonText,
-                        {
-                          color: editForm.dueDate
-                            ? defaultTheme.textPrimary
-                            : defaultTheme.textMuted,
-                        },
-                      ]}
-                    >
-                      {editForm.dueDate || 'Select date'}
-                    </Text>
-                  </TouchableOpacity>
+                    style={{
+                      borderColor: defaultTheme.border,
+                      backgroundColor: defaultTheme.bgSurface,
+                    }}
+                  />
                   {showDatePicker && (
                     <DateTimePicker
                       value={
                         editForm.dueDate
-                          ? new Date(editForm.dueDate)
+                          ? new Date(`${editForm.dueDate}T00:00:00`)
                           : new Date()
                       }
                       mode="date"
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                       onChange={(event, selectedDate) => {
-                        if (event?.type === 'dismissed') {
-                          setShowDatePicker(false);
-                          return;
-                        }
-                        setShowDatePicker(Platform.OS === 'ios');
+                        setShowDatePicker(false);
+                        if (event?.type === 'dismissed') return;
                         if (selectedDate) {
                           const dateString = selectedDate
                             .toISOString()
@@ -937,6 +971,51 @@ const InteractionsTab = ({
                           setEditForm(prev => ({
                             ...prev,
                             dueDate: dateString,
+                          }));
+                        }
+                      }}
+                    />
+                  )}
+                </View>
+                <View style={styles.dateFieldWrapper}>
+                  <Text
+                    style={[
+                      styles.fieldLabel,
+                      { color: defaultTheme.textSecondary },
+                    ]}
+                  >
+                    Due Time
+                  </Text>
+                  <DateField
+                    value={editForm.dueTime || '10:00'}
+                    mode="time"
+                    placeholder="10:00"
+                    onPress={() => setShowTimePicker(true)}
+                    style={{
+                      borderColor: defaultTheme.border,
+                      backgroundColor: defaultTheme.bgSurface,
+                    }}
+                  />
+                  {showTimePicker && (
+                    <DateTimePicker
+                      value={
+                        editForm.dueTime
+                          ? new Date(
+                              `2000-01-01T${normalizeTimeValue(
+                                editForm.dueTime,
+                              )}:00`,
+                            )
+                          : new Date('2000-01-01T10:00:00')
+                      }
+                      mode="time"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={(event, selectedDate) => {
+                        setShowTimePicker(false);
+                        if (event?.type === 'dismissed') return;
+                        if (selectedDate) {
+                          setEditForm(prev => ({
+                            ...prev,
+                            dueTime: toInputTime(selectedDate),
                           }));
                         }
                       }}
