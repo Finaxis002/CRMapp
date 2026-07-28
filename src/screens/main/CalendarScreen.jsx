@@ -156,6 +156,20 @@ const getTaskLeadName = task => {
   return '—';
 };
 
+const SkeletonBlock = ({ width = '100%', height = 12, style, isDark }) => (
+  <View
+    style={[
+      {
+        width,
+        height,
+        borderRadius: 10,
+        backgroundColor: dc('#e5e7eb', isDark),
+      },
+      style,
+    ]}
+  />
+);
+
 // ── API Helpers ───────────────────────────────────────────────────────────────
 
 const getToken = async () => {
@@ -200,7 +214,15 @@ const parseApiList = res => {
 // ═════════════════════════════════════════════════════════════════════════════
 // ── ItemDetailModal ──────────────────────────────────────────────────────────
 // ═════════════════════════════════════════════════════════════════════════════
-const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete, isDark, s }) => {
+const ItemDetailModal = ({
+  item,
+  visible,
+  onClose,
+  onMarkDone,
+  onDelete,
+  isDark,
+  s,
+}) => {
   if (!item) return null;
   const isEv = !!item.isEvent;
   const isTask = !!item.isTask;
@@ -296,7 +318,12 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete, isDark,
             )}
             {!!leadName && (
               <View style={s.infoRow}>
-                <View style={[s.infoIcon, { backgroundColor: dc('#eff6ff', isDark) }]}>
+                <View
+                  style={[
+                    s.infoIcon,
+                    { backgroundColor: dc('#eff6ff', isDark) },
+                  ]}
+                >
                   <Icon name="account" size={14} color="#3b82f6" />
                 </View>
                 <View>
@@ -307,7 +334,12 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete, isDark,
             )}
             {!!dateVal && (
               <View style={s.infoRow}>
-                <View style={[s.infoIcon, { backgroundColor: dc('#faf5ff', isDark) }]}>
+                <View
+                  style={[
+                    s.infoIcon,
+                    { backgroundColor: dc('#faf5ff', isDark) },
+                  ]}
+                >
                   <Icon name="calendar" size={14} color="#a855f7" />
                 </View>
                 <View>
@@ -320,7 +352,12 @@ const ItemDetailModal = ({ item, visible, onClose, onMarkDone, onDelete, isDark,
             )}
             {!!assignedName && assignedName !== '—' && (
               <View style={s.infoRow}>
-                <View style={[s.infoIcon, { backgroundColor: dc('#f0fdf4', isDark) }]}>
+                <View
+                  style={[
+                    s.infoIcon,
+                    { backgroundColor: dc('#f0fdf4', isDark) },
+                  ]}
+                >
                   <Icon name="account-group" size={14} color="#22c55e" />
                 </View>
                 <View>
@@ -423,7 +460,13 @@ const DeleteConfirmModal = ({
           >
             <Icon name="close" size={16} color="#dc2626" />
           </View>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: dc('#111827', isDark) }}>
+          <Text
+            style={{
+              fontSize: 15,
+              fontWeight: '700',
+              color: dc('#111827', isDark),
+            }}
+          >
             {deleteConfirm?.type === 'gcal'
               ? 'Disconnect?'
               : `Delete ${deleteConfirm?.type || ''}?`}
@@ -526,7 +569,11 @@ const DayPanelModal = ({
                 {date.toLocaleDateString('en-IN', { weekday: 'long' })}
               </Text>
               <Text
-                style={{ fontSize: 17, fontWeight: '700', color: dc('#111827', isDark) }}
+                style={{
+                  fontSize: 17,
+                  fontWeight: '700',
+                  color: dc('#111827', isDark),
+                }}
               >
                 {date.toLocaleDateString('en-IN', {
                   day: 'numeric',
@@ -546,8 +593,18 @@ const DayPanelModal = ({
           >
             {empty ? (
               <View style={{ alignItems: 'center', paddingVertical: 32 }}>
-                <Icon name="bell-outline" size={32} color={dc('#d1d5db', isDark)} />
-<Text style={{ color: dc('#9ca3af', isDark), marginTop: 8, fontSize: 14 }}>
+                <Icon
+                  name="bell-outline"
+                  size={32}
+                  color={dc('#d1d5db', isDark)}
+                />
+                <Text
+                  style={{
+                    color: dc('#9ca3af', isDark),
+                    marginTop: 8,
+                    fontSize: 14,
+                  }}
+                >
                   No events for this day
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 16, marginTop: 12 }}>
@@ -661,11 +718,11 @@ const DayPanelModal = ({
                           )}
                           {/* Tap affordance — row clickable hai, detail khulega */}
                           <Icon
-  name="chevron-right"
-  size={16}
-  color={dc('#9ca3af', isDark)}
-  style={{ marginLeft: -6 }}
-/>
+                            name="chevron-right"
+                            size={16}
+                            color={dc('#9ca3af', isDark)}
+                            style={{ marginLeft: -6 }}
+                          />
                         </TouchableOpacity>
                       );
                     })}
@@ -727,11 +784,11 @@ const DayPanelModal = ({
                         )}
                         {/* Tap affordance — row clickable hai */}
                         <Icon
-  name="chevron-right"
-  size={16}
-  color={dc('#9ca3af', isDark)}
-  style={{ marginLeft: -6 }}
-/>
+                          name="chevron-right"
+                          size={16}
+                          color={dc('#9ca3af', isDark)}
+                          style={{ marginLeft: -6 }}
+                        />
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -804,11 +861,11 @@ const DayPanelModal = ({
                         </View>
                         {/* Tap affordance — row clickable hai */}
                         <Icon
-  name="chevron-right"
-  size={16}
-  color={dc('#9ca3af', isDark)}
-  style={{ marginLeft: -6 }}
-/>
+                          name="chevron-right"
+                          size={16}
+                          color={dc('#9ca3af', isDark)}
+                          style={{ marginLeft: -6 }}
+                        />
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -1280,7 +1337,7 @@ const RemindersView = ({
 const CalendarScreen = ({ navigation, route }) => {
   const { user } = useSelector(state => state.auth);
   const { colors, typography, spacing, borderRadius, isDark } = useUISystem();
-const s = React.useMemo(() => createStyles(isDark), [isDark]);
+  const s = React.useMemo(() => createStyles(isDark), [isDark]);
   const toast = useKitToast();
   const today = new Date();
 
@@ -1338,8 +1395,6 @@ const s = React.useMemo(() => createStyles(isDark), [isDark]);
       ]);
     } catch {
       toast.error('Failed to load reminders.');
-    } finally {
-      setLoading(false);
     }
   }, [filterUser]);
 
@@ -1405,6 +1460,29 @@ const s = React.useMemo(() => createStyles(isDark), [isDark]);
     } catch {}
   }, []);
 
+  const fetchAllInitialData = useCallback(async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        fetchReminders(),
+        fetchTodayReminders(),
+        fetchEvents(),
+        fetchTasks(),
+        fetchUsers(),
+        fetchGcalStatus(),
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    fetchReminders,
+    fetchTodayReminders,
+    fetchEvents,
+    fetchTasks,
+    fetchUsers,
+    fetchGcalStatus,
+  ]);
+
   const handleRefreshAll = useCallback(async () => {
     setRefreshing(true);
     await fetchReminders();
@@ -1415,20 +1493,8 @@ const s = React.useMemo(() => createStyles(isDark), [isDark]);
   }, [fetchReminders, fetchTodayReminders, fetchEvents, fetchTasks]);
 
   useEffect(() => {
-    fetchReminders();
-    fetchTodayReminders();
-    fetchEvents();
-    fetchTasks();
-    fetchUsers();
-    fetchGcalStatus();
-  }, [
-    fetchReminders,
-    fetchTodayReminders,
-    fetchEvents,
-    fetchTasks,
-    fetchUsers,
-    fetchGcalStatus,
-  ]);
+    fetchAllInitialData();
+  }, [fetchAllInitialData]);
 
   // AddSchedule se kuch CREATE hoke wapas aaye TABHI refresh karo —
   // bina change ke back pe / har focus pe refresh nahi (API calls bachao).
@@ -1701,15 +1767,164 @@ const s = React.useMemo(() => createStyles(isDark), [isDark]);
 
   if (loading)
     return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: dc('#f9fafb', isDark),
-        }}
-      >
-        <ActivityIndicator size="large" color={PRIMARY} />
+      <View style={s.screen}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefreshAll}
+              tintColor={PRIMARY}
+            />
+          }
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
+          <View style={s.header}>
+            <View style={s.titleRow}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.headerTitle} numberOfLines={1}>
+                  Calendar
+                </Text>
+                <Text
+                  style={s.headerSub}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  Reminders, events and follow-ups
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={s.viewTrigger}
+                onPress={() => setViewOpen(true)}
+                activeOpacity={0.7}
+              >
+                <Icon
+                  name={activeView === 'calendar' ? 'calendar' : 'bell'}
+                  size={12}
+                  color={PRIMARY}
+                />
+                <Text style={s.viewTriggerText} numberOfLines={1}>
+                  {activeView === 'calendar' ? 'Calendar' : 'Reminders'}
+                </Text>
+                <Icon name="chevron-down" size={13} color="#9ca3af" />
+              </TouchableOpacity>
+            </View>
+
+            {isCalendarAdmin && (
+              <TouchableOpacity
+                style={[
+                  s.filterPickerBtn,
+                  { marginTop: 8, maxWidth: undefined, opacity: 0.8 },
+                ]}
+                onPress={() => {}}
+                activeOpacity={1}
+              >
+                <Icon
+                  name="account-filter"
+                  size={14}
+                  color={dc('#6b7280', isDark)}
+                />
+                <Text style={s.filterPickerText} numberOfLines={1}>
+                  {filterUser === 'all'
+                    ? 'All Users'
+                    : users.find(u => String(u._id) === filterUser)?.name ||
+                      'User'}
+                </Text>
+                <Icon
+                  name="chevron-down"
+                  size={14}
+                  color={dc('#9ca3af', isDark)}
+                />
+              </TouchableOpacity>
+            )}
+
+            <View style={s.actionRow}>
+              <TouchableOpacity
+                style={[
+                  s.actionBtn,
+                  { backgroundColor: '#eab308', opacity: 0.7 },
+                ]}
+              >
+                <Icon name="checkbox-marked" size={13} color="#fff" />
+                <Text style={s.actionBtnText}>Task</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  s.actionBtn,
+                  { backgroundColor: '#6366f1', opacity: 0.7 },
+                ]}
+              >
+                <Icon name="calendar-plus" size={13} color="#fff" />
+                <Text style={s.actionBtnText}>Event</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  s.actionBtn,
+                  { backgroundColor: '#f59e0b', opacity: 0.7 },
+                ]}
+              >
+                <Icon name="plus" size={13} color="#fff" />
+                <Text style={s.actionBtnText}>Reminder</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={{ paddingHorizontal: 16 }}>
+            <View style={s.skeletonCard}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 14,
+                }}
+              >
+                <SkeletonBlock width="30%" height={16} isDark={isDark} />
+                <SkeletonBlock width="18%" height={16} isDark={isDark} />
+              </View>
+              <View style={s.skeletonGrid}>
+                {Array.from({ length: 7 }).map((_, idx) => (
+                  <SkeletonBlock
+                    key={idx}
+                    width={DAY_CELL_W - 4}
+                    height={76}
+                    style={{ marginBottom: 8 }}
+                    isDark={isDark}
+                  />
+                ))}
+              </View>
+            </View>
+
+            <View style={{ marginTop: 16 }}>
+              <SkeletonBlock
+                width="30%"
+                height={16}
+                style={{ marginBottom: 12 }}
+                isDark={isDark}
+              />
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <View key={idx} style={s.skeletonRow}>
+                  <SkeletonBlock
+                    width={36}
+                    height={36}
+                    style={{ borderRadius: 12 }}
+                    isDark={isDark}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <SkeletonBlock
+                      width="60%"
+                      height={12}
+                      style={{ marginBottom: 8 }}
+                      isDark={isDark}
+                    />
+                    <SkeletonBlock width="40%" height={10} isDark={isDark} />
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+        {viewSheet}
       </View>
     );
 
@@ -1760,14 +1975,22 @@ const s = React.useMemo(() => createStyles(isDark), [isDark]);
               style={[s.filterPickerBtn, { marginTop: 8, maxWidth: undefined }]}
               onPress={() => setShowFilterPicker(true)}
             >
-              <Icon name="account-filter" size={14} color={dc('#6b7280', isDark)} />
+              <Icon
+                name="account-filter"
+                size={14}
+                color={dc('#6b7280', isDark)}
+              />
               <Text style={s.filterPickerText} numberOfLines={1}>
                 {filterUser === 'all'
                   ? 'All Users'
                   : users.find(u => String(u._id) === filterUser)?.name ||
                     'User'}
               </Text>
-              <Icon name="chevron-down" size={14} color={dc('#9ca3af', isDark)} />
+              <Icon
+                name="chevron-down"
+                size={14}
+                color={dc('#9ca3af', isDark)}
+              />
             </TouchableOpacity>
           )}
 
@@ -1807,7 +2030,11 @@ const s = React.useMemo(() => createStyles(isDark), [isDark]);
                   onPress={() => setCurrentDate(new Date(year, month - 1, 1))}
                   style={s.navArrow}
                 >
-                  <Icon name="chevron-left" size={20} color={dc('#374151', isDark)} />
+                  <Icon
+                    name="chevron-left"
+                    size={20}
+                    color={dc('#374151', isDark)}
+                  />
                 </TouchableOpacity>
                 <Text style={s.calMonthTitle}>
                   {MONTHS[month]} {year}
@@ -1816,7 +2043,11 @@ const s = React.useMemo(() => createStyles(isDark), [isDark]);
                   onPress={() => setCurrentDate(new Date(year, month + 1, 1))}
                   style={s.navArrow}
                 >
-                  <Icon name="chevron-right" size={20} color={dc('#374151', isDark)} />
+                  <Icon
+                    name="chevron-right"
+                    size={20}
+                    color={dc('#374151', isDark)}
+                  />
                 </TouchableOpacity>
               </View>
               <View
@@ -2027,12 +2258,16 @@ const s = React.useMemo(() => createStyles(isDark), [isDark]);
               style={s.legendRow}
               contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}
             >
-              {Object.entries(REMINDER_TYPE_CONFIG(isDark)).map(([type, cfg]) => (
-                <View key={type} style={s.legendItem}>
-                  <View style={[s.legendDot, { backgroundColor: cfg.color }]} />
-                  <Text style={s.legendText}>{type}</Text>
-                </View>
-              ))}
+              {Object.entries(REMINDER_TYPE_CONFIG(isDark)).map(
+                ([type, cfg]) => (
+                  <View key={type} style={s.legendItem}>
+                    <View
+                      style={[s.legendDot, { backgroundColor: cfg.color }]}
+                    />
+                    <Text style={s.legendText}>{type}</Text>
+                  </View>
+                ),
+              )}
               <View style={s.legendItem}>
                 <View style={[s.legendDot, { backgroundColor: '#6366f1' }]} />
                 <Text style={s.legendText}>Event</Text>
@@ -2189,480 +2424,504 @@ export default CalendarScreen;
 // ═════════════════════════════════════════════════════════════════════════════
 // ── Styles ────────────────────────────────────────────────────────────────────
 // ═════════════════════════════════════════════════════════════════════════════
-const createStyles = (isDark) => {
+const createStyles = isDark => {
   const rawStyles = {
-  screen: { flex: 1, backgroundColor: isDark ? '#020617' : '#f9fafb' },
-  // Header — compact (Leads/Dashboard jaisi density)
-  header: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10 },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  headerTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
-    letterSpacing: -0.2,
-  },
-  headerSub: { fontSize: 11, color: '#6b7280', marginTop: 1 },
-  // View mode dropdown trigger (heading line wala)
-  viewTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    flexShrink: 0,
-  },
-  viewTriggerText: { fontSize: 12, fontWeight: '600', color: '#111827' },
-  viewSheetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  // Filter Picker
-  filterPickerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#fff',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    maxWidth: 130,
-  },
-  filterPickerText: { fontSize: 12, color: '#374151', flex: 1 },
-  // Action buttons — compact
-  actionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  actionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  actionBtnText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },
-  // Calendar Nav
-  calNav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  calNavLeft: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  navArrow: { padding: 8, borderRadius: 10, backgroundColor: '#f3f4f6' },
-  calMonthTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#111827',
-    width: 160,
-    textAlign: 'center',
-  },
-  todayBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#fff',
-  },
-  todayBtnText: { fontSize: 13, fontWeight: '700', color: '#374151' },
-  // GCal Bar
-  gcalBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginVertical: 10,
-    backgroundColor: '#f9fafb',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    padding: 12,
-    gap: 8,
-  },
-  gcalDot: { width: 8, height: 8, borderRadius: 4 },
-  gcalLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1,
-    color: '#9ca3af',
-  },
-  gcalUser: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#111827',
-    maxWidth: 160,
-  },
-  gcalBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  gcalBtnConnect: { backgroundColor: PRIMARY },
-  gcalBtnDisconnect: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#fca5a5',
-  },
-  gcalBtnText: { fontSize: 12, fontWeight: '700' },
-  // Calendar Grid
-  calGrid: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    marginHorizontal: 8,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
-  },
-  dayHeaders: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  dayHeaderCell: { alignItems: 'center', paddingVertical: 8 },
-  dayHeaderText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#9ca3af',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  dayCell: {
-    borderBottomWidth: 1,
-    borderRightWidth: 1,
-    borderColor: '#f3f4f6',
-    padding: 4,
-    backgroundColor: '#fff',
-  },
-  dayCellOtherMonth: { backgroundColor: '#fafafa' },
-  dayCellTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  dayNum: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayPanelCard: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    height: SCREEN_HEIGHT * 0.72,
-    maxHeight: SCREEN_HEIGHT * 0.85,
-    overflow: 'hidden',
-  },
-  dayPanelScroll: {
-    flex: 1,
-  },
-  dayPanelContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  dayNumToday: { backgroundColor: PRIMARY },
-  dayNumText: { fontSize: 11, fontWeight: '700', color: '#374151' },
-  dayNumTextToday: { color: '#fff' },
-  dayNumTextOther: { color: '#d1d5db' },
-  moreText: { fontSize: 9, color: '#9ca3af', fontWeight: '600' },
-  calChip: { borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1 },
-  calChipText: { fontSize: 9, color: '#fff', fontWeight: '600' },
-  // Legend
-  legendRow: { marginTop: 12, marginBottom: 8 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { fontSize: 11, color: '#6b7280' },
-  // Modal base
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '90%',
-    overflow: 'hidden',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  modalTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  closeBtn: { padding: 6, borderRadius: 8, backgroundColor: '#f9fafb' },
-  // Buttons (Delete confirm uses these)
-  cancelBtn: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
-  },
-  cancelBtnText: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  saveBtn: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: PRIMARY,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  saveBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  // Day Item (in DayPanel)
-  sectionLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#9ca3af',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  dayItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 10,
-    marginBottom: 6,
-  },
-  dayItemIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  dayItemTitle: { fontSize: 13, fontWeight: '700' },
-  dayItemSub: { fontSize: 11, marginTop: 1 },
-  doneChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 7,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  doneChipText: { fontSize: 11, fontWeight: '600', color: '#374151' },
-  // Reminders view — top tabs (Today / Pending / Completed)
-  remTabs: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 2,
-  },
-  remTab: {
-    flex: 1,
-    height: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#fff',
-    paddingHorizontal: 6,
-  },
-  remTabText: { fontSize: 12, fontWeight: '700', flexShrink: 1 },
-  remTabCount: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-  },
-  remTabCountText: { fontSize: 10, fontWeight: '800' },
-  emptyText: { fontSize: 13, color: '#9ca3af' },
-  // Item Card — compact density
-  itemCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  itemCardTitle: { fontSize: 13, fontWeight: '700', color: '#111827', flex: 1 },
-  itemCardMeta: { fontSize: 10.5, color: '#6b7280', flex: 1 },
-  iconBtn: { padding: 5, borderRadius: 7 },
-  // Detail modal
-  detailCard: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '85%',
-    overflow: 'hidden',
-  },
-  // Grab handle (sheet feel)
-  sheetHandleWrap: { alignItems: 'center', paddingTop: 8 },
-  sheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#e5e7eb',
-  },
-  detailHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  detailHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  detailBody: { padding: 14 },
-  detailTitle: {
-    fontSize: 15.5,
-    fontWeight: '800',
-    color: '#111827',
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  detailFooter: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-    backgroundColor: '#fafafa',
-  },
-  footerBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  footerBtnDone: { backgroundColor: '#22c55e' },
-  footerBtnPending: {
-    backgroundColor: '#fff7ed',
-    borderWidth: 1,
-    borderColor: '#fed7aa',
-  },
-  // Delete — compact icon-only square (destructive confirm pehle se hai)
-  footerDelBtn: {
-    width: 41,
-    height: 41,
-    borderRadius: 12,
-    backgroundColor: '#fee2e2',
-    borderWidth: 1,
-    borderColor: '#fca5a5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  footerBtnText: { fontSize: 12.5, fontWeight: '700' },
-  // Note box
-  noteBox: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
-    padding: 10,
-    marginBottom: 8,
-  },
-  noteLabel: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#9ca3af',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 3,
-  },
-  noteText: { fontSize: 12.5, color: '#374151', lineHeight: 18 },
-  // Info rows in detail
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 10,
-  },
-  infoIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  infoLabel: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#9ca3af',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 2,
-  },
-  infoValue: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  // Badge & dot
-  badge: {
-    flexDirection: 'row',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 7,
-    borderWidth: 1,
-  },
-  badgeText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  dotBig: { width: 10, height: 10, borderRadius: 5 },
-  dotSmall: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
-  // Filter option
-  filterOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f9fafb',
-  },
-  filterOptionActive: { backgroundColor: PRIMARY + '08' },
-  filterOptionText: { fontSize: 15, color: '#374151' },
-  // Common
-  strikethrough: { textDecorationLine: 'line-through', opacity: 0.6 },
+    screen: { flex: 1, backgroundColor: isDark ? '#020617' : '#f9fafb' },
+    // Header — compact (Leads/Dashboard jaisi density)
+    header: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10 },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    headerTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#111827',
+      letterSpacing: -0.2,
+    },
+    headerSub: { fontSize: 11, color: '#6b7280', marginTop: 1 },
+    // View mode dropdown trigger (heading line wala)
+    viewTrigger: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: '#fff',
+      borderWidth: 1,
+      borderColor: '#e5e7eb',
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      flexShrink: 0,
+    },
+    viewTriggerText: { fontSize: 12, fontWeight: '600', color: '#111827' },
+    viewSheetRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: '#f3f4f6',
+    },
+    // Filter Picker
+    filterPickerBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: '#e5e7eb',
+      backgroundColor: '#fff',
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      maxWidth: 130,
+    },
+    filterPickerText: { fontSize: 12, color: '#374151', flex: 1 },
+    // Action buttons — compact
+    actionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+    actionBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 5,
+      paddingVertical: 8,
+      borderRadius: 10,
+    },
+    actionBtnText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },
+    // Calendar Nav
+    calNav: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      backgroundColor: '#fff',
+      borderBottomWidth: 1,
+      borderBottomColor: '#f3f4f6',
+    },
+    calNavLeft: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    navArrow: { padding: 8, borderRadius: 10, backgroundColor: '#f3f4f6' },
+    calMonthTitle: {
+      fontSize: 17,
+      fontWeight: '800',
+      color: '#111827',
+      width: 160,
+      textAlign: 'center',
+    },
+    todayBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 10,
+      borderWidth: 2,
+      borderColor: '#e5e7eb',
+      backgroundColor: '#fff',
+    },
+    todayBtnText: { fontSize: 13, fontWeight: '700', color: '#374151' },
+    // GCal Bar
+    gcalBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: 16,
+      marginVertical: 10,
+      backgroundColor: '#f9fafb',
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: '#e5e7eb',
+      padding: 12,
+      gap: 8,
+    },
+    gcalDot: { width: 8, height: 8, borderRadius: 4 },
+    gcalLabel: {
+      fontSize: 9,
+      fontWeight: '800',
+      letterSpacing: 1,
+      color: '#9ca3af',
+    },
+    gcalUser: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: '#111827',
+      maxWidth: 160,
+    },
+    gcalBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 10,
+    },
+    gcalBtnConnect: { backgroundColor: PRIMARY },
+    gcalBtnDisconnect: {
+      backgroundColor: '#fff',
+      borderWidth: 1,
+      borderColor: '#fca5a5',
+    },
+    gcalBtnText: { fontSize: 12, fontWeight: '700' },
+    // Calendar Grid
+    calGrid: {
+      backgroundColor: '#fff',
+      borderRadius: 16,
+      marginHorizontal: 8,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: '#f3f4f6',
+    },
+    dayHeaders: {
+      flexDirection: 'row',
+      borderBottomWidth: 1,
+      borderBottomColor: '#f3f4f6',
+    },
+    dayHeaderCell: { alignItems: 'center', paddingVertical: 8 },
+    dayHeaderText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#9ca3af',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    dayCell: {
+      borderBottomWidth: 1,
+      borderRightWidth: 1,
+      borderColor: '#f3f4f6',
+      padding: 4,
+      backgroundColor: '#fff',
+    },
+    dayCellOtherMonth: { backgroundColor: '#fafafa' },
+    dayCellTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 2,
+    },
+    dayNum: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dayPanelCard: {
+      backgroundColor: '#fff',
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      height: SCREEN_HEIGHT * 0.72,
+      maxHeight: SCREEN_HEIGHT * 0.85,
+      overflow: 'hidden',
+    },
+    dayPanelScroll: {
+      flex: 1,
+    },
+    dayPanelContent: {
+      padding: 16,
+      paddingBottom: 32,
+    },
+    dayNumToday: { backgroundColor: PRIMARY },
+    dayNumText: { fontSize: 11, fontWeight: '700', color: '#374151' },
+    dayNumTextToday: { color: '#fff' },
+    dayNumTextOther: { color: '#d1d5db' },
+    moreText: { fontSize: 9, color: '#9ca3af', fontWeight: '600' },
+    calChip: { borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1 },
+    calChipText: { fontSize: 9, color: '#fff', fontWeight: '600' },
+    // Legend
+    legendRow: { marginTop: 12, marginBottom: 8 },
+    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    legendDot: { width: 8, height: 8, borderRadius: 4 },
+    legendText: { fontSize: 11, color: '#6b7280' },
+    // Modal base
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.25)',
+      justifyContent: 'flex-end',
+    },
+    modalCard: {
+      backgroundColor: '#fff',
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      maxHeight: '90%',
+      overflow: 'hidden',
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: '#f3f4f6',
+    },
+    modalTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+    closeBtn: { padding: 6, borderRadius: 8, backgroundColor: '#f9fafb' },
+    // Buttons (Delete confirm uses these)
+    cancelBtn: {
+      flex: 1,
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: '#e5e7eb',
+      backgroundColor: '#f9fafb',
+    },
+    cancelBtnText: { fontSize: 14, fontWeight: '600', color: '#374151' },
+    saveBtn: {
+      flex: 1,
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: 'center',
+      backgroundColor: PRIMARY,
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    saveBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+    // Day Item (in DayPanel)
+    sectionLabel: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#9ca3af',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 8,
+    },
+    dayItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      padding: 10,
+      marginBottom: 6,
+    },
+    dayItemIcon: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    dayItemTitle: { fontSize: 13, fontWeight: '700' },
+    dayItemSub: { fontSize: 11, marginTop: 1 },
+    doneChip: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 7,
+      backgroundColor: 'rgba(255,255,255,0.7)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    doneChipText: { fontSize: 11, fontWeight: '600', color: '#374151' },
+    // Reminders view — top tabs (Today / Pending / Completed)
+    remTabs: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 2,
+    },
+    remTab: {
+      flex: 1,
+      height: 36,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 5,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: '#e5e7eb',
+      backgroundColor: '#fff',
+      paddingHorizontal: 6,
+    },
+    remTabText: { fontSize: 12, fontWeight: '700', flexShrink: 1 },
+    remTabCount: {
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 5,
+    },
+    remTabCountText: { fontSize: 10, fontWeight: '800' },
+    emptyText: { fontSize: 13, color: '#9ca3af' },
+    // Item Card — compact density
+    itemCard: {
+      backgroundColor: '#fff',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#f3f4f6',
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 8,
+      shadowColor: '#000',
+      shadowOpacity: 0.04,
+      shadowRadius: 4,
+      elevation: 1,
+    },
+    itemCardTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#111827',
+      flex: 1,
+    },
+    itemCardMeta: { fontSize: 10.5, color: '#6b7280', flex: 1 },
+    iconBtn: { padding: 5, borderRadius: 7 },
+    // Detail modal
+    detailCard: {
+      backgroundColor: '#fff',
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      maxHeight: '85%',
+      overflow: 'hidden',
+    },
+    // Grab handle (sheet feel)
+    sheetHandleWrap: { alignItems: 'center', paddingTop: 8 },
+    sheetHandle: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: '#e5e7eb',
+    },
+    detailHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: '#f3f4f6',
+    },
+    detailHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    detailBody: { padding: 14 },
+    detailTitle: {
+      fontSize: 15.5,
+      fontWeight: '800',
+      color: '#111827',
+      lineHeight: 20,
+      marginBottom: 8,
+    },
+    detailFooter: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderTopWidth: 1,
+      borderTopColor: '#f3f4f6',
+      backgroundColor: '#fafafa',
+    },
+    footerBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      borderRadius: 12,
+    },
+    footerBtnDone: { backgroundColor: '#22c55e' },
+    footerBtnPending: {
+      backgroundColor: '#fff7ed',
+      borderWidth: 1,
+      borderColor: '#fed7aa',
+    },
+    // Delete — compact icon-only square (destructive confirm pehle se hai)
+    footerDelBtn: {
+      width: 41,
+      height: 41,
+      borderRadius: 12,
+      backgroundColor: '#fee2e2',
+      borderWidth: 1,
+      borderColor: '#fca5a5',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    footerBtnText: { fontSize: 12.5, fontWeight: '700' },
+    // Note box
+    noteBox: {
+      backgroundColor: '#f9fafb',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#f3f4f6',
+      padding: 10,
+      marginBottom: 8,
+    },
+    noteLabel: {
+      fontSize: 9,
+      fontWeight: '700',
+      color: '#9ca3af',
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
+      marginBottom: 3,
+    },
+    noteText: { fontSize: 12.5, color: '#374151', lineHeight: 18 },
+    // Info rows in detail
+    infoRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      marginBottom: 10,
+    },
+    infoIcon: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    infoLabel: {
+      fontSize: 9,
+      fontWeight: '700',
+      color: '#9ca3af',
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
+      marginBottom: 2,
+    },
+    infoValue: { fontSize: 14, fontWeight: '600', color: '#111827' },
+    // Badge & dot
+    badge: {
+      flexDirection: 'row',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 7,
+      borderWidth: 1,
+    },
+    badgeText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+    dotBig: { width: 10, height: 10, borderRadius: 5 },
+    dotSmall: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
+    // Filter option
+    filterOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: '#f9fafb',
+    },
+    filterOptionActive: { backgroundColor: PRIMARY + '08' },
+    filterOptionText: { fontSize: 15, color: '#374151' },
+    // Common
+    strikethrough: { textDecorationLine: 'line-through', opacity: 0.6 },
+    skeletonCard: {
+      backgroundColor: '#fff',
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: '#f3f4f6',
+      padding: 12,
+      marginBottom: 12,
+    },
+    skeletonGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    skeletonRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginBottom: 14,
+    },
   };
 
   return StyleSheet.create(recolorStyles(rawStyles, isDark));
