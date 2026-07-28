@@ -114,6 +114,14 @@ const toInputTime = d => {
   ).padStart(2, '0')}`;
 };
 
+const combineDateAndTime = (dateValue, timeValue) => {
+  if (!dateValue) return '';
+  const [hours = 0, minutes = 0] = String(timeValue || '10:00').split(':');
+  const date = new Date(`${dateValue}T00:00:00`);
+  date.setHours(Number(hours) || 0, Number(minutes) || 0, 0, 0);
+  return date.toISOString();
+};
+
 // ════════════════════════════════════════════════════════════════
 // DateTimeField
 // ════════════════════════════════════════════════════════════════
@@ -393,7 +401,14 @@ const LeadFormModal = ({
     },
     Email: { _id: '', text: '', notify: '' },
     Meeting: { _id: '', text: '', notify: '' },
-    Task: { _id: '', text: '', dueDate: '', assignedTo: '', notify: '' },
+    Task: {
+      _id: '',
+      text: '',
+      dueDate: '',
+      dueTime: '10:00',
+      assignedTo: '',
+      notify: '',
+    },
   });
 
   const customColumns = Array.isArray(settings?.customColumns)
@@ -515,7 +530,14 @@ const LeadFormModal = ({
         },
         Email: { _id: '', text: '', notify: '' },
         Meeting: { _id: '', text: '', notify: '' },
-        Task: { _id: '', text: '', dueDate: '', assignedTo: '', notify: '' },
+        Task: {
+          _id: '',
+          text: '',
+          dueDate: '',
+          dueTime: '10:00',
+          assignedTo: '',
+          notify: '',
+        },
       });
       setSavedRecordings([]);
       return;
@@ -581,6 +603,9 @@ const LeadFormModal = ({
         dueDate: typeMap.Task?.taskDueDate
           ? new Date(typeMap.Task.taskDueDate).toISOString().split('T')[0]
           : '',
+        dueTime: typeMap.Task?.taskDueDate
+          ? toInputTime(typeMap.Task.taskDueDate)
+          : '10:00',
         assignedTo:
           getUserId(typeMap.Task?.taskAssignedTo) || users[0]?._id || '',
         notify: getUserId(typeMap.Task?.notifiedUsers?.[0]) || '',
@@ -751,7 +776,10 @@ const LeadFormModal = ({
         _id: activities.Task._id || undefined,
         type: 'Task',
         text: activities.Task.text.trim(),
-        taskDueDate: activities.Task.dueDate || '',
+        taskDueDate: combineDateAndTime(
+          activities.Task.dueDate,
+          activities.Task.dueTime || '10:00',
+        ),
         taskAssignedTo: activities.Task.assignedTo || undefined,
         notifiedUsers: activities.Task.notify ? [activities.Task.notify] : [],
       });
@@ -1488,7 +1516,7 @@ const LeadFormModal = ({
                     </FormRow>
                   )}
                   {activeActivityType === 'Task' && (
-                    <FormRow columns={1}>
+                    <FormRow columns={2}>
                       <FormField label="Due Date" required>
                         <DateTimeField
                           value={activeAct.dueDate}
@@ -1496,6 +1524,16 @@ const LeadFormModal = ({
                           openKey="taskDueDate"
                           pickerTargets={pickerTargets}
                           setPickerTargets={setPickerTargets}
+                        />
+                      </FormField>
+                      <FormField label="Due Time">
+                        <DateTimeField
+                          value={activeAct.dueTime || '10:00'}
+                          onChange={v => updateActivity('Task', 'dueTime', v)}
+                          openKey="taskDueTime"
+                          pickerTargets={pickerTargets}
+                          setPickerTargets={setPickerTargets}
+                          mode="time"
                         />
                       </FormField>
                       <FormField label="Assign To">
@@ -1521,7 +1559,9 @@ const LeadFormModal = ({
                   </FormField>
                   {(activeAct.text?.trim() ||
                     activeAct.duration?.trim() ||
-                    activeAct.dueDate) && (
+                    activeAct.dueDate ||
+                    (activeActivityType === 'Task' &&
+                      activeAct.dueTime !== '10:00')) && (
                     <TouchableOpacity
                       onPress={() => {
                         const base =
@@ -1539,6 +1579,7 @@ const LeadFormModal = ({
                                 _id: activeAct._id || '',
                                 text: '',
                                 dueDate: '',
+                                dueTime: '10:00',
                                 assignedTo: users[0]?._id || '',
                                 notify: '',
                               }

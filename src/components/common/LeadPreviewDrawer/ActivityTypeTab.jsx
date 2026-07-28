@@ -9,13 +9,15 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import { useSelector } from 'react-redux';
-import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../../services/api.js';
 import CallLogCard from '../../../services/callLogCard.js';
+import DateField from '../../ui/DateField';
 
 const TYPE_LABEL = {
   Note: 'Note',
@@ -41,34 +43,102 @@ const DEFAULT_FORM = {
     outcome: 'Spoke',
   },
   Email: { _id: '', text: '' },
-  Task: { _id: '', text: '', dueDate: '', assignedTo: '' },
+  Task: { _id: '', text: '', dueDate: '', dueTime: '10:00', assignedTo: '' },
 };
 
 const callDirections = ['Outgoing', 'Incoming', 'Missed'];
 const callOutcomes = ['Spoke', 'No Answer', 'Left Voicemail'];
 
 const SelectField = ({ value, onChange, options, theme }) => {
+  const [visible, setVisible] = useState(false);
+  const [modalValue, setModalValue] = useState(value);
+
+  const selectedLabel =
+    options.find(opt => (opt.value ?? opt) === value)?.label ??
+    value ??
+    'Select...';
+
   return (
-    <View
-      style={[
-        styles.pickerWrap,
-        { borderColor: theme.border, backgroundColor: theme.bgSurface },
-      ]}
-    >
-      <Picker
-        selectedValue={value}
-        onValueChange={itemValue => onChange({ target: { value: itemValue } })}
-        mode="dropdown"
-        dropdownIconColor={theme.textSecondary}
-        style={[styles.picker, { color: theme.textPrimary }]}
+    <>
+      <TouchableOpacity
+        onPress={() => {
+          setModalValue(value);
+          setVisible(true);
+        }}
+        style={[
+          styles.pickerWrap,
+          { borderColor: theme.border, backgroundColor: theme.bgSurface },
+        ]}
       >
-        {options.map(opt => {
-          const val = opt.value ?? opt;
-          const label = opt.label ?? opt;
-          return <Picker.Item key={val} label={String(label)} value={val} />;
-        })}
-      </Picker>
-    </View>
+        <Text style={[styles.pickerText, { color: theme.textPrimary }]}>
+          {selectedLabel}
+        </Text>
+        <Text style={styles.dropdownArrow}>▼</Text>
+      </TouchableOpacity>
+
+      <Modal visible={visible} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setVisible(false)}
+        >
+          <View
+            style={[styles.modalContent, { backgroundColor: theme.bgSurface }]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+              Select option
+            </Text>
+            <ScrollView style={styles.modalScroll}>
+              {options.map((opt, idx) => {
+                const val = opt.value ?? opt;
+                const lbl = opt.label ?? opt;
+                const isSelected = val === modalValue;
+                return (
+                  <TouchableOpacity
+                    key={`${val}-${idx}`}
+                    onPress={() => setModalValue(val)}
+                    style={[
+                      styles.optionItem,
+                      isSelected && { backgroundColor: theme.accent },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        { color: isSelected ? '#fff' : theme.textPrimary },
+                      ]}
+                    >
+                      {lbl}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                onPress={() => setVisible(false)}
+                style={[styles.modalBtn, { borderColor: theme.border }]}
+              >
+                <Text
+                  style={[styles.modalBtnText, { color: theme.textSecondary }]}
+                >
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  onChange({ target: { value: modalValue } });
+                  setVisible(false);
+                }}
+                style={[styles.modalBtn, { backgroundColor: theme.accent }]}
+              >
+                <Text style={styles.modalBtnPrimary}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
   );
 };
 
@@ -87,16 +157,19 @@ const ActivityTypeTab = ({
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const { user } = useSelector(state => state.auth);
   const isAdminUser = user?.role === 'admin';
+  const currentUserId = user?._id || user?.id || user?.userId || '';
 
   const initialForm = useMemo(() => {
     const base = DEFAULT_FORM[type] || DEFAULT_FORM.Note;
-    if (type === 'Task' && users.length && !base.assignedTo) {
-      return { ...base, assignedTo: users[0]._id };
+    if (type === 'Task' && !base.assignedTo) {
+      const fallbackAssignedTo = currentUserId || users[0]?._id || '';
+      return { ...base, assignedTo: fallbackAssignedTo };
     }
     return base;
-  }, [type, users]);
+  }, [type, users, currentUserId]);
 
   const [form, setForm] = useState(initialForm);
 
@@ -106,6 +179,7 @@ const ActivityTypeTab = ({
     setError('');
     setShowForm(false);
     setShowDatePicker(false);
+    setShowTimePicker(false);
   }, [initialForm]);
 
   const parseResponseItems = response => {
@@ -122,6 +196,29 @@ const ActivityTypeTab = ({
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+  };
+
+  const toInputTime = date => {
+    const d = new Date(date);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(
+      d.getMinutes(),
+    ).padStart(2, '0')}`;
+  };
+
+  const normalizeTimeValue = value => {
+    const raw = String(value || '10:00').trim();
+    const match = raw.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+
+    if (!match) return '10:00';
+
+    let hours = Number(match[1]);
+    const minutes = match[2];
+    const meridiem = match[3]?.toUpperCase();
+
+    if (meridiem === 'AM' && hours === 12) hours = 0;
+    if (meridiem === 'PM' && hours < 12) hours += 12;
+
+    return `${String(hours).padStart(2, '0')}:${minutes}`;
   };
 
   const formatDateLabel = value => {
@@ -162,21 +259,29 @@ const ActivityTypeTab = ({
       }`;
     }
     if (type === 'Task') {
-      const due = item.taskDueDate
-        ? new Date(item.taskDueDate).toLocaleDateString('en-IN', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-          })
-        : '';
-      return [
-        due ? `Due ${due}` : null,
-        item.taskAssignedTo
-          ? `Assigned to ${item.taskAssignedTo.name || item.taskAssignedTo}`
-          : null,
-      ]
-        .filter(Boolean)
-        .join(' · ');
+      let meta = '';
+
+      if (item.taskDueDate) {
+        const dueDate = new Date(item.taskDueDate);
+        const dateStr = dueDate.toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+        const timeStr = dueDate.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+        meta = `Due ${dateStr}, ${timeStr}`;
+      }
+
+      if (item.taskAssignedTo) {
+        const assigned = item.taskAssignedTo.name || item.taskAssignedTo;
+        meta += meta ? ` · Assigned to ${assigned}` : `Assigned to ${assigned}`;
+      }
+
+      return meta;
     }
     return '';
   };
@@ -207,6 +312,7 @@ const ActivityTypeTab = ({
     setEditItem(null);
     setError('');
     setShowDatePicker(false);
+    setShowTimePicker(false);
   };
 
   const buildPayload = () => {
@@ -223,7 +329,13 @@ const ActivityTypeTab = ({
     }
 
     if (type === 'Task') {
-      payload.taskDueDate = form.dueDate ? new Date(form.dueDate) : undefined;
+      let taskDueDate = null;
+      if (form.dueDate) {
+        const time = normalizeTimeValue(form.dueTime || '10:00');
+        taskDueDate = new Date(`${form.dueDate}T${time}:00`);
+      }
+
+      payload.taskDueDate = taskDueDate;
       payload.taskAssignedTo = form.assignedTo || undefined;
     }
 
@@ -310,6 +422,7 @@ const ActivityTypeTab = ({
       dueDate: item.taskDueDate
         ? new Date(item.taskDueDate).toISOString().split('T')[0]
         : '',
+      dueTime: item.taskDueDate ? toInputTime(item.taskDueDate) : '10:00',
       assignedTo:
         item.taskAssignedTo?._id || item.taskAssignedTo || users[0]?._id || '',
     });
@@ -533,79 +646,122 @@ const ActivityTypeTab = ({
 
             {type === 'Task' ? (
               <View style={styles.taskGrid}>
-                <View style={styles.flex1}>
-                  <Text
-                    style={[styles.fieldLabel, { color: theme.textSecondary }]}
-                  >
-                    Due Date{' '}
-                    <Text style={{ color: theme.danger || '#ef4444' }}>*</Text>
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setShowDatePicker(true)}
-                    style={[
-                      styles.dateButton,
-                      {
+                <View style={styles.taskRow}>
+                  <View style={styles.flex1}>
+                    <Text
+                      style={[
+                        styles.fieldLabel,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Due Date{' '}
+                      <Text style={{ color: theme.danger || '#ef4444' }}>
+                        *
+                      </Text>
+                    </Text>
+                    <DateField
+                      value={form.dueDate}
+                      mode="date"
+                      placeholder="Select date"
+                      onPress={() => setShowDatePicker(true)}
+                      style={{
                         borderColor: theme.border,
                         backgroundColor: theme.bgSurface,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: form.dueDate
-                          ? theme.textPrimary
-                          : theme.textMuted,
-                        fontSize: 13,
                       }}
-                    >
-                      {formatDueDate(form.dueDate)}
-                    </Text>
-                    <Icon
-                      name="calendar-month-outline"
-                      size={16}
-                      color={theme.textSecondary}
                     />
-                  </TouchableOpacity>
-                  {showDatePicker ? (
-                    <DateTimePicker
-                      value={
-                        form.dueDate
-                          ? new Date(`${form.dueDate}T00:00:00`)
-                          : new Date()
-                      }
-                      mode="date"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onValueChange={(event, selectedDate) => {
-                        if (event?.type === 'dismissed') return;
-                        if (selectedDate) {
-                          if (Platform.OS === 'android')
-                            setShowDatePicker(false);
-                          setForm(prev => ({
-                            ...prev,
-                            dueDate: toInputDate(selectedDate),
-                          }));
+                    {showDatePicker ? (
+                      <DateTimePicker
+                        value={
+                          form.dueDate
+                            ? new Date(`${form.dueDate}T00:00:00`)
+                            : new Date()
                         }
-                      }}
-                      onDismiss={() => {
-                        if (Platform.OS === 'android') setShowDatePicker(false);
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={(event, selectedDate) => {
+                          setShowDatePicker(false);
+                          if (event?.type === 'dismissed') return;
+                          if (selectedDate) {
+                            setForm(prev => ({
+                              ...prev,
+                              dueDate: toInputDate(selectedDate),
+                            }));
+                          }
+                        }}
+                      />
+                    ) : null}
+                  </View>
+                  <View style={styles.flex1}>
+                    <Text
+                      style={[
+                        styles.fieldLabel,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Due Time
+                    </Text>
+                    <DateField
+                      value={form.dueTime || '10:00'}
+                      mode="time"
+                      placeholder="10:00"
+                      onPress={() => setShowTimePicker(true)}
+                      style={{
+                        borderColor: theme.border,
+                        backgroundColor: theme.bgSurface,
                       }}
                     />
-                  ) : null}
+                    {showTimePicker ? (
+                      <DateTimePicker
+                        value={
+                          form.dueTime
+                            ? new Date(
+                                `2000-01-01T${normalizeTimeValue(
+                                  form.dueTime,
+                                )}:00`,
+                              )
+                            : new Date('2000-01-01T10:00:00')
+                        }
+                        mode="time"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={(event, selectedDate) => {
+                          setShowTimePicker(false);
+                          if (event?.type === 'dismissed') return;
+                          if (selectedDate) {
+                            setForm(prev => ({
+                              ...prev,
+                              dueTime: toInputTime(selectedDate),
+                            }));
+                          }
+                        }}
+                      />
+                    ) : null}
+                  </View>
                 </View>
-                <View style={styles.flex1}>
-                  <Text
-                    style={[styles.fieldLabel, { color: theme.textSecondary }]}
-                  >
-                    Assignee
-                  </Text>
-                  <SelectField
-                    value={form.assignedTo}
-                    onChange={e =>
-                      setForm(prev => ({ ...prev, assignedTo: e.target.value }))
-                    }
-                    options={users.map(u => ({ value: u._id, label: u.name }))}
-                    theme={theme}
-                  />
+                <View style={styles.taskRow}>
+                  <View style={styles.flex1}>
+                    <Text
+                      style={[
+                        styles.fieldLabel,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Assignee
+                    </Text>
+                    <SelectField
+                      value={form.assignedTo}
+                      onChange={e =>
+                        setForm(prev => ({
+                          ...prev,
+                          assignedTo: e.target.value,
+                        }))
+                      }
+                      options={users.map(u => ({
+                        value: u._id,
+                        label: u.name,
+                      }))}
+                      theme={theme}
+                    />
+                  </View>
                 </View>
               </View>
             ) : null}
@@ -709,8 +865,75 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   callGrid: { gap: 12 },
-  taskGrid: { flexDirection: 'row', gap: 12, alignItems: 'flex-end' },
+  taskGrid: { gap: 12 },
+  taskRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-end' },
   flex1: { flex: 1 },
+  pickerWrap: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pickerText: {
+    fontSize: 13,
+    flex: 1,
+  },
+  dropdownArrow: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxHeight: 300,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  modalTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalScroll: {
+    maxHeight: 180,
+  },
+  optionItem: {
+    padding: 14,
+  },
+  optionText: {
+    fontSize: 14,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  modalBtn: {
+    flex: 1,
+    padding: 14,
+    alignItems: 'center',
+  },
+  modalBtnText: {
+    fontSize: 14,
+  },
+  modalBtnPrimary: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
   input: {
     borderRadius: 10,
     borderWidth: 1,
@@ -727,13 +950,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  pickerWrap: {
-    borderRadius: 10,
-    borderWidth: 1,
-    height: 42,
-    justifyContent: 'center',
-    overflow: 'hidden',
   },
   picker: { height: 42, width: '100%' },
   errorText: { fontSize: 12, lineHeight: 17 },
