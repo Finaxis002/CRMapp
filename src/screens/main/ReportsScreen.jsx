@@ -506,681 +506,777 @@ const ReportsScreen = ({ navigation, currentUser: propUser }) => {
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.body}
-        showsVerticalScrollIndicator={false}
-        onScrollBeginDrag={() => setTooltip(null)}
-      >
-        {/* ── Error ── */}
-        {!!error && (
-          <View
-            style={[
-              styles.errorBox,
-              { backgroundColor: colors.dangerSoft, borderColor: '#FCA5A5' },
-            ]}
-          >
-            <Text style={{ color: colors.danger, fontSize: 13 }}>{error}</Text>
-            <TouchableOpacity onPress={fetchAll} style={styles.retryBtn}>
-              <Text
-                style={{
-                  color: colors.danger,
-                  fontWeight: '700',
-                  fontSize: 13,
-                }}
-              >
-                Retry ↺
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* ── KPI Grid ── */}
-        <View style={styles.kpiGrid}>
-          {[
-            {
-              label: 'Total Leads',
-              value: loading ? '—' : fmtNum(overview?.totalLeads || 0),
-              color: '#5a7bf6',
-            },
-            {
-              label: 'Active',
-              value: loading ? '—' : fmtNum(overview?.activeLeads || 0),
-              color: '#F79009',
-            },
-            {
-              label: 'Won',
-              value: loading ? '—' : fmtNum(overview?.wonLeads || 0),
-              color: '#12B76A',
-            },
-            {
-              label: 'Closed',
-              value: loading ? '—' : fmtNum(overview?.closedLeads || 0),
-              color: '#7A5AF8',
-            },
-            {
-              label: 'Collected',
-              value: loading ? '—' : fmt(overview?.collectedAmount || 0),
-              color: '#0BA5EC',
-            },
-            {
-              label: 'Conversion',
-              value: loading ? '—' : `${conversionRate}%`,
-              color: '#F04438',
-            },
-          ].map(s => (
-            <StatChip key={s.label} {...s} />
-          ))}
-        </View>
-
-        {/* ── Leads Over Time ── */}
-        <ImprovedCard
-          variant="outline"
-          padding="large"
-          style={{ marginBottom: 16, paddingBottom: 32, position: 'relative' }}
+      {/* ══════════ INITIAL LOAD: clean centered spinner ══════════ */}
+      {loading && !overview ? (
+        <View
+          style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: colors.background,
+          }}
         >
-          <View style={styles.cardHeaderRow}>
-            <SectionTitle
-              title="Leads Over Time"
-              sub="Daily lead creation trend"
-            />
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : (
+        /* ══════════ DATA EXISTS (or error): render full content ══════════ */
+        <ScrollView
+          contentContainerStyle={styles.body}
+          showsVerticalScrollIndicator={false}
+          onScrollBeginDrag={() => setTooltip(null)}
+        >
+          {/* ── Error ── */}
+          {!!error && (
             <View
               style={[
-                styles.filterBadge,
-                { backgroundColor: colors.backgroundSecondary },
+                styles.errorBox,
+                { backgroundColor: colors.dangerSoft, borderColor: '#FCA5A5' },
               ]}
             >
-              <Text style={[styles.filterBadgeText, { color: colors.primary }]}>
-                {activeFilter}
+              <Text style={{ color: colors.danger, fontSize: 13 }}>
+                {error}
               </Text>
-            </View>
-          </View>
-          {loading ? (
-            <Skeleton h={180} />
-          ) : timelineLeadsData.length === 0 ? (
-            <EmptyChart filterLabel={activeFilter} />
-          ) : (
-            <View
-              onStartShouldSetResponder={() => {
-                setTooltip(null);
-                return false;
-              }}
-            >
-              <LineChart
-                {...commonLineProps}
-                data={timelineLeadsData}
-                color="#5a7bf6"
-                startFillColor="#5a7bf6"
-                dataPointsColor="#5a7bf6"
-                onPress={(item, index) => {
-                  setTooltip(prev =>
-                    prev?.index === index && prev?.chartType === 'leads'
-                      ? null
-                      : {
-                          x: (index + 1) * (CHART_W / timelineLeadsData.length),
-                          y: 120,
-                          label: item.label,
-                          leads: item.value,
-                          chartType: 'leads',
-                          index,
-                        },
-                  );
-                }}
-              />
-              {tooltip?.chartType === 'leads' && (
-                <TooltipPopup data={tooltip} />
-              )}
+              <TouchableOpacity onPress={fetchAll} style={styles.retryBtn}>
+                <Text
+                  style={{
+                    color: colors.danger,
+                    fontWeight: '700',
+                    fontSize: 13,
+                  }}
+                >
+                  Retry ↺
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
-        </ImprovedCard>
 
-        {/* ── Deal Value Trend ── */}
-        <ImprovedCard
-          variant="outline"
-          padding="large"
-          style={{ marginBottom: 16, paddingBottom: 32, position: 'relative' }}
-        >
-          <SectionTitle
-            title="Deal Value Trend"
-            sub="Total deal value added per day"
-          />
-          {loading ? (
-            <Skeleton h={180} />
-          ) : timelineValueData.length === 0 ? (
-            <EmptyChart filterLabel={activeFilter} />
-          ) : (
-            <View
-              onStartShouldSetResponder={() => {
-                setTooltip(null);
-                return false;
-              }}
-            >
-              <LineChart
-                {...commonLineProps}
-                data={timelineValueData}
-                color="#12B76A"
-                startFillColor="#12B76A"
-                dataPointsColor="#12B76A"
-                formatYLabel={v => {
-                  const n = Number(v);
-                  if (n >= 1e7) return `₹${(n / 1e7).toFixed(1)}Cr`;
-                  if (n >= 1e5) return `₹${(n / 1e5).toFixed(1)}L`;
-                  if (n >= 1e3) return `₹${(n / 1e3).toFixed(0)}K`;
-                  return `₹${n}`;
-                }}
-                onPress={(item, index) => {
-                  setTooltip(prev =>
-                    prev?.index === index && prev?.chartType === 'value'
-                      ? null
-                      : {
-                          x: (index + 1) * (CHART_W / timelineValueData.length),
-                          y: 120,
-                          label: item.label,
-                          value: item.value,
-                          chartType: 'value',
-                          index,
-                        },
-                  );
-                }}
-              />
-              {tooltip?.chartType === 'value' && (
-                <TooltipPopup data={tooltip} />
-              )}
-            </View>
-          )}
-        </ImprovedCard>
-
-        {/* ── Status Breakdown (Donut) ── */}
-        <ImprovedCard
-          variant="outline"
-          padding="large"
-          style={{ marginBottom: 16 }}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={() => setPieTooltip(null)}
-          >
-            <SectionTitle
-              title="Status Breakdown"
-              sub="Lead distribution by stage"
+          {/* ── No data + not loading = empty state ── */}
+          {!overview && !loading && !error ? (
+            <EmptyState
+              icon="chart-box-outline"
+              title="No data available"
+              message="Try switching to a different time range"
             />
-            {loading ? (
-              <Skeleton h={200} />
-            ) : pieData.length === 0 ? (
-              <EmptyChart filterLabel={activeFilter} />
-            ) : (
-              <>
-                <View style={{ alignItems: 'center', marginBottom: 16 }}>
-                  <View style={{ position: 'relative' }}>
-                    <PieChart
-                      data={pieData}
-                      radius={75}
-                      innerRadius={40}
-                      showText={false}
-                      showTextBackground={false}
-                      textColor="transparent"
-                      textSize={0}
-                      isAnimated
+          ) : null}
+
+          {/* ── Only render charts/KPIs when data exists ── */}
+          {overview ? (
+            <>
+              {/* ── KPI Grid (real values) ── */}
+              <View style={styles.kpiGrid}>
+                {[
+                  {
+                    label: 'Total Leads',
+                    value: fmtNum(overview.totalLeads || 0),
+                    color: '#5a7bf6',
+                  },
+                  {
+                    label: 'Active',
+                    value: fmtNum(overview.activeLeads || 0),
+                    color: '#F79009',
+                  },
+                  {
+                    label: 'Won',
+                    value: fmtNum(overview.wonLeads || 0),
+                    color: '#12B76A',
+                  },
+                  {
+                    label: 'Closed',
+                    value: fmtNum(overview.closedLeads || 0),
+                    color: '#7A5AF8',
+                  },
+                  {
+                    label: 'Collected',
+                    value: fmt(overview.collectedAmount || 0),
+                    color: '#0BA5EC',
+                  },
+                  {
+                    label: 'Conversion',
+                    value: `${conversionRate}%`,
+                    color: '#F04438',
+                  },
+                ].map(s => (
+                  <StatChip key={s.label} {...s} />
+                ))}
+              </View>
+
+              {/* ── Leads Over Time ── */}
+              <ImprovedCard
+                variant="outline"
+                padding="large"
+                style={{
+                  marginBottom: 16,
+                  paddingBottom: 32,
+                  position: 'relative',
+                }}
+              >
+                <View style={styles.cardHeaderRow}>
+                  <SectionTitle
+                    title="Leads Over Time"
+                    sub="Daily lead creation trend"
+                  />
+                  <View
+                    style={[
+                      styles.filterBadge,
+                      { backgroundColor: colors.backgroundSecondary },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterBadgeText,
+                        { color: colors.primary },
+                      ]}
+                    >
+                      {activeFilter}
+                    </Text>
+                  </View>
+                </View>
+                {loading ? (
+                  <Skeleton h={180} />
+                ) : timelineLeadsData.length === 0 ? (
+                  <EmptyChart filterLabel={activeFilter} />
+                ) : (
+                  <View
+                    onStartShouldSetResponder={() => {
+                      setTooltip(null);
+                      return false;
+                    }}
+                  >
+                    <LineChart
+                      {...commonLineProps}
+                      data={timelineLeadsData}
+                      color="#5a7bf6"
+                      startFillColor="#5a7bf6"
+                      dataPointsColor="#5a7bf6"
                       onPress={(item, index) => {
-                        setPieTooltip(prev =>
-                          prev?.index === index
+                        setTooltip(prev =>
+                          prev?.index === index && prev?.chartType === 'leads'
                             ? null
                             : {
+                                x:
+                                  (index + 1) *
+                                  (CHART_W / timelineLeadsData.length),
+                                y: 120,
+                                label: item.label,
+                                leads: item.value,
+                                chartType: 'leads',
                                 index,
-                                name: item.name || statusBreakdown[index]?.name,
-                                value: item.value,
-                                pct: (() => {
-                                  const total = statusBreakdown.reduce(
-                                    (a, x) => a + x.value,
-                                    0,
-                                  );
-                                  return total > 0
-                                    ? ((item.value / total) * 100).toFixed(1)
-                                    : '0.0';
-                                })(),
-                                color: item.color,
                               },
                         );
                       }}
-                      focusOnPress
-                      selectedSectionStyle={{ scale: 1.05 }}
                     />
-                    {pieTooltip && (
+                    {tooltip?.chartType === 'leads' && (
+                      <TooltipPopup data={tooltip} />
+                    )}
+                  </View>
+                )}
+              </ImprovedCard>
+
+              {/* ── Deal Value Trend ── */}
+              <ImprovedCard
+                variant="outline"
+                padding="large"
+                style={{
+                  marginBottom: 16,
+                  paddingBottom: 32,
+                  position: 'relative',
+                }}
+              >
+                <SectionTitle
+                  title="Deal Value Trend"
+                  sub="Total deal value added per day"
+                />
+                {loading ? (
+                  <Skeleton h={180} />
+                ) : timelineValueData.length === 0 ? (
+                  <EmptyChart filterLabel={activeFilter} />
+                ) : (
+                  <View
+                    onStartShouldSetResponder={() => {
+                      setTooltip(null);
+                      return false;
+                    }}
+                  >
+                    <LineChart
+                      {...commonLineProps}
+                      data={timelineValueData}
+                      color="#12B76A"
+                      startFillColor="#12B76A"
+                      dataPointsColor="#12B76A"
+                      formatYLabel={v => {
+                        const n = Number(v);
+                        if (n >= 1e7) return `₹${(n / 1e7).toFixed(1)}Cr`;
+                        if (n >= 1e5) return `₹${(n / 1e5).toFixed(1)}L`;
+                        if (n >= 1e3) return `₹${(n / 1e3).toFixed(0)}K`;
+                        return `₹${n}`;
+                      }}
+                      onPress={(item, index) => {
+                        setTooltip(prev =>
+                          prev?.index === index && prev?.chartType === 'value'
+                            ? null
+                            : {
+                                x:
+                                  (index + 1) *
+                                  (CHART_W / timelineValueData.length),
+                                y: 120,
+                                label: item.label,
+                                value: item.value,
+                                chartType: 'value',
+                                index,
+                              },
+                        );
+                      }}
+                    />
+                    {tooltip?.chartType === 'value' && (
+                      <TooltipPopup data={tooltip} />
+                    )}
+                  </View>
+                )}
+              </ImprovedCard>
+
+              {/* ── Status Breakdown (Donut) ── */}
+              <ImprovedCard
+                variant="outline"
+                padding="large"
+                style={{ marginBottom: 16 }}
+              >
+                <TouchableOpacity
+                  activeOpacity={1}
+                  onPress={() => setPieTooltip(null)}
+                >
+                  <SectionTitle
+                    title="Status Breakdown"
+                    sub="Lead distribution by stage"
+                  />
+                  {loading ? (
+                    <Skeleton h={200} />
+                  ) : pieData.length === 0 ? (
+                    <EmptyChart filterLabel={activeFilter} />
+                  ) : (
+                    <>
+                      <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                        <View style={{ position: 'relative' }}>
+                          <PieChart
+                            data={pieData}
+                            radius={75}
+                            innerRadius={40}
+                            showText={false}
+                            showTextBackground={false}
+                            textColor="transparent"
+                            textSize={0}
+                            isAnimated
+                            onPress={(item, index) => {
+                              setPieTooltip(prev =>
+                                prev?.index === index
+                                  ? null
+                                  : {
+                                      index,
+                                      name:
+                                        item.name ||
+                                        statusBreakdown[index]?.name,
+                                      value: item.value,
+                                      pct: (() => {
+                                        const total = statusBreakdown.reduce(
+                                          (a, x) => a + x.value,
+                                          0,
+                                        );
+                                        return total > 0
+                                          ? (
+                                              (item.value / total) *
+                                              100
+                                            ).toFixed(1)
+                                          : '0.0';
+                                      })(),
+                                      color: item.color,
+                                    },
+                              );
+                            }}
+                            focusOnPress
+                            selectedSectionStyle={{ scale: 1.05 }}
+                          />
+                          {pieTooltip && (
+                            <View
+                              style={[
+                                styles.sliceTooltip,
+                                {
+                                  backgroundColor: colors.surface,
+                                  borderColor: pieTooltip.color,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.sliceTooltipText,
+                                  { color: colors.textTertiary },
+                                ]}
+                              >
+                                {pieTooltip.name}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.sliceTooltipVal,
+                                  { color: pieTooltip.color },
+                                ]}
+                              >
+                                {pieTooltip.value}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      {(() => {
+                        const total = statusBreakdown.reduce(
+                          (a, x) => a + x.value,
+                          0,
+                        );
+                        return statusBreakdown.map((s, i) => {
+                          const color =
+                            STATUS_COLORS[s.name] ||
+                            PALETTE[i % PALETTE.length];
+                          return (
+                            <View key={s.name} style={styles.legendRow}>
+                              <View
+                                style={[
+                                  styles.legendDot,
+                                  { backgroundColor: color },
+                                ]}
+                              />
+                              <Text
+                                style={[
+                                  styles.legendName,
+                                  { color: colors.textSecondary },
+                                ]}
+                              >
+                                {s.name}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.legendVal,
+                                  { color: colors.textPrimary },
+                                ]}
+                              >
+                                {s.value}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.legendPct,
+                                  { color: colors.textTertiary },
+                                ]}
+                              >
+                                {total > 0
+                                  ? ((s.value / total) * 100).toFixed(2)
+                                  : '0.00'}
+                                %
+                              </Text>
+                            </View>
+                          );
+                        });
+                      })()}
+                    </>
+                  )}
+                </TouchableOpacity>
+              </ImprovedCard>
+
+              {/* ── Leads by Source ── */}
+              <ImprovedCard
+                variant="outline"
+                padding="large"
+                style={{ marginBottom: 16 }}
+              >
+                <SectionTitle
+                  title="Leads by Source"
+                  sub="Which channels bring the most leads"
+                />
+                {loading ? (
+                  <Skeleton h={220} />
+                ) : barSourceData.length === 0 ? (
+                  <EmptyChart filterLabel={activeFilter} />
+                ) : (
+                  <BarChart
+                    {...commonBarProps}
+                    data={barSourceData}
+                    height={220}
+                  />
+                )}
+              </ImprovedCard>
+
+              {/* ── Team Performance ── */}
+              {showTeam && (
+                <ImprovedCard
+                  variant="outline"
+                  padding="large"
+                  style={{ marginBottom: 16 }}
+                >
+                  <SectionTitle
+                    title="Team Performance"
+                    sub="Top performers by lead count & deal value"
+                  />
+                  {loading ? (
+                    <Skeleton h={220} />
+                  ) : teamLeadsData.length === 0 ? (
+                    <EmptyChart filterLabel={activeFilter} />
+                  ) : (
+                    <>
+                      <Text
+                        style={[
+                          styles.barGroupLabel,
+                          { color: colors.textTertiary },
+                        ]}
+                      >
+                        Leads
+                      </Text>
+                      <BarChart
+                        {...commonBarProps}
+                        data={teamLeadsData}
+                        height={160}
+                      />
+
+                      <Text
+                        style={[
+                          styles.barGroupLabel,
+                          { color: colors.textTertiary, marginTop: 16 },
+                        ]}
+                      >
+                        Deal Value
+                      </Text>
+                      <BarChart
+                        {...commonBarProps}
+                        data={teamPerformance.map((m, i) => ({
+                          value: m.totalDealValue || 0,
+                          label: (m.name || '?').split(' ')[0].slice(0, 6),
+                          frontColor: '#12B76A',
+                          topLabelComponent: () => (
+                            <Text
+                              style={{
+                                fontSize: 8,
+                                color: colors.textTertiary,
+                                marginBottom: 2,
+                              }}
+                            >
+                              {fmt(m.totalDealValue)}
+                            </Text>
+                          ),
+                        }))}
+                        height={160}
+                        formatYLabel={v => fmt(Number(v))}
+                      />
+
+                      <View style={styles.chartLegend}>
+                        <View style={styles.chartLegendItem}>
+                          <View
+                            style={[
+                              styles.legendDot,
+                              { backgroundColor: '#5a7bf6' },
+                            ]}
+                          />
+                          <Text
+                            style={[
+                              styles.legendName,
+                              { color: colors.textSecondary },
+                            ]}
+                          >
+                            Leads
+                          </Text>
+                        </View>
+                        <View style={styles.chartLegendItem}>
+                          <View
+                            style={[
+                              styles.legendDot,
+                              { backgroundColor: '#12B76A' },
+                            ]}
+                          />
+                          <Text
+                            style={[
+                              styles.legendName,
+                              { color: colors.textSecondary },
+                            ]}
+                          >
+                            Deal Value
+                          </Text>
+                        </View>
+                      </View>
+                    </>
+                  )}
+                </ImprovedCard>
+              )}
+
+              {/* ── Executive Leaderboard ── */}
+              {showTeam && teamPerformance.length > 0 && !loading && (
+                <ImprovedCard
+                  variant="outline"
+                  padding="none"
+                  style={{ marginBottom: 16, overflow: 'hidden' }}
+                >
+                  <View
+                    style={[
+                      styles.tableHeader,
+                      { borderBottomColor: colors.border },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.sectionTitle,
+                        { color: colors.textPrimary },
+                      ]}
+                    >
+                      Executive Leaderboard
+                    </Text>
+                    <Text
+                      style={[
+                        styles.sectionSub,
+                        { color: colors.textTertiary },
+                      ]}
+                    >
+                      Detailed breakdown per team member
+                    </Text>
+                  </View>
+
+                  {/* Table head */}
+                  <View
+                    style={[
+                      styles.tableRow,
+                      {
+                        backgroundColor: colors.backgroundSecondary,
+                        borderTopWidth: 0,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.tableHeadCell,
+                        { color: colors.textTertiary, flex: 0.4 },
+                      ]}
+                    >
+                      #
+                    </Text>
+                    <Text
+                      style={[
+                        styles.tableHeadCell,
+                        { color: colors.textTertiary, flex: 2 },
+                      ]}
+                    >
+                      Executive
+                    </Text>
+                    <Text
+                      style={[
+                        styles.tableHeadCell,
+                        {
+                          color: colors.textTertiary,
+                          textAlign: 'right',
+                          flex: 1,
+                        },
+                      ]}
+                    >
+                      Leads
+                    </Text>
+                    <Text
+                      style={[
+                        styles.tableHeadCell,
+                        {
+                          color: colors.textTertiary,
+                          textAlign: 'right',
+                          flex: 1.4,
+                        },
+                      ]}
+                    >
+                      Value
+                    </Text>
+                    <Text
+                      style={[
+                        styles.tableHeadCell,
+                        { color: colors.textTertiary, flex: 1.4 },
+                      ]}
+                    >
+                      Progress
+                    </Text>
+                  </View>
+
+                  {teamPerformance.map((m, i) => (
+                    <View
+                      key={m.userId || m.name}
+                      style={[
+                        styles.tableRow,
+                        { borderTopColor: colors.border },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.tableCell,
+                          { flex: 0.4, color: colors.textTertiary },
+                        ]}
+                      >
+                        {i === 0
+                          ? '🥇'
+                          : i === 1
+                          ? '🥈'
+                          : i === 2
+                          ? '🥉'
+                          : `#${i + 1}`}
+                      </Text>
+                      <View style={[styles.nameCell, { flex: 2 }]}>
+                        <View
+                          style={[
+                            styles.avatar,
+                            { backgroundColor: PALETTE[i % PALETTE.length] },
+                          ]}
+                        >
+                          <Text style={styles.avatarText}>
+                            {(m.name || '?')
+                              .split(' ')
+                              .slice(0, 2)
+                              .map(n => n[0])
+                              .join('')
+                              .toUpperCase()}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.tableCell,
+                            { color: colors.textPrimary },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {m.name}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.tableCell,
+                          {
+                            flex: 1,
+                            textAlign: 'right',
+                            color: colors.textPrimary,
+                            fontWeight: '700',
+                          },
+                        ]}
+                      >
+                        {fmtNum(m.leadCount)}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.tableCell,
+                          {
+                            flex: 1.4,
+                            textAlign: 'right',
+                            color: colors.textPrimary,
+                            fontWeight: '700',
+                          },
+                        ]}
+                      >
+                        {fmt(m.totalDealValue)}
+                      </Text>
+                      <View style={{ flex: 1.4, paddingLeft: 8 }}>
+                        <ProgressBar
+                          ratio={m.leadCount / maxLeads}
+                          color={PALETTE[i % PALETTE.length]}
+                        />
+                      </View>
+                    </View>
+                  ))}
+                </ImprovedCard>
+              )}
+
+              {/* ── Personal Stats ── */}
+              {!showTeam && (
+                <ImprovedCard
+                  variant="outline"
+                  padding="large"
+                  style={{ marginBottom: 16 }}
+                >
+                  <SectionTitle
+                    title="My Stats"
+                    sub="Your personal performance"
+                  />
+                  {loading ? (
+                    <Skeleton h={180} />
+                  ) : (
+                    <>
+                      <View style={styles.kpiGrid}>
+                        <StatChip
+                          label="Pipeline Value"
+                          value={fmt(overview.pipelineValue || 0)}
+                          color="#5a7bf6"
+                        />
+                        <StatChip
+                          label="Collected"
+                          value={fmt(overview.collectedAmount || 0)}
+                          color="#12B76A"
+                        />
+                        <StatChip
+                          label="Won Leads"
+                          value={fmtNum(overview.wonLeads || 0)}
+                          color="#F79009"
+                        />
+                        <StatChip
+                          label="Conversion"
+                          value={`${conversionRate}%`}
+                          color="#7A5AF8"
+                        />
+                      </View>
                       <View
                         style={[
-                          styles.sliceTooltip,
+                          styles.reminderBox,
                           {
-                            backgroundColor: colors.surface,
-                            borderColor: pieTooltip.color,
+                            borderColor: `${colors.primary}33`,
+                            backgroundColor: colors.primarySoft,
                           },
                         ]}
                       >
                         <Text
                           style={[
-                            styles.sliceTooltipText,
+                            styles.reminderLabel,
                             { color: colors.textTertiary },
                           ]}
                         >
-                          {pieTooltip.name}
+                          Today's Reminders
                         </Text>
                         <Text
                           style={[
-                            styles.sliceTooltipVal,
-                            { color: pieTooltip.color },
+                            styles.reminderCount,
+                            { color: colors.primary },
                           ]}
                         >
-                          {pieTooltip.value}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-                {(() => {
-                  const total = statusBreakdown.reduce(
-                    (a, x) => a + x.value,
-                    0,
-                  );
-                  return statusBreakdown.map((s, i) => {
-                    const color =
-                      STATUS_COLORS[s.name] || PALETTE[i % PALETTE.length];
-                    return (
-                      <View key={s.name} style={styles.legendRow}>
-                        <View
-                          style={[styles.legendDot, { backgroundColor: color }]}
-                        />
-                        <Text
-                          style={[
-                            styles.legendName,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {s.name}
+                          {fmtNum(overview.todayRemindersCount || 0)}
                         </Text>
                         <Text
                           style={[
-                            styles.legendVal,
-                            { color: colors.textPrimary },
-                          ]}
-                        >
-                          {s.value}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.legendPct,
+                            styles.reminderSub,
                             { color: colors.textTertiary },
                           ]}
                         >
-                          {total > 0
-                            ? ((s.value / total) * 100).toFixed(2)
-                            : '0.00'}
-                          %
+                          pending follow-ups
                         </Text>
                       </View>
-                    );
-                  });
-                })()}
-              </>
-            )}
-          </TouchableOpacity>
-        </ImprovedCard>
+                    </>
+                  )}
+                </ImprovedCard>
+              )}
 
-        {/* ── Leads by Source ── */}
-        <ImprovedCard
-          variant="outline"
-          padding="large"
-          style={{ marginBottom: 16 }}
-        >
-          <SectionTitle
-            title="Leads by Source"
-            sub="Which channels bring the most leads"
-          />
-          {loading ? (
-            <Skeleton h={220} />
-          ) : barSourceData.length === 0 ? (
-            <EmptyChart filterLabel={activeFilter} />
-          ) : (
-            <BarChart {...commonBarProps} data={barSourceData} height={220} />
-          )}
-        </ImprovedCard>
-
-        {/* ── Team Performance ── */}
-        {showTeam && (
-          <ImprovedCard
-            variant="outline"
-            padding="large"
-            style={{ marginBottom: 16 }}
-          >
-            <SectionTitle
-              title="Team Performance"
-              sub="Top performers by lead count & deal value"
-            />
-            {loading ? (
-              <Skeleton h={220} />
-            ) : teamLeadsData.length === 0 ? (
-              <EmptyChart filterLabel={activeFilter} />
-            ) : (
-              <>
+              {/* ── Footer ── */}
+              <View style={[styles.footer, { borderTopColor: colors.border }]}>
                 <Text
-                  style={[styles.barGroupLabel, { color: colors.textTertiary }]}
+                  style={[styles.footerNote, { color: colors.textTertiary }]}
                 >
-                  Leads
+                  Data updates on every filter change.
                 </Text>
-                <BarChart
-                  {...commonBarProps}
-                  data={teamLeadsData}
-                  height={160}
-                />
-
-                <Text
-                  style={[
-                    styles.barGroupLabel,
-                    { color: colors.textTertiary, marginTop: 16 },
-                  ]}
+                <TouchableOpacity
+                  onPress={() => navigation?.navigate?.('Leads')}
                 >
-                  Deal Value
-                </Text>
-                <BarChart
-                  {...commonBarProps}
-                  data={teamPerformance.map((m, i) => ({
-                    value: m.totalDealValue || 0,
-                    label: (m.name || '?').split(' ')[0].slice(0, 6),
-                    frontColor: '#12B76A',
-                    topLabelComponent: () => (
-                      <Text
-                        style={{
-                          fontSize: 8,
-                          color: colors.textTertiary,
-                          marginBottom: 2,
-                        }}
-                      >
-                        {fmt(m.totalDealValue)}
-                      </Text>
-                    ),
-                  }))}
-                  height={160}
-                  formatYLabel={v => fmt(Number(v))}
-                />
-
-                <View style={styles.chartLegend}>
-                  <View style={styles.chartLegendItem}>
-                    <View
-                      style={[styles.legendDot, { backgroundColor: '#5a7bf6' }]}
-                    />
-                    <Text
-                      style={[
-                        styles.legendName,
-                        { color: colors.textSecondary },
-                      ]}
-                    >
-                      Leads
-                    </Text>
-                  </View>
-                  <View style={styles.chartLegendItem}>
-                    <View
-                      style={[styles.legendDot, { backgroundColor: '#12B76A' }]}
-                    />
-                    <Text
-                      style={[
-                        styles.legendName,
-                        { color: colors.textSecondary },
-                      ]}
-                    >
-                      Deal Value
-                    </Text>
-                  </View>
-                </View>
-              </>
-            )}
-          </ImprovedCard>
-        )}
-
-        {/* ── Executive Leaderboard ── */}
-        {showTeam && teamPerformance.length > 0 && !loading && (
-          <ImprovedCard
-            variant="outline"
-            padding="none"
-            style={{ marginBottom: 16, overflow: 'hidden' }}
-          >
-            <View
-              style={[styles.tableHeader, { borderBottomColor: colors.border }]}
-            >
-              <Text
-                style={[styles.sectionTitle, { color: colors.textPrimary }]}
-              >
-                Executive Leaderboard
-              </Text>
-              <Text style={[styles.sectionSub, { color: colors.textTertiary }]}>
-                Detailed breakdown per team member
-              </Text>
-            </View>
-
-            {/* Table head */}
-            <View
-              style={[
-                styles.tableRow,
-                {
-                  backgroundColor: colors.backgroundSecondary,
-                  borderTopWidth: 0,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tableHeadCell,
-                  { color: colors.textTertiary, flex: 0.4 },
-                ]}
-              >
-                #
-              </Text>
-              <Text
-                style={[
-                  styles.tableHeadCell,
-                  { color: colors.textTertiary, flex: 2 },
-                ]}
-              >
-                Executive
-              </Text>
-              <Text
-                style={[
-                  styles.tableHeadCell,
-                  { color: colors.textTertiary, textAlign: 'right', flex: 1 },
-                ]}
-              >
-                Leads
-              </Text>
-              <Text
-                style={[
-                  styles.tableHeadCell,
-                  { color: colors.textTertiary, textAlign: 'right', flex: 1.4 },
-                ]}
-              >
-                Value
-              </Text>
-              <Text
-                style={[
-                  styles.tableHeadCell,
-                  { color: colors.textTertiary, flex: 1.4 },
-                ]}
-              >
-                Progress
-              </Text>
-            </View>
-
-            {teamPerformance.map((m, i) => (
-              <View
-                key={m.userId || m.name}
-                style={[styles.tableRow, { borderTopColor: colors.border }]}
-              >
-                <Text
-                  style={[
-                    styles.tableCell,
-                    { flex: 0.4, color: colors.textTertiary },
-                  ]}
-                >
-                  {i === 0
-                    ? '🥇'
-                    : i === 1
-                    ? '🥈'
-                    : i === 2
-                    ? '🥉'
-                    : `#${i + 1}`}
-                </Text>
-                <View style={[styles.nameCell, { flex: 2 }]}>
-                  <View
-                    style={[
-                      styles.avatar,
-                      { backgroundColor: PALETTE[i % PALETTE.length] },
-                    ]}
-                  >
-                    <Text style={styles.avatarText}>
-                      {(m.name || '?')
-                        .split(' ')
-                        .slice(0, 2)
-                        .map(n => n[0])
-                        .join('')
-                        .toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[styles.tableCell, { color: colors.textPrimary }]}
-                    numberOfLines={1}
-                  >
-                    {m.name}
+                  <Text style={[styles.footerLink, { color: colors.primary }]}>
+                    → View all leads
                   </Text>
-                </View>
-                <Text
-                  style={[
-                    styles.tableCell,
-                    {
-                      flex: 1,
-                      textAlign: 'right',
-                      color: colors.textPrimary,
-                      fontWeight: '700',
-                    },
-                  ]}
-                >
-                  {fmtNum(m.leadCount)}
-                </Text>
-                <Text
-                  style={[
-                    styles.tableCell,
-                    {
-                      flex: 1.4,
-                      textAlign: 'right',
-                      color: colors.textPrimary,
-                      fontWeight: '700',
-                    },
-                  ]}
-                >
-                  {fmt(m.totalDealValue)}
-                </Text>
-                <View style={{ flex: 1.4, paddingLeft: 8 }}>
-                  <ProgressBar
-                    ratio={m.leadCount / maxLeads}
-                    color={PALETTE[i % PALETTE.length]}
-                  />
-                </View>
+                </TouchableOpacity>
               </View>
-            ))}
-          </ImprovedCard>
-        )}
+            </>
+          ) : null}
 
-        {/* ── Personal Stats ── */}
-        {!showTeam && (
-          <ImprovedCard
-            variant="outline"
-            padding="large"
-            style={{ marginBottom: 16 }}
-          >
-            <SectionTitle title="My Stats" sub="Your personal performance" />
-            {loading ? (
-              <Skeleton h={180} />
-            ) : (
-              <>
-                <View style={styles.kpiGrid}>
-                  <StatChip
-                    label="Pipeline Value"
-                    value={fmt(overview?.pipelineValue || 0)}
-                    color="#5a7bf6"
-                  />
-                  <StatChip
-                    label="Collected"
-                    value={fmt(overview?.collectedAmount || 0)}
-                    color="#12B76A"
-                  />
-                  <StatChip
-                    label="Won Leads"
-                    value={fmtNum(overview?.wonLeads || 0)}
-                    color="#F79009"
-                  />
-                  <StatChip
-                    label="Conversion"
-                    value={`${conversionRate}%`}
-                    color="#7A5AF8"
-                  />
-                </View>
-                <View
-                  style={[
-                    styles.reminderBox,
-                    {
-                      borderColor: `${colors.primary}33`,
-                      backgroundColor: colors.primarySoft,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.reminderLabel,
-                      { color: colors.textTertiary },
-                    ]}
-                  >
-                    Today's Reminders
-                  </Text>
-                  <Text
-                    style={[styles.reminderCount, { color: colors.primary }]}
-                  >
-                    {fmtNum(overview?.todayRemindersCount || 0)}
-                  </Text>
-                  <Text
-                    style={[styles.reminderSub, { color: colors.textTertiary }]}
-                  >
-                    pending follow-ups
-                  </Text>
-                </View>
-              </>
-            )}
-          </ImprovedCard>
-        )}
-
-        {/* ── Footer ── */}
-        <View style={[styles.footer, { borderTopColor: colors.border }]}>
-          <Text style={[styles.footerNote, { color: colors.textTertiary }]}>
-            Data updates on every filter change.
-          </Text>
-          <TouchableOpacity onPress={() => navigation?.navigate?.('Leads')}>
-            <Text style={[styles.footerLink, { color: colors.primary }]}>
-              → View all leads
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* ── Full-screen loader ── */}
-      {loading && (
-        <View
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: 'rgba(0,0,0,0.15)',
-            zIndex: 99,
-          }}
-        >
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+          {/* ── Refresh overlay: very subtle spinner when data already exists ── */}
+          {loading && overview ? (
+            <View style={styles.refreshOverlay}>
+              <ActivityIndicator size="small" color={colors.primary} />
+            </View>
+          ) : null}
+        </ScrollView>
       )}
     </View>
   );
@@ -1357,12 +1453,11 @@ const styles = StyleSheet.create({
   footerNote: { fontSize: 11 },
   footerLink: { fontSize: 12, fontWeight: '700' },
 
-  /* Loader */
-  loaderOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
+  /* Refresh overlay — tiny inline spinner at bottom of ScrollView */
+  refreshOverlay: {
+    paddingVertical: 16,
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.12)',
+    justifyContent: 'center',
   },
 
   /* Tooltip */
