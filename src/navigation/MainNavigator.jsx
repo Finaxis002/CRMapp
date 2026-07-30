@@ -24,6 +24,7 @@ import NotificationsScreen from '../screens/main/NotificationsScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
 import AddScheduleScreen from '../components/ui/AddScheduleScreen';
 import AddPaymentScreen from '../components/ui/AddPaymentScreen';
+import SupportScreen from '../screens/main/SupportScreen';
 const Stack = createNativeStackNavigator();
 
 const MainNavigator = () => {
@@ -74,12 +75,25 @@ const MainNavigator = () => {
           {/* Admin section */}
           <Stack.Screen name="Team" component={TeamScreen} />
           <Stack.Screen name="AdminPanel" component={AdminPanelScreen} />
-          <Stack.Screen name="Integrations" component={IntegrationScreen} />
-          <Stack.Screen name="Reports" component={ReportsScreen} />
 
           {/* Accessed from header icons (not from sidebar) */}
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
+          <Stack.Screen
+            name="Reports"
+            component={ReportsScreen}
+            options={{ animation: 'default' }}
+          />
+          <Stack.Screen
+            name="Integrations"
+            component={IntegrationScreen}
+            options={{ animation: 'default' }}
+          />
+          <Stack.Screen
+            name="Support"
+            component={SupportScreen}
+            options={{ animation: 'default' }}
+          />
         </Stack.Navigator>
       </SidebarProvider>
     </ThemeProvider>
