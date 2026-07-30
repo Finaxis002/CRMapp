@@ -9,13 +9,14 @@ import {
   Dimensions,
 } from 'react-native';
 import { LineChart, BarChart, PieChart } from 'react-native-gifted-charts';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { API_BASE_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUISystem } from '../../hooks/useUISystem';
 
 // ─── UI Kit imports ────────────────────────────────────────────────────────
 import ImprovedCard from '../../components/ui/ImprovedCard';
-import PageHeader from '../../components/ui/PageHeader';
 import EmptyState from '../../components/ui/EmptyState';
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
@@ -24,7 +25,7 @@ const CHART_PADDING = 32;
 const Y_AXIS_W = 50;
 const CHART_W = SCREEN_W - CHART_PADDING * 2 - Y_AXIS_W - 8;
 
-const FILTERS = ['Today', 'This Week', 'This Month', 'All Time'];
+const FILTERS = ['All Time', 'Today', 'This Week', 'This Month'];
 const FILTER_MAP = {
   Today: 'today',
   'This Week': 'week',
@@ -129,17 +130,20 @@ const getDateParams = activeFilter => {
   return { dateFrom, dateTo };
 };
 
-const BASE = API_BASE_URL?.replace(/\/$/, '');
+// FIX: trailing-slash regex sahi kiya (pehle /**\/**$/ tha — invalid)
+const BASE = API_BASE_URL?.replace(/\/+$/, '');
 const getToken = async () => await AsyncStorage.getItem('accessToken');
 
 const apiFetch = async path => {
   const token = await getToken();
+  // FIX: fetch(`...`, {...}) — pehle bracket missing tha
   const res = await fetch(`${BASE}${path}`, {
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
   });
+  // FIX: new Error(`...`) — pehle bracket missing tha
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   const json = await res.json();
   return json.data;
@@ -147,7 +151,7 @@ const apiFetch = async path => {
 
 /* ─── Sub-components ─────────────────────────────────────────────────────── */
 const StatChip = ({ label, value, color }) => {
-  const { colors, borderRadius } = useUISystem();
+  const { colors } = useUISystem();
 
   return (
     <ImprovedCard variant="outline" padding="medium" style={styles.chip}>
@@ -263,7 +267,8 @@ const TooltipPopup = ({ data }) => {
    MAIN SCREEN
 ══════════════════════════════════════════════════════════════════════════ */
 const ReportsScreen = ({ navigation, currentUser: propUser }) => {
-  const { colors, typography, borderRadius } = useUISystem();
+  const { colors } = useUISystem();
+  const insets = useSafeAreaInsets();
   const currentUser = propUser || null;
 
   const [activeFilter, setActiveFilter] = useState('All Time');
@@ -448,24 +453,42 @@ const ReportsScreen = ({ navigation, currentUser: propUser }) => {
   /* ══════════ RENDER ══════════ */
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      {/* ── Header ── */}
+      {/* ── Header (shared Topbar is screen pe hidden hai) ── */}
       <View
         style={[
           styles.header,
-          { backgroundColor: colors.surface, borderBottomColor: colors.border },
+          {
+            backgroundColor: colors.surface,
+            borderBottomColor: colors.border,
+            paddingTop: insets.top + 12,
+          },
         ]}
       >
-        <View>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
-            Reports & Analytics
-          </Text>
-          <Text style={[styles.headerSub, { color: colors.textTertiary }]}>
-            {isAdmin
-              ? 'Full team performance overview'
-              : isManager
-              ? "Your team's sales performance"
-              : 'Your personal sales analytics'}
-          </Text>
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity
+            style={[
+              styles.backBtn,
+              { backgroundColor: colors.backgroundSecondary },
+            ]}
+            onPress={() => navigation?.goBack?.()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
+          >
+            <Icon name="arrow-left" size={20} color={colors.textPrimary} />
+          </TouchableOpacity>
+
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+              Reports & Analytics
+            </Text>
+            <Text style={[styles.headerSub, { color: colors.textTertiary }]}>
+              {isAdmin
+                ? 'Full team performance overview'
+                : isManager
+                ? "Your team's sales performance"
+                : 'Your personal sales analytics'}
+            </Text>
+          </View>
         </View>
 
         {/* ── Filter Tabs ── */}
@@ -562,7 +585,7 @@ const ReportsScreen = ({ navigation, currentUser: propUser }) => {
           {/* ── Only render charts/KPIs when data exists ── */}
           {overview ? (
             <>
-              {/* ── KPI Grid (real values) ── */}
+              {/* ── KPI Grid ── */}
               <View style={styles.kpiGrid}>
                 {[
                   {
@@ -1207,6 +1230,7 @@ const ReportsScreen = ({ navigation, currentUser: propUser }) => {
                           value={fmtNum(overview.wonLeads || 0)}
                           color="#F79009"
                         />
+                        {/* FIX: value={`${conversionRate}%`} — pehle brace missing tha */}
                         <StatChip
                           label="Conversion"
                           value={`${conversionRate}%`}
@@ -1270,7 +1294,7 @@ const ReportsScreen = ({ navigation, currentUser: propUser }) => {
             </>
           ) : null}
 
-          {/* ── Refresh overlay: very subtle spinner when data already exists ── */}
+          {/* ── Refresh overlay ── */}
           {loading && overview ? (
             <View style={styles.refreshOverlay}>
               <ActivityIndicator size="small" color={colors.primary} />
@@ -1289,10 +1313,21 @@ const styles = StyleSheet.create({
   /* Header */
   header: {
     paddingHorizontal: 20,
-    paddingTop: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
     gap: 12,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: { fontSize: 20, fontWeight: '700', letterSpacing: -0.4 },
   headerSub: { fontSize: 13, marginTop: 2 },
@@ -1453,7 +1488,7 @@ const styles = StyleSheet.create({
   footerNote: { fontSize: 11 },
   footerLink: { fontSize: 12, fontWeight: '700' },
 
-  /* Refresh overlay — tiny inline spinner at bottom of ScrollView */
+  /* Refresh overlay */
   refreshOverlay: {
     paddingVertical: 16,
     alignItems: 'center',

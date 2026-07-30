@@ -28,8 +28,13 @@ import { useTheme } from '../../contexts/ThemeContext';
 
 const BRAND = '#5a7bf6';
 
-
-const HIDDEN_ROUTES_MOBILE = ['AddSchedule', 'AddPayment'];
+const HIDDEN_ROUTES_MOBILE = [
+  'AddSchedule',
+  'AddPayment',
+  'Reports',
+  'Integrations',
+  'Support',
+];
 
 const pageTitles = {
   Dashboard: 'Dashboard',

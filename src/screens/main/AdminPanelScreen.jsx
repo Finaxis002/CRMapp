@@ -20,12 +20,13 @@ import { fetchSettings, saveSettings } from '../../store/slices/settingsSlice';
 import { distributionRuleService } from '../../services/distributionRuleService';
 import { userService } from '../../services/userService';
 import { settingsService } from '../../services/settingsService';
+import { supportService } from '../../services/supportService';
 import api from '../../services/api';
 import { canUser } from '../../utils/permissions';
 import { useTheme } from '../../contexts/ThemeContext';
-
 import ImprovedButton from '../../components/ui/ImprovedButton';
 import ImprovedDropdown from '../../components/ui/ImprovedDropdown';
+import SupportRequestsTab from '../../components/admin/SupportRequestsTab';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -37,6 +38,7 @@ const TABS = [
   { key: 'ai', label: 'AI Settings' },
   { key: 'payments', label: 'Payments' },
   { key: 'integrations', label: 'Integrations' },
+  { key: 'support', label: 'Support Requests' },
   { key: 'general', label: 'General' },
 ];
 
@@ -168,9 +170,9 @@ const DEFAULT_STAGE_COLORS = [
 
 const DEFAULT_AI_PROMPT = `
 You are an expert sales call analyst for a CRM system used by a financial services / CA firm in India.
-
 Listen to the audio carefully and respond with ONLY a valid JSON object
 (no markdown, no code fences, no extra text) in exactly this shape:
+
 {
   "transcript": "Full verbatim transcript, speaker-labelled as Agent: and Customer: where possible",
   "summary": "A detailed 4-6 sentence summary",
@@ -211,6 +213,7 @@ const GATEWAY_OPTIONS = [
 
 const normalizeSettings = s => {
   if (!s) return null;
+
   const defaultAi = {
     gemini: {
       enabled: false,
@@ -231,6 +234,7 @@ const normalizeSettings = s => {
     scanNotes: s.ai?.scanNotes ?? true,
     prompt: s.ai?.prompt || '',
   };
+
   return {
     ...s,
     distributionPool: (s.distributionPool || []).map(i => i?._id || i),
@@ -523,7 +527,6 @@ const DistributionTab = ({ users, t }) => {
   const [saving, setSaving] = useState(false);
   const [sheetsOpen, setSheetsOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
-
   const [form, setForm] = useState({
     name: '',
     sheetSyncIds: [],
@@ -587,6 +590,7 @@ const DistributionTab = ({ users, t }) => {
       return showToast('Select at least one sheet.', 'error');
     if (!form.userPool.length)
       return showToast('Select at least one user.', 'error');
+
     setSaving(true);
     try {
       if (editingRule) {
@@ -622,6 +626,7 @@ const DistributionTab = ({ users, t }) => {
         subtitle="Configure distribution rules for Google Sheet imports."
         t={t}
       />
+
       <ImprovedButton
         title="+ New Distribution"
         size="small"
@@ -707,6 +712,7 @@ const DistributionTab = ({ users, t }) => {
               <Text style={makeModalTitle(t)}>
                 {editingRule ? 'Edit Distribution' : 'New Distribution'}
               </Text>
+
               <ScrollView
                 style={{ marginVertical: 8 }}
                 keyboardShouldPersistTaps="handled"
@@ -758,6 +764,7 @@ const DistributionTab = ({ users, t }) => {
                   t={t}
                 />
               </ScrollView>
+
               <View style={ui.modalActions}>
                 <OutlineButton
                   label="Cancel"
@@ -790,6 +797,7 @@ const DistributionTab = ({ users, t }) => {
         onClose={() => setSheetsOpen(false)}
         t={t}
       />
+
       <MultiSelectModal
         visible={usersOpen}
         title="Select Users"
@@ -819,11 +827,13 @@ const DistributionTab = ({ users, t }) => {
 
 const PipelineTab = ({ settings, updateField, t }) => {
   const stages = settings.pipelineStages || [];
+
   const handleChange = (index, field, value) => {
     const updated = [...stages];
     updated[index] = { ...updated[index], [field]: value };
     updateField('pipelineStages', updated);
   };
+
   const move = (index, dir) => {
     const s = [...stages];
     const target = index + dir;
@@ -834,6 +844,7 @@ const PipelineTab = ({ settings, updateField, t }) => {
       s.map((st, i) => ({ ...st, order: i })),
     );
   };
+
   const add = () => {
     const s = [...stages];
     s.push({
@@ -843,6 +854,7 @@ const PipelineTab = ({ settings, updateField, t }) => {
     });
     updateField('pipelineStages', s);
   };
+
   const remove = index => {
     if (stages.length <= 2)
       return showToast('At least two pipeline stages required.', 'error');
@@ -853,6 +865,7 @@ const PipelineTab = ({ settings, updateField, t }) => {
       s.map((st, i) => ({ ...st, order: i })),
     );
   };
+
   return (
     <View>
       <SectionHeader
@@ -860,6 +873,7 @@ const PipelineTab = ({ settings, updateField, t }) => {
         subtitle="Configure stage names, colors, and order."
         t={t}
       />
+
       {stages.map((stage, i) => (
         <View key={i} style={makeCard(t)}>
           <View style={ui.row}>
@@ -870,6 +884,7 @@ const PipelineTab = ({ settings, updateField, t }) => {
               style={[makeInput(t), { flex: 1, marginBottom: 0, fontSize: 13 }]}
             />
           </View>
+
           <View style={[ui.cardActions, { marginTop: 8 }]}>
             <OutlineButton
               label="↑"
@@ -893,6 +908,7 @@ const PipelineTab = ({ settings, updateField, t }) => {
           </View>
         </View>
       ))}
+
       <ImprovedButton
         title="+ Add Stage"
         size="small"
@@ -909,6 +925,7 @@ const RbacTab = ({ settings, updateField, t }) => {
   const permissions = settings.permissions || DEFAULT_PERMISSIONS;
   const permKeys = Object.keys(permissions);
   const roleKeys = Object.keys(ROLE_LABELS);
+
   const toggle = (perm, role) => {
     const current = permissions[perm]?.[role];
     updateField('permissions', {
@@ -916,6 +933,7 @@ const RbacTab = ({ settings, updateField, t }) => {
       [perm]: { ...permissions[perm], [role]: !current },
     });
   };
+
   return (
     <View>
       <SectionHeader
@@ -923,6 +941,7 @@ const RbacTab = ({ settings, updateField, t }) => {
         subtitle="Update role permissions for your organization."
         t={t}
       />
+
       {roleKeys.map(role => (
         <View key={role} style={makeCard(t)}>
           <Text style={makeCardTitle(t)}>{ROLE_LABELS[role]}</Text>
@@ -954,26 +973,31 @@ const RbacTab = ({ settings, updateField, t }) => {
 const ColumnsTab = ({ settings, updateField, t }) => {
   const leadColumns = settings.leadColumns || [];
   const customColumns = settings.customColumns || [];
+
   const toggleBase = key => {
     const cols = new Set(leadColumns);
     cols.has(key) ? cols.delete(key) : cols.add(key);
     updateField('leadColumns', Array.from(cols));
   };
+
   const updateCustomLabel = (index, value) => {
     const updated = [...customColumns];
     updated[index] = { ...updated[index], label: value };
     updateField('customColumns', updated);
   };
+
   const toggleCustomProp = (index, prop) => {
     const updated = [...customColumns];
     updated[index] = { ...updated[index], [prop]: !updated[index][prop] };
     updateField('customColumns', updated);
   };
+
   const removeCustom = index => {
     const updated = [...customColumns];
     updated.splice(index, 1);
     updateField('customColumns', updated);
   };
+
   return (
     <View>
       <SectionHeader
@@ -981,6 +1005,7 @@ const ColumnsTab = ({ settings, updateField, t }) => {
         subtitle="Choose which columns appear in the lead table."
         t={t}
       />
+
       <Text style={makeGroupLabel(t)}>Base Columns</Text>
       <View style={makeCard(t)}>
         {DEFAULT_COLUMNS.map(col => {
@@ -999,6 +1024,7 @@ const ColumnsTab = ({ settings, updateField, t }) => {
           );
         })}
       </View>
+
       <View
         style={{
           flexDirection: 'row',
@@ -1027,6 +1053,7 @@ const ColumnsTab = ({ settings, updateField, t }) => {
           </Text>
         </TouchableOpacity>
       </View>
+
       {customColumns.length === 0 ? (
         <Text style={makeEmptyText(t)}>No custom columns defined.</Text>
       ) : (
@@ -1068,7 +1095,7 @@ const ColumnsTab = ({ settings, updateField, t }) => {
   );
 };
 
-// ─── TAB: AI Settings - UPDATED WITH ImprovedDropdown + Keyboard Avoid ──────
+// ─── TAB: AI Settings ────────────────────────────────────────────────────────
 
 const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
   const ai = settings.ai || {};
@@ -1203,6 +1230,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
             trackColor={{ false: '#d1d5db', true: '#5a7bf5' }}
           />
         </View>
+
         {gemini.enabled && (
           <View style={{ marginTop: 10 }}>
             <View style={ui.rowBetween}>
@@ -1233,6 +1261,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
                 </TouchableOpacity>
               )}
             </View>
+
             <FormLabel text="Model" t={t} />
             <ImprovedDropdown
               placeholder="Select Model"
@@ -1240,6 +1269,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
               selectedValue={gemini.model}
               onValueChange={v => updateGemini('model', v)}
             />
+
             <View
               style={[
                 ui.infoBox,
@@ -1278,6 +1308,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
             trackColor={{ false: '#d1d5db', true: '#f97316' }}
           />
         </View>
+
         {groq.enabled && (
           <View style={{ marginTop: 10 }}>
             <FormLabel text="API Key" t={t} />
@@ -1299,6 +1330,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
                 </TouchableOpacity>
               )}
             </View>
+
             <FormLabel text="Whisper Model" t={t} />
             <ImprovedDropdown
               placeholder="Select Whisper Model"
@@ -1306,6 +1338,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
               selectedValue={groq.model}
               onValueChange={v => updateGroq('model', v)}
             />
+
             <View
               style={[
                 ui.infoBox,
@@ -1332,6 +1365,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
       {/* Common */}
       <View style={makeCard(t)}>
         <Text style={makeCardTitle(t)}>Common Settings</Text>
+
         <View style={ui.checkRow}>
           <Switch
             value={!!ai.autoAnalyse}
@@ -1342,6 +1376,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
             Auto-analyze lead recordings
           </Text>
         </View>
+
         <View style={ui.checkRow}>
           <Switch
             value={ai.autoAnalyseCallLogs !== false}
@@ -1352,6 +1387,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
             Auto-analyze call log recordings
           </Text>
         </View>
+
         <View style={ui.checkRow}>
           <Switch
             value={ai.scanNotes !== false}
@@ -1386,6 +1422,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
               : 'Show Default Prompt ▼'}
           </Text>
         </TouchableOpacity>
+
         {showDefaultPrompt && (
           <View
             style={[
@@ -1422,6 +1459,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
             Users can override org-level keys.
           </Text>
         </View>
+
         {users.length === 0 ? (
           <Text style={[makeEmptyText(t), { padding: 14 }]}>
             No users found.
@@ -1490,7 +1528,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
         )}
       </View>
 
-      {/* Modal - KEYBOARD FIXED */}
+      {/* Per-user key modal */}
       <Modal
         transparent
         visible={!!aiKeyModal}
@@ -1518,6 +1556,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
                   <Text style={{ fontSize: 16, color: t.subtitle }}>✕</Text>
                 </TouchableOpacity>
               </View>
+
               <TouchableOpacity
                 onPress={() => setShowKeys(!showKeys)}
                 style={[
@@ -1529,6 +1568,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
                   {showKeys ? '🙈 Hide' : '👁 Show'}
                 </Text>
               </TouchableOpacity>
+
               {loadingUserKeys ? (
                 <ActivityIndicator
                   color="#5a7bf5"
@@ -1585,6 +1625,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
                       }
                     />
                   </View>
+
                   <View
                     style={[
                       ui.innerCard,
@@ -1634,6 +1675,7 @@ const AiTab = ({ settings, updateField, t, users = [], onRefreshUsers }) => {
                   </View>
                 </ScrollView>
               )}
+
               <View style={ui.modalActions}>
                 <OutlineButton
                   label="Cancel"
@@ -1714,11 +1756,13 @@ const GATEWAYS = [
 
 const PaymentsTab = ({ settings, updateField, t }) => {
   const gateways = settings.gateways || {};
+
   const updateGateway = (gKey, field, value) =>
     updateField('gateways', {
       ...gateways,
       [gKey]: { ...(gateways[gKey] || {}), [field]: value, connected: true },
     });
+
   return (
     <View>
       <SectionHeader
@@ -1726,6 +1770,7 @@ const PaymentsTab = ({ settings, updateField, t }) => {
         subtitle="Store gateway credentials and configure payment link settings."
         t={t}
       />
+
       {GATEWAYS.map(gw => {
         const config = gateways[gw.key] || {};
         return (
@@ -1749,6 +1794,7 @@ const PaymentsTab = ({ settings, updateField, t }) => {
           </View>
         );
       })}
+
       <View style={makeCard(t)}>
         <FormLabel text="Default Gateway" t={t} />
         <ImprovedDropdown
@@ -1782,6 +1828,7 @@ const IntegrationsTab = ({ settings, updateField, t }) => (
       subtitle="Connect Google Calendar and configure email settings."
       t={t}
     />
+
     <View style={makeCard(t)}>
       <Text style={makeCardTitle(t)}>🗓 Google Calendar</Text>
       <Text style={makeCardMeta(t)}>
@@ -1800,6 +1847,7 @@ const IntegrationsTab = ({ settings, updateField, t }) => (
         </View>
       </View>
     </View>
+
     <View style={makeCard(t)}>
       <View style={ui.checkRow}>
         <Switch
@@ -1818,7 +1866,7 @@ const IntegrationsTab = ({ settings, updateField, t }) => (
   </View>
 );
 
-// ─── TAB: General - WEB Jaisa Non-Editable, Danger Zone + Delete Lead Hata Diya ───────────────────────
+// ─── TAB: General ────────────────────────────────────────────────────────────
 
 const GeneralTab = ({ settings, t }) => (
   <View>
@@ -1873,7 +1921,7 @@ const GeneralTab = ({ settings, t }) => (
       >
         <Text style={{ fontSize: 11, color: t.subtitle }}>
           ℹ️ These fields are non-editable in app. Please use Web Admin Panel to
-          update company info. Export & Delete actions are also web-only.
+          update company info. Export &amp; Delete actions are also web-only.
         </Text>
       </View>
     </View>
@@ -1892,6 +1940,7 @@ const AdminPanelScreen = () => {
   const [activeTab, setActiveTab] = useState('distribution');
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [supportUnread, setSupportUnread] = useState(0);
 
   const { isDark } = useTheme();
   const t = isDark ? dark : light;
@@ -1910,6 +1959,17 @@ const AdminPanelScreen = () => {
   useEffect(() => {
     reloadUsers();
   }, []);
+
+  useEffect(() => {
+    supportService
+      .getUnreadCount()
+      .then(setSupportUnread)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'support') setSupportUnread(0);
+  }, [activeTab]);
 
   const reloadUsers = async () => {
     try {
@@ -1934,6 +1994,7 @@ const AdminPanelScreen = () => {
         distributionPool: settings.distributionPool || [],
         pipelineStages: settings.pipelineStages || [],
       };
+
       if (payload.ai) {
         const ai = { ...payload.ai };
         if (ai.gemini) {
@@ -1948,6 +2009,7 @@ const AdminPanelScreen = () => {
         }
         payload.ai = ai;
       }
+
       const result = await dispatch(saveSettings(payload)).unwrap();
       setSettings(normalizeSettings(result));
       setDirty(false);
@@ -2025,6 +2087,7 @@ const AdminPanelScreen = () => {
     settingsState.data || settings,
     'admin_panel',
   );
+
   if (!canAccess) {
     return (
       <SafeAreaView
@@ -2057,6 +2120,8 @@ const AdminPanelScreen = () => {
         return <PaymentsTab {...commonProps} />;
       case 'integrations':
         return <IntegrationsTab {...commonProps} />;
+      case 'support':
+        return <SupportRequestsTab t={t} />;
       case 'general':
         return (
           <GeneralTab
@@ -2076,7 +2141,7 @@ const AdminPanelScreen = () => {
       style={[s.container, { backgroundColor: t.screenBg }]}
       edges={['bottom']}
     >
-      {/* Header - Compact like KanbanScreen - OUTSIDE KeyboardAvoidingView so it never moves */}
+      {/* Header — OUTSIDE KeyboardAvoidingView so it never moves */}
       <View
         style={[
           s.header,
@@ -2104,10 +2169,17 @@ const AdminPanelScreen = () => {
             style={{ paddingHorizontal: 2 }}
           />
         </View>
+
         <View style={{ marginTop: 10 }}>
           <ImprovedDropdown
             placeholder="Select Tab"
-            items={TABS.map(tab => ({ value: tab.key, label: tab.label }))}
+            items={TABS.map(tab => ({
+              value: tab.key,
+              label:
+                tab.key === 'support' && supportUnread > 0
+                  ? `${tab.label} (${supportUnread > 9 ? '9+' : supportUnread})`
+                  : tab.label,
+            }))}
             selectedValue={activeTab}
             onValueChange={setActiveTab}
           />
@@ -2137,7 +2209,7 @@ const AdminPanelScreen = () => {
 
 export default AdminPanelScreen;
 
-// ─── Styles - compact like KanbanScreen ─────────────────────────────────────
+// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
   container: { flex: 1 },
