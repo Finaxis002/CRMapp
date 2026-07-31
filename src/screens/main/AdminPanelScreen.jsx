@@ -1961,15 +1961,19 @@ const AdminPanelScreen = () => {
   }, []);
 
   useEffect(() => {
-    supportService
-      .getUnreadCount()
-      .then(setSupportUnread)
-      .catch(() => {});
-  }, []);
+    const loadSupportUnread = () => {
+      supportService
+        .getUnreadCount()
+        .then(setSupportUnread)
+        .catch(() => {});
+    };
 
-  useEffect(() => {
-    if (activeTab === 'support') setSupportUnread(0);
-  }, [activeTab]);
+    loadSupportUnread();
+
+    const interval = setInterval(loadSupportUnread, 20000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const reloadUsers = async () => {
     try {

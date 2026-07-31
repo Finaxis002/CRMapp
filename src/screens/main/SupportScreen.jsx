@@ -1,13 +1,8 @@
-/**
+/*
  * SupportScreen — Help & Support
  *
- * Web ke SupportWidget ka mobile port. Do tabs:
- *   New Request  — form + attachments
- *   My Requests  — ticket history, expand karke chat thread + reply
- *
- * Navigator mein:
- *   <Stack.Screen name="Support" component={SupportScreen} />
- * Aur Topbar ke HIDDEN_ROUTES_MOBILE mein 'Support' add karo.
+ * New Request: text + initial image/video attachments.
+ * My Requests: ticket history, conversation, and text/image/video replies.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,16 +25,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSelector } from 'react-redux';
-
-// Attachments — do source:
-//   Camera  → react-native-image-picker (npm i react-native-image-picker)
-//   Files   → @react-native-documents/picker (project mein pehle se hai)
 import { launchCamera } from 'react-native-image-picker';
 import {
-  pick,
-  types,
   errorCodes,
   isErrorWithCode,
+  pick,
+  types,
 } from '@react-native-documents/picker';
 
 import { supportService } from '../../services/supportService';
@@ -48,6 +39,7 @@ import { API_BASE_URL } from '../../config';
 
 const MAX_FILES = 5;
 const MAX_FILE_MB = 25;
+const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
 
 const SUBJECT_OPTIONS = [
   'Technical Issue',
@@ -71,56 +63,89 @@ const STATUS_COLORS = {
   resolved: '#12B76A',
 };
 
-/* ─── Attachment helpers ──────────────────────────────────────────────────
- * Backend `{ url: "/uploads/support/xyz.jpg", fileType: "image"|"video",
- * originalName }` bhejta hai — url RELATIVE hai. Web pe browser resolve kar
- * leta hai, par RN ke <Image> ko absolute URL chahiye, isliye API host jodo.
- * ------------------------------------------------------------------------ */
-
-// API_BASE_URL kabhi ".../api/v1" hota hai — static files root pe serve hoti
-// hain, isliye /api/... suffix hata do.
+// R2 URLs are normally absolute. The fallback supports legacy relative upload URLs.
 const FILE_HOST = String(API_BASE_URL || '')
   .replace(/\/+$/, '')
   .replace(/\/api(\/v\d+)?$/, '');
 
-const attUrl = a => {
-  const raw = typeof a === 'string' ? a : a?.url || a?.path || '';
+const attUrl = attachment => {
+  const raw =
+    typeof attachment === 'string'
+      ? attachment
+      : attachment?.url || attachment?.path || '';
+
   if (!raw) return '';
   if (/^https?:\/\//i.test(raw)) return raw;
   return `${FILE_HOST}${raw.startsWith('/') ? '' : '/'}${raw}`;
 };
 
-const attName = (a, i) => {
-  if (typeof a === 'object' && (a?.originalName || a?.filename || a?.name)) {
-    return a.originalName || a.filename || a.name;
+const attName = (attachment, index = 0) => {
+  if (typeof attachment === 'object') {
+    return (
+      attachment?.originalName ||
+      attachment?.filename ||
+      attachment?.name ||
+      `File ${index + 1}`
+    );
   }
-  const last = attUrl(a).split('?')[0].split('/').pop();
-  return last || `File ${i + 1}`;
+
+  return (
+    attUrl(attachment).split('?')[0].split('/').pop() || `File ${index + 1}`
+  );
 };
 
-const isImageAtt = a => {
-  if (typeof a === 'object' && a?.fileType) return a.fileType === 'image';
-  const mime = typeof a === 'object' ? a?.mimetype || a?.type || '' : '';
-  if (mime) return mime.startsWith('image');
-  return /\.(jpe?g|png|gif|webp|bmp|heic)$/i.test(attUrl(a).split('?')[0]);
+const isImageAtt = attachment => {
+  if (typeof attachment === 'object' && attachment?.fileType) {
+    return attachment.fileType === 'image';
+  }
+
+  const mime =
+    typeof attachment === 'object'
+      ? attachment?.mimetype || attachment?.type
+      : '';
+  if (mime) return mime.startsWith('image/');
+
+  return /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(
+    attUrl(attachment).split('?')[0],
+  );
 };
 
-const isVideoAtt = a => {
-  if (typeof a === 'object' && a?.fileType) return a.fileType === 'video';
-  const mime = typeof a === 'object' ? a?.mimetype || a?.type || '' : '';
-  if (mime) return mime.startsWith('video');
-  return /\.(mp4|mov|m4v|3gp|avi|mkv)$/i.test(attUrl(a).split('?')[0]);
+const isVideoAtt = attachment => {
+  if (typeof attachment === 'object' && attachment?.fileType) {
+    return attachment.fileType === 'video';
+  }
+
+  const mime =
+    typeof attachment === 'object'
+      ? attachment?.mimetype || attachment?.type
+      : '';
+  if (mime) return mime.startsWith('video/');
+
+  return /\.(mp4|mov|m4v|3gp|avi|mkv|webm)$/i.test(
+    attUrl(attachment).split('?')[0],
+  );
 };
 
-const fmtDateTime = d =>
-  new Date(d).toLocaleString('en-IN', {
+const fmtDateTime = value =>
+  new Date(value).toLocaleString('en-IN', {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
   });
 
-/* ─── Small pieces ────────────────────────────────────────────────────── */
+const StatusChip = ({ status }) => {
+  const color = STATUS_COLORS[status] || '#94A3B8';
+
+  return (
+    <View style={[styles.statusChip, { backgroundColor: `${color}1A` }]}>
+      <View style={[styles.statusDot, { backgroundColor: color }]} />
+      <Text style={[styles.statusChipText, { color }]}>
+        {STATUS_LABELS[status] || status}
+      </Text>
+    </View>
+  );
+};
 
 const Field = ({ label, required, icon, children, colors }) => (
   <View style={styles.field}>
@@ -135,28 +160,12 @@ const Field = ({ label, required, icon, children, colors }) => (
   </View>
 );
 
-const StatusChip = ({ status }) => {
-  const color = STATUS_COLORS[status] || '#94A3B8';
-  return (
-    <View style={[styles.statusChip, { backgroundColor: `${color}1A` }]}>
-      <View style={[styles.statusDot, { backgroundColor: color }]} />
-      <Text style={[styles.statusChipText, { color }]}>
-        {STATUS_LABELS[status] || status}
-      </Text>
-    </View>
-  );
-};
-
-/* ─── Main ────────────────────────────────────────────────────────────── */
-
 const SupportScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const { colors, borderRadius } = useUISystem();
+  const { colors } = useUISystem();
   const { user } = useSelector(state => state.auth);
 
-  const [activeTab, setActiveTab] = useState('new'); // 'new' | 'history'
-
-  /* ── New request form ── */
+  const [activeTab, setActiveTab] = useState('new');
   const [form, setForm] = useState({
     contactName: '',
     contactEmail: '',
@@ -164,57 +173,60 @@ const SupportScreen = ({ navigation }) => {
     subject: '',
     message: '',
   });
-  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
-
   const [files, setFiles] = useState([]);
   const [subjectOpen, setSubjectOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
-  /* ── History ── */
   const [tickets, setTickets] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [replyText, setReplyText] = useState({});
+  // Shape: { [ticketId]: [{ uri, name, type, isVideo }] }
+  const [replyFiles, setReplyFiles] = useState({});
   const [sendingId, setSendingId] = useState(null);
 
-  // Full-screen image preview
-  const [preview, setPreview] = useState(null); // { uri, name }
-
+  const [preview, setPreview] = useState(null);
   const scrollRef = useRef(null);
 
-  // Image → in-app preview, baaki (video/pdf) → system app mein khol do
-  const openAttachment = a => {
-    const url = attUrl(a);
-    if (!url) return;
-    if (isImageAtt(a)) {
-      setPreview({ uri: url, name: attName(a, 0) });
-    } else {
-      Linking.openURL(url).catch(() =>
-        setFormError('Unable to open this attachment.'),
-      );
-    }
-  };
+  const setF = (key, value) =>
+    setForm(previous => ({ ...previous, [key]: value }));
 
-  /* ── Prefill from logged-in user ── */
   useEffect(() => {
     if (!user) return;
-    setForm(prev => ({
-      ...prev,
-      contactName: prev.contactName || user.name || '',
-      contactEmail: prev.contactEmail || user.email || '',
-      contactPhone: prev.contactPhone || user.phone || user.phoneNumber || '',
+
+    setForm(previous => ({
+      ...previous,
+      contactName: previous.contactName || user.name || '',
+      contactEmail: previous.contactEmail || user.email || '',
+      contactPhone:
+        previous.contactPhone || user.phone || user.phoneNumber || '',
     }));
   }, [user]);
 
-  /* ── Load history ── */
+  const openAttachment = attachment => {
+    const url = attUrl(attachment);
+    if (!url) return;
+
+    if (isImageAtt(attachment)) {
+      setPreview({ uri: url, name: attName(attachment) });
+      return;
+    }
+
+    Linking.openURL(url).catch(() =>
+      setFormError('Unable to open this attachment.'),
+    );
+  };
+
   const loadTickets = useCallback(async () => {
     setHistoryLoading(true);
     try {
       const data = await supportService.getMyTickets();
       setTickets(Array.isArray(data) ? data : []);
-    } catch {
-      setFormError('Unable to load your requests.');
+    } catch (error) {
+      setFormError(
+        error?.response?.data?.message || 'Unable to load your requests.',
+      );
     } finally {
       setHistoryLoading(false);
     }
@@ -224,28 +236,46 @@ const SupportScreen = ({ navigation }) => {
     if (activeTab === 'history') loadTickets();
   }, [activeTab, loadTickets]);
 
-  /* ── Attachments ── */
+  // ── File selection helpers ──────────────────────────────────────────────
+  const validateAndNormaliseFiles = (assets, currentCount) => {
+    const availableSlots = MAX_FILES - currentCount;
+    const valid = [];
 
-  // Slot bacha hai ya nahi — dono pickers isse check karte hain
-  const canAddMore = () => {
-    if (files.length >= MAX_FILES) {
-      setFormError(`You can attach up to ${MAX_FILES} files.`);
-      return false;
+    for (const asset of assets || []) {
+      if (valid.length >= availableSlots) break;
+
+      const size = asset.fileSize ?? asset.size;
+      const type = asset.type || 'application/octet-stream';
+      const uri = asset.uri;
+
+      if (!uri) continue;
+      if (size && size > MAX_FILE_BYTES) {
+        setFormError(
+          `${asset.fileName || asset.name || 'File'} exceeds ${MAX_FILE_MB}MB.`,
+        );
+        continue;
+      }
+      if (!type.startsWith('image/') && !type.startsWith('video/')) {
+        setFormError(
+          `${asset.fileName || asset.name || 'File'} is not an image or video.`,
+        );
+        continue;
+      }
+
+      valid.push({
+        uri,
+        name: asset.fileName || asset.name || `upload-${Date.now()}`,
+        type,
+        isVideo: type.startsWith('video/'),
+      });
     }
-    return true;
+
+    return valid;
   };
 
-  const addFiles = incoming => {
-    setFiles(prev => [...prev, ...incoming].slice(0, MAX_FILES));
-  };
-
-  /* 📷 Camera — sidha photo khinch ke attach */
-  const handleTakePhoto = async () => {
-    setFormError('');
-    if (!canAddMore()) return;
-
+  const takePhoto = async onFiles => {
     try {
-      const res = await launchCamera({
+      const result = await launchCamera({
         mediaType: 'photo',
         quality: 0.7,
         maxWidth: 1920,
@@ -253,77 +283,112 @@ const SupportScreen = ({ navigation }) => {
         saveToPhotos: false,
       });
 
-      if (res.didCancel) return;
-      if (res.errorCode) {
+      if (result.didCancel) return;
+      if (result.errorCode) {
         setFormError(
-          res.errorCode === 'camera_unavailable'
+          result.errorCode === 'camera_unavailable'
             ? 'Camera is not available on this device.'
-            : res.errorMessage || 'Unable to open the camera.',
+            : result.errorMessage || 'Unable to open the camera.',
         );
         return;
       }
 
-      const a = res.assets?.[0];
-      if (!a) return;
-
-      if (a.fileSize && a.fileSize > MAX_FILE_MB * 1024 * 1024) {
-        setFormError(`Photo exceeds ${MAX_FILE_MB}MB.`);
-        return;
-      }
-
-      addFiles([
-        {
-          uri: a.uri,
-          name: a.fileName || `photo-${Date.now()}.jpg`,
-          type: a.type || 'image/jpeg',
-          isVideo: false,
-        },
-      ]);
+      onFiles(result.assets || []);
     } catch {
       setFormError('Unable to open the camera.');
     }
   };
 
-  /* 📁 Files — gallery / file browser se choose */
-  const handlePickFiles = async () => {
-    setFormError('');
-    if (!canAddMore()) return;
-
+  const chooseFiles = async onFiles => {
     try {
-      const picked = await pick({
+      const selected = await pick({
         allowMultiSelection: true,
         type: [types.images, types.video],
       });
-
-      const valid = [];
-      for (const a of picked) {
-        if (a.size && a.size > MAX_FILE_MB * 1024 * 1024) {
-          setFormError(`${a.name || 'File'} exceeds ${MAX_FILE_MB}MB.`);
-          continue;
-        }
-        valid.push({
-          uri: a.uri,
-          name: a.name || `upload-${Date.now()}`,
-          type: a.type || 'application/octet-stream',
-          isVideo: (a.type || '').startsWith('video'),
-        });
-      }
-
-      addFiles(valid);
-    } catch (err) {
-      // User ne cancel kiya — error mat dikhao
-      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) {
+      onFiles(selected || []);
+    } catch (error) {
+      if (
+        isErrorWithCode(error) &&
+        error.code === errorCodes.OPERATION_CANCELED
+      )
         return;
-      }
-      setFormError('Unable to open the file picker.');
+      setFormError('Unable to open the gallery or file picker.');
     }
   };
 
-  const removeFile = idx => setFiles(prev => prev.filter((_, i) => i !== idx));
+  // ── Initial ticket attachments — existing feature retained ──────────────
+  const addInitialFiles = assets => {
+    const incoming = validateAndNormaliseFiles(assets, files.length);
+    if (!incoming.length) return;
+    setFiles(previous => [...previous, ...incoming].slice(0, MAX_FILES));
+  };
 
-  /* ── Submit ── */
+  const handleTakePhoto = async () => {
+    setFormError('');
+    if (files.length >= MAX_FILES)
+      return setFormError(`You can attach up to ${MAX_FILES} files.`);
+    return takePhoto(addInitialFiles);
+  };
+
+  const handlePickFiles = async () => {
+    setFormError('');
+    if (files.length >= MAX_FILES)
+      return setFormError(`You can attach up to ${MAX_FILES} files.`);
+    return chooseFiles(addInitialFiles);
+  };
+
+  const removeFile = index =>
+    setFiles(previous => previous.filter((_, i) => i !== index));
+
+  // ── Reply attachments — new feature ─────────────────────────────────────
+  const addReplyFiles = (ticketId, assets) => {
+    const current = replyFiles[ticketId] || [];
+    const incoming = validateAndNormaliseFiles(assets, current.length);
+    if (!incoming.length) return;
+
+    setReplyFiles(previous => ({
+      ...previous,
+      [ticketId]: [...current, ...incoming].slice(0, MAX_FILES),
+    }));
+  };
+
+  const handleReplyTakePhoto = async ticketId => {
+    setFormError('');
+    if ((replyFiles[ticketId] || []).length >= MAX_FILES) {
+      return setFormError(`You can attach up to ${MAX_FILES} files per reply.`);
+    }
+    return takePhoto(assets => addReplyFiles(ticketId, assets));
+  };
+
+  const handleReplyPickFiles = async ticketId => {
+    setFormError('');
+    if ((replyFiles[ticketId] || []).length >= MAX_FILES) {
+      return setFormError(`You can attach up to ${MAX_FILES} files per reply.`);
+    }
+    return chooseFiles(assets => addReplyFiles(ticketId, assets));
+  };
+
+  const removeReplyFile = (ticketId, index) => {
+    setReplyFiles(previous => ({
+      ...previous,
+      [ticketId]: (previous[ticketId] || []).filter((_, i) => i !== index),
+    }));
+  };
+
+  const appendFilesToFormData = (formData, attachmentList) => {
+    attachmentList.forEach(file => {
+      formData.append('attachments', {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      });
+    });
+  };
+
+  // ── Ticket creation ─────────────────────────────────────────────────────
   const handleSubmit = async () => {
     setFormError('');
+
     if (!form.contactName.trim()) return setFormError('Please add your name.');
     if (!form.contactEmail.trim())
       return setFormError('Please add your email.');
@@ -334,36 +399,29 @@ const SupportScreen = ({ navigation }) => {
 
     setSubmitting(true);
     try {
-      const fd = new FormData();
-      fd.append('contactName', form.contactName.trim());
-      fd.append('contactEmail', form.contactEmail.trim());
-      fd.append('contactPhone', form.contactPhone.trim());
-      fd.append('subject', form.subject);
-      fd.append('message', form.message.trim());
-      files.forEach(f =>
-        fd.append('attachments', {
-          uri: f.uri,
-          name: f.name,
-          type: f.type,
-        }),
-      );
+      const formData = new FormData();
+      formData.append('contactName', form.contactName.trim());
+      formData.append('contactEmail', form.contactEmail.trim());
+      formData.append('contactPhone', form.contactPhone.trim());
+      formData.append('subject', form.subject);
+      formData.append('message', form.message.trim());
+      appendFilesToFormData(formData, files);
 
-      await supportService.createTicket(fd);
+      await supportService.createTicket(formData);
 
       setFiles([]);
-      setForm(prev => ({ ...prev, subject: '', message: '' }));
+      setForm(previous => ({ ...previous, subject: '', message: '' }));
       setActiveTab('history');
       loadTickets();
-    } catch (err) {
+    } catch (error) {
       setFormError(
-        err?.response?.data?.message || 'Unable to submit your query.',
+        error?.response?.data?.message || 'Unable to submit your query.',
       );
     } finally {
       setSubmitting(false);
     }
   };
 
-  /* ── Ticket expand / mark read ── */
   const handleToggleTicket = async ticket => {
     const opening = expandedId !== ticket._id;
     setExpandedId(opening ? ticket._id : null);
@@ -371,36 +429,153 @@ const SupportScreen = ({ navigation }) => {
     if (opening && ticket.userUnread) {
       try {
         await supportService.markRead(ticket._id);
-        setTickets(prev =>
-          prev.map(t =>
-            t._id === ticket._id ? { ...t, userUnread: false } : t,
+        setTickets(previous =>
+          previous.map(item =>
+            item._id === ticket._id ? { ...item, userUnread: false } : item,
           ),
         );
-      } catch {}
+      } catch {
+        // Ticket may still be viewed if unread-state update fails.
+      }
     }
   };
 
+  // ── Reply send: text, media, or both ────────────────────────────────────
   const handleSendReply = async ticketId => {
     const text = (replyText[ticketId] || '').trim();
-    if (!text) return;
+    const attachments = replyFiles[ticketId] || [];
+
+    if (!text && attachments.length === 0) return;
+
     setSendingId(ticketId);
+    setFormError('');
+
     try {
-      const updated = await supportService.addMessage(ticketId, text);
-      setTickets(prev => prev.map(t => (t._id === ticketId ? updated : t)));
-      setReplyText(prev => ({ ...prev, [ticketId]: '' }));
-    } catch {
-      setFormError('Unable to send message.');
+      const formData = new FormData();
+      formData.append('text', text);
+      appendFilesToFormData(formData, attachments);
+
+      const updated = await supportService.addMessage(ticketId, formData);
+
+      setTickets(previous =>
+        previous.map(ticket => (ticket._id === ticketId ? updated : ticket)),
+      );
+      setReplyText(previous => ({ ...previous, [ticketId]: '' }));
+      setReplyFiles(previous => ({ ...previous, [ticketId]: [] }));
+    } catch (error) {
+      setFormError(error?.response?.data?.message || 'Unable to send message.');
     } finally {
       setSendingId(null);
     }
   };
 
-  /* ── Renders ── */
-
   const inputStyle = {
     backgroundColor: colors.surface,
     borderColor: colors.border,
     color: colors.textPrimary,
+  };
+
+  const renderSelectedAttachments = (attachmentList, onRemove) => {
+    if (!attachmentList?.length) return null;
+
+    return (
+      <View style={styles.thumbGrid}>
+        {attachmentList.map((file, index) => (
+          <View
+            key={`${file.uri}-${index}`}
+            style={[styles.thumb, { borderColor: colors.border }]}
+          >
+            {file.isVideo ? (
+              <View
+                style={[
+                  styles.thumbImg,
+                  styles.thumbVideoFallback,
+                  { backgroundColor: colors.backgroundSecondary },
+                ]}
+              >
+                <Icon
+                  name="video-outline"
+                  size={26}
+                  color={colors.textTertiary}
+                />
+                <Text
+                  style={[
+                    styles.thumbVideoName,
+                    { color: colors.textTertiary },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {file.name}
+                </Text>
+              </View>
+            ) : (
+              <Image source={{ uri: file.uri }} style={styles.thumbImg} />
+            )}
+            <TouchableOpacity
+              style={styles.thumbRemove}
+              onPress={() => onRemove(index)}
+            >
+              <Icon name="close" size={12} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const renderMessageAttachments = attachments => {
+    if (!attachments?.length) return null;
+
+    return (
+      <View style={styles.messageAttachmentGrid}>
+        {attachments.map((attachment, index) => {
+          const url = attUrl(attachment);
+          const image = isImageAtt(attachment);
+          const video = isVideoAtt(attachment);
+
+          return (
+            <TouchableOpacity
+              key={`${url}-${index}`}
+              style={[styles.messageAttachment, { borderColor: colors.border }]}
+              onPress={() => openAttachment(attachment)}
+              activeOpacity={0.8}
+            >
+              {image ? (
+                <Image
+                  source={{ uri: url }}
+                  style={styles.messageAttachmentImage}
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.messageAttachmentImage,
+                    styles.attThumbFallback,
+                    { backgroundColor: colors.backgroundSecondary },
+                  ]}
+                >
+                  <Icon
+                    name={
+                      video ? 'play-circle-outline' : 'file-document-outline'
+                    }
+                    size={24}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.attThumbName,
+                      { color: colors.textTertiary },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {attName(attachment, index)}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
   };
 
   const renderNewRequest = () => (
@@ -409,11 +584,24 @@ const SupportScreen = ({ navigation }) => {
         <View
           style={[
             styles.errorBox,
-            { backgroundColor: colors.dangerSoft, borderColor: '#FCA5A5' },
+            {
+              backgroundColor: colors.dangerSoft || '#fef2f2',
+              borderColor: '#FCA5A5',
+            },
           ]}
         >
-          <Icon name="alert-circle-outline" size={15} color={colors.danger} />
-          <Text style={{ color: colors.danger, fontSize: 12.5, flex: 1 }}>
+          <Icon
+            name="alert-circle-outline"
+            size={15}
+            color={colors.danger || '#dc2626'}
+          />
+          <Text
+            style={{
+              color: colors.danger || '#dc2626',
+              fontSize: 12.5,
+              flex: 1,
+            }}
+          >
             {formError}
           </Text>
         </View>
@@ -423,7 +611,7 @@ const SupportScreen = ({ navigation }) => {
         <TextInput
           style={[styles.input, inputStyle]}
           value={form.contactName}
-          onChangeText={v => setF('contactName', v)}
+          onChangeText={value => setF('contactName', value)}
           placeholder="Enter your full name"
           placeholderTextColor={colors.textTertiary}
         />
@@ -433,7 +621,7 @@ const SupportScreen = ({ navigation }) => {
         <TextInput
           style={[styles.input, inputStyle]}
           value={form.contactEmail}
-          onChangeText={v => setF('contactEmail', v)}
+          onChangeText={value => setF('contactEmail', value)}
           placeholder="your@email.com"
           placeholderTextColor={colors.textTertiary}
           keyboardType="email-address"
@@ -445,7 +633,7 @@ const SupportScreen = ({ navigation }) => {
         <TextInput
           style={[styles.input, inputStyle]}
           value={form.contactPhone}
-          onChangeText={v => setF('contactPhone', v)}
+          onChangeText={value => setF('contactPhone', value)}
           placeholder="Enter your phone number"
           placeholderTextColor={colors.textTertiary}
           keyboardType="phone-pad"
@@ -455,7 +643,7 @@ const SupportScreen = ({ navigation }) => {
       <Field label="Subject" required icon="file-document" colors={colors}>
         <TouchableOpacity
           style={[styles.select, inputStyle]}
-          onPress={() => setSubjectOpen(p => !p)}
+          onPress={() => setSubjectOpen(value => !value)}
           activeOpacity={0.7}
         >
           <Text
@@ -474,7 +662,6 @@ const SupportScreen = ({ navigation }) => {
             color={colors.textTertiary}
           />
         </TouchableOpacity>
-
         {subjectOpen && (
           <View
             style={[
@@ -482,18 +669,18 @@ const SupportScreen = ({ navigation }) => {
               { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
           >
-            {SUBJECT_OPTIONS.map(opt => {
-              const active = form.subject === opt;
+            {SUBJECT_OPTIONS.map(option => {
+              const active = form.subject === option;
               return (
                 <TouchableOpacity
-                  key={opt}
+                  key={option}
                   style={[
                     styles.dropdownRow,
                     { borderBottomColor: colors.border },
                     active && { backgroundColor: colors.primarySoft },
                   ]}
                   onPress={() => {
-                    setF('subject', opt);
+                    setF('subject', option);
                     setSubjectOpen(false);
                   }}
                 >
@@ -504,7 +691,7 @@ const SupportScreen = ({ navigation }) => {
                       fontWeight: active ? '600' : '400',
                     }}
                   >
-                    {opt}
+                    {option}
                   </Text>
                   {active && (
                     <Icon name="check" size={15} color={colors.primary} />
@@ -520,7 +707,7 @@ const SupportScreen = ({ navigation }) => {
         <TextInput
           style={[styles.input, styles.textArea, inputStyle]}
           value={form.message}
-          onChangeText={v => setF('message', v)}
+          onChangeText={value => setF('message', value)}
           placeholder="Please describe your issue or question in detail…"
           placeholderTextColor={colors.textTertiary}
           multiline
@@ -529,14 +716,12 @@ const SupportScreen = ({ navigation }) => {
         />
       </Field>
 
-      {/* ── Attachments ── */}
       <Field
         label="Attach Screenshots / Video (Optional)"
         icon="upload"
         colors={colors}
       >
         <View style={styles.uploadRow}>
-          {/* Camera — sidha photo khinch ke bhejo */}
           <TouchableOpacity
             style={[
               styles.uploadBtn,
@@ -553,8 +738,6 @@ const SupportScreen = ({ navigation }) => {
               Take Photo
             </Text>
           </TouchableOpacity>
-
-          {/* Files — gallery / file browser */}
           <TouchableOpacity
             style={[
               styles.uploadBtn,
@@ -576,57 +759,11 @@ const SupportScreen = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
         </View>
-
         <Text style={[styles.uploadHint, { color: colors.textTertiary }]}>
           Max {MAX_FILES} files, {MAX_FILE_MB}MB each · {files.length}/
           {MAX_FILES} attached
         </Text>
-
-        {files.length > 0 && (
-          <View style={styles.thumbGrid}>
-            {files.map((f, idx) => (
-              <View
-                key={`${f.uri}-${idx}`}
-                style={[styles.thumb, { borderColor: colors.border }]}
-              >
-                {f.isVideo ? (
-                  // Document picker video ka thumbnail nahi deta — icon dikhao
-                  <View
-                    style={[
-                      styles.thumbImg,
-                      styles.thumbVideoFallback,
-                      { backgroundColor: colors.backgroundSecondary },
-                    ]}
-                  >
-                    <Icon
-                      name="video-outline"
-                      size={26}
-                      color={colors.textTertiary}
-                    />
-                    <Text
-                      style={[
-                        styles.thumbVideoName,
-                        { color: colors.textTertiary },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {f.name}
-                    </Text>
-                  </View>
-                ) : (
-                  <Image source={{ uri: f.uri }} style={styles.thumbImg} />
-                )}
-                <TouchableOpacity
-                  style={styles.thumbRemove}
-                  onPress={() => removeFile(idx)}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                >
-                  <Icon name="close" size={12} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        )}
+        {renderSelectedAttachments(files, removeFile)}
       </Field>
 
       <TouchableOpacity
@@ -649,7 +786,6 @@ const SupportScreen = ({ navigation }) => {
         )}
       </TouchableOpacity>
 
-      {/* ── Support info ── */}
       <View
         style={[
           styles.infoBox,
@@ -662,11 +798,11 @@ const SupportScreen = ({ navigation }) => {
         <View style={styles.infoRow}>
           <Icon name="clock-outline" size={14} color={colors.primary} />
           <Text style={[styles.infoLabel, { color: colors.textPrimary }]}>
-            Support Hours
+            Support Information
           </Text>
         </View>
         <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-          Mon–Sat, 10AM–7PM IST
+          Support Hours: Mon–Sat, 10AM–7PM IST
         </Text>
         <Text
           style={[
@@ -682,6 +818,11 @@ const SupportScreen = ({ navigation }) => {
 
   const renderTicket = ({ item: ticket }) => {
     const expanded = expandedId === ticket._id;
+    const currentReplyFiles = replyFiles[ticket._id] || [];
+    const canSend = Boolean(
+      (replyText[ticket._id] || '').trim() || currentReplyFiles.length,
+    );
+
     return (
       <View
         style={[
@@ -704,7 +845,6 @@ const SupportScreen = ({ navigation }) => {
             </Text>
             <StatusChip status={ticket.status} />
           </View>
-
           <View style={styles.ticketMetaRow}>
             <Text style={[styles.ticketMeta, { color: colors.textTertiary }]}>
               {fmtDateTime(ticket.createdAt)}
@@ -726,7 +866,6 @@ const SupportScreen = ({ navigation }) => {
               style={{ marginLeft: 'auto' }}
             />
           </View>
-
           {!expanded && (
             <Text
               style={[styles.ticketPreview, { color: colors.textSecondary }]}
@@ -739,14 +878,15 @@ const SupportScreen = ({ navigation }) => {
 
         {expanded && (
           <View style={[styles.ticketBody, { borderTopColor: colors.border }]}>
-            <Text style={[styles.blockLabel, { color: colors.textTertiary }]}>
-              ORIGINAL MESSAGE
-            </Text>
-            <Text style={[styles.blockText, { color: colors.textSecondary }]}>
-              {ticket.message}
-            </Text>
+            <View>
+              <Text style={[styles.blockLabel, { color: colors.textTertiary }]}>
+                ORIGINAL MESSAGE
+              </Text>
+              <Text style={[styles.blockText, { color: colors.textSecondary }]}>
+                {ticket.message}
+              </Text>
+            </View>
 
-            {/* ── Attachments — tap to view ── */}
             {ticket.attachments?.length > 0 && (
               <View>
                 <Text
@@ -755,19 +895,17 @@ const SupportScreen = ({ navigation }) => {
                   ATTACHMENTS ({ticket.attachments.length})
                 </Text>
                 <View style={styles.attGrid}>
-                  {ticket.attachments.map((a, i) => {
-                    const url = attUrl(a);
-                    const image = isImageAtt(a);
-                    const video = isVideoAtt(a);
+                  {ticket.attachments.map((attachment, index) => {
+                    const url = attUrl(attachment);
+                    const image = isImageAtt(attachment);
                     return (
                       <TouchableOpacity
-                        key={`${url}-${i}`}
+                        key={`${url}-${index}`}
                         style={[
                           styles.attThumb,
                           { borderColor: colors.border },
                         ]}
-                        onPress={() => openAttachment(a)}
-                        activeOpacity={0.8}
+                        onPress={() => openAttachment(attachment)}
                       >
                         {image ? (
                           <Image
@@ -784,7 +922,7 @@ const SupportScreen = ({ navigation }) => {
                           >
                             <Icon
                               name={
-                                video
+                                isVideoAtt(attachment)
                                   ? 'play-circle-outline'
                                   : 'file-document-outline'
                               }
@@ -798,7 +936,7 @@ const SupportScreen = ({ navigation }) => {
                               ]}
                               numberOfLines={1}
                             >
-                              {attName(a, i)}
+                              {attName(attachment, index)}
                             </Text>
                           </View>
                         )}
@@ -809,28 +947,6 @@ const SupportScreen = ({ navigation }) => {
               </View>
             )}
 
-            {!!ticket.adminReply && (
-              <View
-                style={[
-                  styles.replyBox,
-                  {
-                    backgroundColor: colors.primarySoft,
-                    borderColor: colors.primaryBorder || colors.primary,
-                  },
-                ]}
-              >
-                <Text style={[styles.blockLabel, { color: colors.primary }]}>
-                  SUPPORT TEAM REPLY
-                </Text>
-                <Text
-                  style={[styles.blockText, { color: colors.textSecondary }]}
-                >
-                  {ticket.adminReply}
-                </Text>
-              </View>
-            )}
-
-            {/* Conversation thread */}
             {ticket.messages?.length > 0 && (
               <View
                 style={[
@@ -838,11 +954,11 @@ const SupportScreen = ({ navigation }) => {
                   { backgroundColor: colors.backgroundSecondary },
                 ]}
               >
-                {ticket.messages.map(m => {
-                  const isAdmin = m.sender === 'admin';
+                {ticket.messages.map(message => {
+                  const isAdmin = message.sender === 'admin';
                   return (
                     <View
-                      key={m._id}
+                      key={message._id}
                       style={[
                         styles.bubbleRow,
                         { justifyContent: isAdmin ? 'flex-start' : 'flex-end' },
@@ -859,11 +975,14 @@ const SupportScreen = ({ navigation }) => {
                           },
                         ]}
                       >
-                        <Text
-                          style={{ fontSize: 13, color: colors.textPrimary }}
-                        >
-                          {m.text}
-                        </Text>
+                        {!!message.text && (
+                          <Text
+                            style={{ fontSize: 13, color: colors.textPrimary }}
+                          >
+                            {message.text}
+                          </Text>
+                        )}
+                        {renderMessageAttachments(message.attachments)}
                         <Text
                           style={[
                             styles.bubbleMeta,
@@ -871,7 +990,7 @@ const SupportScreen = ({ navigation }) => {
                           ]}
                         >
                           {isAdmin ? 'Support Team' : 'You'} ·{' '}
-                          {fmtDateTime(m.createdAt)}
+                          {fmtDateTime(message.createdAt)}
                         </Text>
                       </View>
                     </View>
@@ -880,36 +999,65 @@ const SupportScreen = ({ navigation }) => {
               </View>
             )}
 
-            {!ticket.adminReply && !ticket.messages?.length && (
+            {!ticket.messages?.length && (
               <Text style={[styles.noReply, { color: colors.textTertiary }]}>
                 No reply yet — our team will get back to you soon.
               </Text>
             )}
 
-            {/* Reply box */}
+            {/* New: camera/gallery attachments are available for every ticket reply. */}
             <View style={styles.replyRow}>
+              <TouchableOpacity
+                style={[
+                  styles.replyMediaBtn,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.backgroundSecondary,
+                  },
+                ]}
+                onPress={() => handleReplyTakePhoto(ticket._id)}
+                disabled={sendingId === ticket._id}
+              >
+                <Icon name="camera-outline" size={19} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.replyMediaBtn,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.backgroundSecondary,
+                  },
+                ]}
+                onPress={() => handleReplyPickFiles(ticket._id)}
+                disabled={sendingId === ticket._id}
+              >
+                <Icon
+                  name="image-multiple-outline"
+                  size={19}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
               <TextInput
                 style={[styles.replyInput, inputStyle]}
                 value={replyText[ticket._id] || ''}
-                onChangeText={v =>
-                  setReplyText(prev => ({ ...prev, [ticket._id]: v }))
+                onChangeText={value =>
+                  setReplyText(previous => ({
+                    ...previous,
+                    [ticket._id]: value,
+                  }))
                 }
                 placeholder="Type a reply…"
                 placeholderTextColor={colors.textTertiary}
-                onSubmitEditing={() => handleSendReply(ticket._id)}
-                returnKeyType="send"
+                multiline
               />
               <TouchableOpacity
                 style={[
                   styles.replySend,
                   { backgroundColor: colors.primary },
-                  (sendingId === ticket._id ||
-                    !replyText[ticket._id]?.trim()) && { opacity: 0.4 },
+                  (sendingId === ticket._id || !canSend) && { opacity: 0.4 },
                 ]}
                 onPress={() => handleSendReply(ticket._id)}
-                disabled={
-                  sendingId === ticket._id || !replyText[ticket._id]?.trim()
-                }
+                disabled={sendingId === ticket._id || !canSend}
               >
                 {sendingId === ticket._id ? (
                   <ActivityIndicator size="small" color="#fff" />
@@ -918,6 +1066,22 @@ const SupportScreen = ({ navigation }) => {
                 )}
               </TouchableOpacity>
             </View>
+
+            {currentReplyFiles.length > 0 && (
+              <View>
+                <Text
+                  style={[
+                    styles.replyAttachmentHint,
+                    { color: colors.textTertiary },
+                  ]}
+                >
+                  Reply attachments: {currentReplyFiles.length}/{MAX_FILES}
+                </Text>
+                {renderSelectedAttachments(currentReplyFiles, index =>
+                  removeReplyFile(ticket._id, index),
+                )}
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -925,30 +1089,23 @@ const SupportScreen = ({ navigation }) => {
   };
 
   const renderHistory = () => {
-    if (historyLoading) {
+    if (historyLoading)
       return (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       );
-    }
-
-    if (!tickets.length) {
+    if (!tickets.length)
       return (
         <View style={[styles.centerBox, { paddingVertical: 48 }]}>
           <Icon name="history" size={32} color={colors.textTertiary} />
           <Text
-            style={{
-              fontSize: 13,
-              color: colors.textTertiary,
-              marginTop: 8,
-            }}
+            style={{ fontSize: 13, color: colors.textTertiary, marginTop: 8 }}
           >
             You haven't raised any requests yet.
           </Text>
         </View>
       );
-    }
 
     return (
       <>
@@ -959,7 +1116,6 @@ const SupportScreen = ({ navigation }) => {
           <TouchableOpacity
             style={[styles.refreshBtn, { borderColor: colors.border }]}
             onPress={loadTickets}
-            activeOpacity={0.7}
           >
             <Icon name="refresh" size={13} color={colors.textSecondary} />
             <Text style={{ fontSize: 12, color: colors.textSecondary }}>
@@ -967,10 +1123,9 @@ const SupportScreen = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
         </View>
-
         <FlatList
           data={tickets}
-          keyExtractor={t => t._id}
+          keyExtractor={ticket => ticket._id}
           renderItem={renderTicket}
           scrollEnabled={false}
           contentContainerStyle={{ gap: 10 }}
@@ -984,7 +1139,6 @@ const SupportScreen = ({ navigation }) => {
       style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* ── Header ── */}
       <View
         style={[
           styles.header,
@@ -1002,12 +1156,9 @@ const SupportScreen = ({ navigation }) => {
               { backgroundColor: colors.backgroundSecondary },
             ]}
             onPress={() => navigation?.goBack?.()}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            activeOpacity={0.7}
           >
             <Icon name="arrow-left" size={20} color={colors.textPrimary} />
           </TouchableOpacity>
-
           <View style={{ flex: 1 }}>
             <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
               Support Center
@@ -1017,8 +1168,6 @@ const SupportScreen = ({ navigation }) => {
             </Text>
           </View>
         </View>
-
-        {/* ── Tabs ── */}
         <View
           style={[
             styles.tabBar,
@@ -1028,23 +1177,22 @@ const SupportScreen = ({ navigation }) => {
           {[
             { key: 'new', label: 'New Request', icon: 'plus' },
             { key: 'history', label: 'My Requests', icon: 'history' },
-          ].map(t => {
-            const active = activeTab === t.key;
+          ].map(tab => {
+            const active = activeTab === tab.key;
             return (
               <TouchableOpacity
-                key={t.key}
+                key={tab.key}
                 style={[
                   styles.tab,
                   active && { backgroundColor: colors.surface },
                 ]}
                 onPress={() => {
-                  setActiveTab(t.key);
+                  setActiveTab(tab.key);
                   setFormError('');
                 }}
-                activeOpacity={0.7}
               >
                 <Icon
-                  name={t.icon}
+                  name={tab.icon}
                   size={14}
                   color={active ? colors.primary : colors.textTertiary}
                 />
@@ -1055,7 +1203,7 @@ const SupportScreen = ({ navigation }) => {
                     color: active ? colors.primary : colors.textTertiary,
                   }}
                 >
-                  {t.label}
+                  {tab.label}
                 </Text>
               </TouchableOpacity>
             );
@@ -1075,7 +1223,6 @@ const SupportScreen = ({ navigation }) => {
         {activeTab === 'new' ? renderNewRequest() : renderHistory()}
       </ScrollView>
 
-      {/* ── Full-screen image preview ── */}
       <Modal
         visible={!!preview}
         transparent
@@ -1090,14 +1237,10 @@ const SupportScreen = ({ navigation }) => {
             <Text style={styles.previewName} numberOfLines={1}>
               {preview?.name}
             </Text>
-            <TouchableOpacity
-              onPress={() => setPreview(null)}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
+            <TouchableOpacity onPress={() => setPreview(null)}>
               <Icon name="close" size={24} color="#fff" />
             </TouchableOpacity>
           </View>
-
           {!!preview && (
             <Image
               source={{ uri: preview.uri }}
@@ -1105,11 +1248,9 @@ const SupportScreen = ({ navigation }) => {
               resizeMode="contain"
             />
           )}
-
           <TouchableOpacity
             style={styles.previewOpenBtn}
             onPress={() => preview?.uri && Linking.openURL(preview.uri)}
-            activeOpacity={0.8}
           >
             <Icon name="open-in-new" size={15} color="#fff" />
             <Text style={styles.previewOpenText}>Open in browser</Text>
@@ -1120,10 +1261,7 @@ const SupportScreen = ({ navigation }) => {
   );
 };
 
-/* ─── Styles ──────────────────────────────────────────────────────────── */
-
 const styles = StyleSheet.create({
-  /* Header */
   header: {
     paddingHorizontal: 14,
     paddingBottom: 10,
@@ -1140,8 +1278,6 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.3 },
   headerSub: { fontSize: 11.5, marginTop: 1 },
-
-  /* Tabs */
   tabBar: { flexDirection: 'row', padding: 4, borderRadius: 12, gap: 4 },
   tab: {
     flex: 1,
@@ -1152,10 +1288,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 9,
   },
-
-  /* Body */
   body: { padding: 14 },
-
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1163,9 +1296,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 10,
     padding: 10,
+    marginBottom: 12,
   },
-
-  /* Fields */
   field: { gap: 6 },
   fieldLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   fieldLabel: { fontSize: 12.5, fontWeight: '600' },
@@ -1206,8 +1338,6 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-
-  /* Upload */
   uploadRow: { flexDirection: 'row', gap: 8 },
   uploadBtn: {
     flex: 1,
@@ -1245,8 +1375,6 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     padding: 3,
   },
-
-  /* Submit */
   submitBtn: {
     height: 46,
     borderRadius: 12,
@@ -1257,14 +1385,10 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   submitBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-
-  /* Info */
   infoBox: { borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 4 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   infoLabel: { fontSize: 12.5, fontWeight: '700' },
   infoText: { fontSize: 12, marginTop: 4 },
-
-  /* History */
   centerBox: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1285,8 +1409,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-
-  /* Ticket card */
   ticketCard: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
   ticketHead: { paddingHorizontal: 12, paddingVertical: 11, gap: 5 },
   ticketTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
@@ -1301,7 +1423,6 @@ const styles = StyleSheet.create({
   ticketMeta: { fontSize: 11 },
   attachCount: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   ticketPreview: { fontSize: 12 },
-
   statusChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1312,7 +1433,6 @@ const styles = StyleSheet.create({
   },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusChipText: { fontSize: 10.5, fontWeight: '700' },
-
   ticketBody: {
     borderTopWidth: 1,
     paddingHorizontal: 12,
@@ -1326,8 +1446,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   blockText: { fontSize: 13, lineHeight: 19 },
-
-  /* Ticket attachments */
   attGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
   attThumb: {
     width: 76,
@@ -1344,8 +1462,59 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   attThumbName: { fontSize: 8, textAlign: 'center' },
-
-  /* Full-screen preview */
+  thread: { borderRadius: 10, padding: 10, gap: 8 },
+  bubbleRow: { flexDirection: 'row' },
+  bubble: {
+    maxWidth: '82%',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  bubbleMeta: { fontSize: 10, marginTop: 4 },
+  messageAttachmentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 7,
+  },
+  messageAttachment: {
+    width: 104,
+    height: 104,
+    borderWidth: 1,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  messageAttachmentImage: { width: '100%', height: '100%' },
+  noReply: { fontSize: 12, fontStyle: 'italic' },
+  replyRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  replyMediaBtn: {
+    width: 40,
+    height: 40,
+    borderWidth: 1,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  replyInput: {
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 100,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    fontSize: 13,
+    textAlignVertical: 'center',
+  },
+  replySend: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  replyAttachmentHint: { fontSize: 10.5, marginTop: 2 },
   previewBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.94)',
@@ -1378,38 +1547,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.18)',
   },
   previewOpenText: { color: '#fff', fontSize: 12.5, fontWeight: '600' },
-  replyBox: { borderWidth: 1, borderRadius: 10, padding: 10 },
-
-  thread: { borderRadius: 10, padding: 10, gap: 8 },
-  bubbleRow: { flexDirection: 'row' },
-  bubble: {
-    maxWidth: '82%',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  bubbleMeta: { fontSize: 10, marginTop: 4 },
-
-  noReply: { fontSize: 12, fontStyle: 'italic' },
-
-  replyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  replyInput: {
-    flex: 1,
-    height: 40,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 11,
-    fontSize: 13,
-    paddingVertical: 0,
-  },
-  replySend: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });
 
 export default SupportScreen;
