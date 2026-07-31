@@ -1,13 +1,7 @@
-/**
- * SupportRequestsTab — AdminPanelScreen ka "Support Requests" tab
- *
- * Web ke SupportRequestsTab.jsx ka mobile port.
- * Admin sabhi tickets dekh sakta hai, status badal sakta hai, reply kar sakta hai.
- *
- * Usage (AdminPanelScreen mein):
- *   import SupportRequestsTab from '../../components/admin/SupportRequestsTab';
- *   case 'support':
- *     return <SupportRequestsTab t={t} />;
+/*
+ * Mobile Admin Panel — Support Requests tab
+ * Admin/manager can view tickets, change status, send text/media replies,
+ * and mark opened tickets as read.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -25,34 +19,88 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { launchCamera } from 'react-native-image-picker';
+import {
+  errorCodes,
+  isErrorWithCode,
+  pick,
+  types,
+} from '@react-native-documents/picker';
 
 import { supportService } from '../../services/supportService';
 import { API_BASE_URL } from '../../config';
 import ImprovedButton from '../ui/ImprovedButton';
 import ImprovedDropdown from '../ui/ImprovedDropdown';
 
-/* Backend relative url bhejta hai ("/uploads/support/x.jpg") — RN ko absolute
-   chahiye, isliye API host prepend karo. */
+const MAX_FILES = 5;
+const MAX_FILE_MB = 25;
+const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
+
 const FILE_HOST = String(API_BASE_URL || '')
   .replace(/\/+$/, '')
   .replace(/\/api(\/v\d+)?$/, '');
 
-const attUrl = a => {
-  const raw = typeof a === 'string' ? a : a?.url || a?.path || '';
+const attUrl = attachment => {
+  const raw =
+    typeof attachment === 'string'
+      ? attachment
+      : attachment?.url || attachment?.path || '';
+
   if (!raw) return '';
   if (/^https?:\/\//i.test(raw)) return raw;
   return `${FILE_HOST}${raw.startsWith('/') ? '' : '/'}${raw}`;
 };
 
-const attName = (a, i) =>
-  (typeof a === 'object' && (a?.originalName || a?.filename)) ||
-  attUrl(a).split('?')[0].split('/').pop() ||
-  `File ${i + 1}`;
-
-const isImageAtt = a => {
-  if (typeof a === 'object' && a?.fileType) return a.fileType === 'image';
-  return /\.(jpe?g|png|gif|webp|bmp|heic)$/i.test(attUrl(a).split('?')[0]);
+const attName = (attachment, index = 0) => {
+  if (typeof attachment === 'object') {
+    return (
+      attachment?.originalName ||
+      attachment?.filename ||
+      attachment?.name ||
+      `File ${index + 1}`
+    );
+  }
+  return (
+    attUrl(attachment).split('?')[0].split('/').pop() || `File ${index + 1}`
+  );
 };
+
+const isImageAtt = attachment => {
+  if (typeof attachment === 'object' && attachment?.fileType) {
+    return attachment.fileType === 'image';
+  }
+  const mime =
+    typeof attachment === 'object'
+      ? attachment?.mimetype || attachment?.type
+      : '';
+  if (mime) return mime.startsWith('image/');
+  return /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(
+    attUrl(attachment).split('?')[0],
+  );
+};
+
+const isVideoAtt = attachment => {
+  if (typeof attachment === 'object' && attachment?.fileType) {
+    return attachment.fileType === 'video';
+  }
+  const mime =
+    typeof attachment === 'object'
+      ? attachment?.mimetype || attachment?.type
+      : '';
+  if (mime) return mime.startsWith('video/');
+  return /\.(mp4|mov|m4v|3gp|avi|mkv|webm)$/i.test(
+    attUrl(attachment).split('?')[0],
+  );
+};
+
+const fmtDateTime = value =>
+  new Date(value).toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All Requests' },
@@ -61,11 +109,9 @@ const STATUS_OPTIONS = [
   { value: 'resolved', label: 'Resolved' },
 ];
 
-const STATUS_CHANGE_OPTIONS = [
-  { value: 'open', label: 'Open' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'resolved', label: 'Resolved' },
-];
+const STATUS_CHANGE_OPTIONS = STATUS_OPTIONS.filter(
+  item => item.value !== 'all',
+);
 
 const STATUS_LABELS = {
   open: 'Open',
@@ -79,65 +125,56 @@ const STATUS_COLORS = {
   resolved: '#16a34a',
 };
 
-const fmtDateTime = d =>
-  new Date(d).toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-/* ─── Theme-aware style factories (AdminPanelScreen jaise) ────────────── */
-
-const makeCard = t => ({
-  backgroundColor: t.card,
+const makeCard = theme => ({
+  backgroundColor: theme.card,
   borderRadius: 14,
   borderWidth: 1,
-  borderColor: t.border,
+  borderColor: theme.border,
   padding: 12,
   marginBottom: 10,
 });
 
-const makeInput = t => ({
+const makeInput = theme => ({
   borderWidth: 1,
-  borderColor: t.inputBorder,
+  borderColor: theme.inputBorder,
   borderRadius: 10,
   paddingHorizontal: 12,
   paddingVertical: 9,
   fontSize: 13,
-  color: t.inputText,
-  backgroundColor: t.input,
+  color: theme.inputText,
+  backgroundColor: theme.input,
 });
 
-const makeTitle = t => ({
+const makeTitle = theme => ({
   fontSize: 15,
   fontWeight: '700',
-  color: t.title,
+  color: theme.title,
   letterSpacing: -0.2,
 });
-
-const makeSubtitle = t => ({ fontSize: 11, color: t.subtitle, marginTop: 2 });
-
-const makeCardTitle = t => ({
+const makeSubtitle = theme => ({
+  fontSize: 11,
+  color: theme.subtitle,
+  marginTop: 2,
+});
+const makeCardTitle = theme => ({
   fontSize: 13.5,
   fontWeight: '700',
-  color: t.title,
+  color: theme.title,
   flex: 1,
 });
-
-const makeMeta = t => ({ fontSize: 11, color: t.subtitle });
-
-const makeBlockLabel = t => ({
+const makeMeta = theme => ({ fontSize: 11, color: theme.subtitle });
+const makeBlockLabel = theme => ({
   fontSize: 10,
   fontWeight: '700',
   letterSpacing: 0.5,
-  color: t.subtitle,
+  color: theme.subtitle,
   marginBottom: 3,
 });
-
-const makeBody = t => ({ fontSize: 13, color: t.checkLabel, lineHeight: 19 });
-
-/* ─── Status chip ─────────────────────────────────────────────────────── */
+const makeBody = theme => ({
+  fontSize: 13,
+  color: theme.checkLabel,
+  lineHeight: 19,
+});
 
 const StatusChip = ({ status }) => {
   const color = STATUS_COLORS[status] || '#6b7280';
@@ -151,30 +188,34 @@ const StatusChip = ({ status }) => {
   );
 };
 
-/* ─── Main ────────────────────────────────────────────────────────────── */
-
 const SupportRequestsTab = ({ t }) => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
   const [replyText, setReplyText] = useState({});
+  // Shape: { [ticketId]: [{ uri, name, type, isVideo }] }
+  const [replyFiles, setReplyFiles] = useState({});
   const [sendingId, setSendingId] = useState(null);
-  const [statusModal, setStatusModal] = useState(null); // ticket object
+  const [statusModal, setStatusModal] = useState(null);
   const [newStatus, setNewStatus] = useState('open');
   const [statusSaving, setStatusSaving] = useState(false);
   const [error, setError] = useState('');
-  const [preview, setPreview] = useState(null); // { uri, name }
+  const [preview, setPreview] = useState(null);
 
   const loadTickets = useCallback(async () => {
     setLoading(true);
     setError('');
+
     try {
       const params = filter === 'all' ? {} : { status: filter };
       const data = await supportService.getAllTickets(params);
       setTickets(Array.isArray(data) ? data : []);
-    } catch {
-      setError('Unable to load support requests.');
+    } catch (requestError) {
+      setError(
+        requestError?.response?.data?.message ||
+          'Unable to load support requests.',
+      );
     } finally {
       setLoading(false);
     }
@@ -184,16 +225,174 @@ const SupportRequestsTab = ({ t }) => {
     loadTickets();
   }, [loadTickets]);
 
+  const openAttachment = attachment => {
+    const url = attUrl(attachment);
+    if (!url) return;
+
+    if (isImageAtt(attachment)) {
+      setPreview({ uri: url, name: attName(attachment) });
+      return;
+    }
+
+    Linking.openURL(url).catch(() =>
+      setError('Unable to open this attachment.'),
+    );
+  };
+
+  // Opening an unread ticket updates the database unread state, not only UI state.
+  const handleToggleTicket = async ticket => {
+    const opening = expandedId !== ticket._id;
+    setExpandedId(opening ? ticket._id : null);
+
+    if (opening && ticket.adminUnread) {
+      try {
+        await supportService.markRead(ticket._id);
+        setTickets(previous =>
+          previous.map(item =>
+            item._id === ticket._id ? { ...item, adminUnread: false } : item,
+          ),
+        );
+      } catch {
+        // Ticket may still be opened even when marking it read fails.
+      }
+    }
+  };
+
+  const normaliseFiles = (assets, existingCount) => {
+    const availableSlots = MAX_FILES - existingCount;
+    const valid = [];
+
+    for (const asset of assets || []) {
+      if (valid.length >= availableSlots) break;
+      const uri = asset.uri;
+      const size = asset.fileSize ?? asset.size;
+      const type = asset.type || 'application/octet-stream';
+
+      if (!uri) continue;
+      if (size && size > MAX_FILE_BYTES) {
+        setError(
+          `${asset.fileName || asset.name || 'File'} exceeds ${MAX_FILE_MB}MB.`,
+        );
+        continue;
+      }
+      if (!type.startsWith('image/') && !type.startsWith('video/')) {
+        setError(
+          `${asset.fileName || asset.name || 'File'} is not an image or video.`,
+        );
+        continue;
+      }
+
+      valid.push({
+        uri,
+        name: asset.fileName || asset.name || `upload-${Date.now()}`,
+        type,
+        isVideo: type.startsWith('video/'),
+      });
+    }
+
+    return valid;
+  };
+
+  const addReplyFiles = (ticketId, assets) => {
+    const existing = replyFiles[ticketId] || [];
+    const incoming = normaliseFiles(assets, existing.length);
+    if (!incoming.length) return;
+
+    setReplyFiles(previous => ({
+      ...previous,
+      [ticketId]: [...existing, ...incoming].slice(0, MAX_FILES),
+    }));
+  };
+
+  const handleReplyCamera = async ticketId => {
+    setError('');
+    if ((replyFiles[ticketId] || []).length >= MAX_FILES) {
+      return setError(`You can attach up to ${MAX_FILES} files per reply.`);
+    }
+
+    try {
+      const result = await launchCamera({
+        mediaType: 'photo',
+        quality: 0.7,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        saveToPhotos: false,
+      });
+
+      if (result.didCancel) return;
+      if (result.errorCode) {
+        setError(result.errorMessage || 'Unable to open the camera.');
+        return;
+      }
+
+      addReplyFiles(ticketId, result.assets || []);
+    } catch {
+      setError('Unable to open the camera.');
+    }
+  };
+
+  const handleReplyPicker = async ticketId => {
+    setError('');
+    if ((replyFiles[ticketId] || []).length >= MAX_FILES) {
+      return setError(`You can attach up to ${MAX_FILES} files per reply.`);
+    }
+
+    try {
+      const selected = await pick({
+        allowMultiSelection: true,
+        type: [types.images, types.video],
+      });
+      addReplyFiles(ticketId, selected || []);
+    } catch (pickerError) {
+      if (
+        isErrorWithCode(pickerError) &&
+        pickerError.code === errorCodes.OPERATION_CANCELED
+      )
+        return;
+      setError('Unable to open the gallery or file picker.');
+    }
+  };
+
+  const removeReplyFile = (ticketId, index) => {
+    setReplyFiles(previous => ({
+      ...previous,
+      [ticketId]: (previous[ticketId] || []).filter(
+        (_, fileIndex) => fileIndex !== index,
+      ),
+    }));
+  };
+
   const handleSendReply = async ticketId => {
     const text = (replyText[ticketId] || '').trim();
-    if (!text) return;
+    const attachments = replyFiles[ticketId] || [];
+
+    if (!text && attachments.length === 0) return;
+
     setSendingId(ticketId);
+    setError('');
+
     try {
-      const updated = await supportService.addMessage(ticketId, text);
-      setTickets(prev => prev.map(x => (x._id === ticketId ? updated : x)));
-      setReplyText(prev => ({ ...prev, [ticketId]: '' }));
-    } catch {
-      setError('Unable to send reply.');
+      const formData = new FormData();
+      formData.append('text', text);
+      attachments.forEach(file => {
+        formData.append('attachments', {
+          uri: file.uri,
+          name: file.name,
+          type: file.type,
+        });
+      });
+
+      const updated = await supportService.addMessage(ticketId, formData);
+
+      setTickets(previous =>
+        previous.map(item => (item._id === ticketId ? updated : item)),
+      );
+      setReplyText(previous => ({ ...previous, [ticketId]: '' }));
+      setReplyFiles(previous => ({ ...previous, [ticketId]: [] }));
+    } catch (requestError) {
+      setError(
+        requestError?.response?.data?.message || 'Unable to send reply.',
+      );
     } finally {
       setSendingId(null);
     }
@@ -206,53 +405,151 @@ const SupportRequestsTab = ({ t }) => {
 
   const handleSaveStatus = async () => {
     if (!statusModal) return;
+
     setStatusSaving(true);
     try {
       const updated = await supportService.updateTicket(statusModal._id, {
         status: newStatus,
       });
-      setTickets(prev =>
-        prev.map(x => (x._id === statusModal._id ? updated : x)),
+      setTickets(previous =>
+        previous.map(item => (item._id === statusModal._id ? updated : item)),
       );
       setStatusModal(null);
-    } catch {
-      setError('Unable to update status.');
+    } catch (requestError) {
+      setError(
+        requestError?.response?.data?.message || 'Unable to update status.',
+      );
     } finally {
       setStatusSaving(false);
     }
   };
 
   const counts = tickets.reduce(
-    (acc, x) => {
-      acc[x.status] = (acc[x.status] || 0) + 1;
-      return acc;
+    (result, ticket) => {
+      result[ticket.status] = (result[ticket.status] || 0) + 1;
+      return result;
     },
     { open: 0, in_progress: 0, resolved: 0 },
   );
 
-  /* ── Render one ticket ── */
+  const renderSelectedFiles = (ticketId, files) => {
+    if (!files.length) return null;
+
+    return (
+      <View>
+        <Text style={[st.replyAttachmentHint, { color: t.subtitle }]}>
+          Reply attachments: {files.length}/{MAX_FILES}
+        </Text>
+        <View style={st.attachWrap}>
+          {files.map((file, index) => (
+            <View
+              key={`${file.uri}-${index}`}
+              style={[st.attThumb, { borderColor: t.border }]}
+            >
+              {file.isVideo ? (
+                <View
+                  style={[
+                    st.attThumbImg,
+                    st.attThumbFallback,
+                    { backgroundColor: t.bg },
+                  ]}
+                >
+                  <Icon name="video-outline" size={24} color={t.subtitle} />
+                  <Text
+                    style={[st.attThumbName, { color: t.subtitle }]}
+                    numberOfLines={1}
+                  >
+                    {file.name}
+                  </Text>
+                </View>
+              ) : (
+                <Image source={{ uri: file.uri }} style={st.attThumbImg} />
+              )}
+              <TouchableOpacity
+                style={st.removeThumb}
+                onPress={() => removeReplyFile(ticketId, index)}
+              >
+                <Icon name="close" size={12} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  const renderMessageAttachments = attachments => {
+    if (!attachments?.length) return null;
+
+    return (
+      <View style={st.messageAttachmentGrid}>
+        {attachments.map((attachment, index) => {
+          const url = attUrl(attachment);
+          const image = isImageAtt(attachment);
+          return (
+            <TouchableOpacity
+              key={`${url}-${index}`}
+              style={[st.messageAttachment, { borderColor: t.border }]}
+              onPress={() => openAttachment(attachment)}
+            >
+              {image ? (
+                <Image source={{ uri: url }} style={st.messageAttachmentImg} />
+              ) : (
+                <View
+                  style={[
+                    st.messageAttachmentImg,
+                    st.attThumbFallback,
+                    { backgroundColor: t.bg },
+                  ]}
+                >
+                  <Icon
+                    name={
+                      isVideoAtt(attachment)
+                        ? 'play-circle-outline'
+                        : 'file-document-outline'
+                    }
+                    size={24}
+                    color="#5a7bf5"
+                  />
+                  <Text
+                    style={[st.attThumbName, { color: t.subtitle }]}
+                    numberOfLines={1}
+                  >
+                    {attName(attachment, index)}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  };
+
   const renderTicket = ticket => {
     const expanded = expandedId === ticket._id;
+    const selectedFiles = replyFiles[ticket._id] || [];
+    const canSend = Boolean(
+      (replyText[ticket._id] || '').trim() || selectedFiles.length,
+    );
 
     return (
       <View key={ticket._id} style={makeCard(t)}>
-        {/* Head */}
         <TouchableOpacity
-          onPress={() => setExpandedId(expanded ? null : ticket._id)}
+          onPress={() => handleToggleTicket(ticket)}
           activeOpacity={0.7}
         >
           <View style={st.row}>
+            {ticket.adminUnread && <View style={st.unreadDot} />}
             <Text style={makeCardTitle(t)} numberOfLines={1}>
               {ticket.subject}
             </Text>
             <StatusChip status={ticket.status} />
           </View>
-
           <Text style={[makeMeta(t), { marginTop: 4 }]} numberOfLines={1}>
-            {ticket.contactName}
+            {ticket.contactName || ticket.createdBy?.name || 'Unknown user'}
             {ticket.contactEmail ? ` · ${ticket.contactEmail}` : ''}
           </Text>
-
           <View style={[st.row, { marginTop: 3 }]}>
             <Text style={makeMeta(t)}>{fmtDateTime(ticket.createdAt)}</Text>
             {ticket.attachments?.length > 0 && (
@@ -264,7 +561,6 @@ const SupportRequestsTab = ({ t }) => {
               {expanded ? '▲' : '▼'}
             </Text>
           </View>
-
           {!expanded && (
             <Text
               style={[makeBody(t), { marginTop: 6, fontSize: 12 }]}
@@ -275,7 +571,6 @@ const SupportRequestsTab = ({ t }) => {
           )}
         </TouchableOpacity>
 
-        {/* Body */}
         {expanded && (
           <View style={[st.body, { borderTopColor: t.border }]}>
             {!!ticket.contactPhone && (
@@ -294,26 +589,20 @@ const SupportRequestsTab = ({ t }) => {
               <Text style={makeBody(t)}>{ticket.message}</Text>
             </View>
 
-            {/* Attachments */}
             {ticket.attachments?.length > 0 && (
               <View style={{ marginTop: 10 }}>
                 <Text style={makeBlockLabel(t)}>
                   ATTACHMENTS ({ticket.attachments.length})
                 </Text>
                 <View style={st.attachWrap}>
-                  {ticket.attachments.map((a, i) => {
-                    const url = attUrl(a);
-                    const image = isImageAtt(a);
+                  {ticket.attachments.map((attachment, index) => {
+                    const url = attUrl(attachment);
+                    const image = isImageAtt(attachment);
                     return (
                       <TouchableOpacity
-                        key={`${url}-${i}`}
+                        key={`${url}-${index}`}
                         style={[st.attThumb, { borderColor: t.border }]}
-                        onPress={() =>
-                          image
-                            ? setPreview({ uri: url, name: attName(a, i) })
-                            : Linking.openURL(url)
-                        }
-                        activeOpacity={0.8}
+                        onPress={() => openAttachment(attachment)}
                       >
                         {image ? (
                           <Image source={{ uri: url }} style={st.attThumbImg} />
@@ -325,12 +614,20 @@ const SupportRequestsTab = ({ t }) => {
                               { backgroundColor: t.bg },
                             ]}
                           >
-                            <Text style={{ fontSize: 20 }}>🎬</Text>
+                            <Icon
+                              name={
+                                isVideoAtt(attachment)
+                                  ? 'play-circle-outline'
+                                  : 'file-document-outline'
+                              }
+                              size={24}
+                              color={t.subtitle}
+                            />
                             <Text
                               style={[st.attThumbName, { color: t.subtitle }]}
                               numberOfLines={1}
                             >
-                              {attName(a, i)}
+                              {attName(attachment, index)}
                             </Text>
                           </View>
                         )}
@@ -341,16 +638,15 @@ const SupportRequestsTab = ({ t }) => {
               </View>
             )}
 
-            {/* Conversation */}
             {ticket.messages?.length > 0 && (
               <View style={{ marginTop: 10 }}>
                 <Text style={makeBlockLabel(t)}>CONVERSATION</Text>
                 <View style={[st.thread, { backgroundColor: t.bg }]}>
-                  {ticket.messages.map(m => {
-                    const isAdmin = m.sender === 'admin';
+                  {ticket.messages.map(message => {
+                    const isAdmin = message.sender === 'admin';
                     return (
                       <View
-                        key={m._id}
+                        key={message._id}
                         style={[
                           st.bubbleRow,
                           {
@@ -367,12 +663,15 @@ const SupportRequestsTab = ({ t }) => {
                             },
                           ]}
                         >
-                          <Text style={{ fontSize: 12.5, color: '#111827' }}>
-                            {m.text}
-                          </Text>
-                          <Text style={st.bubbleMeta}>
-                            {isAdmin ? 'You' : ticket.contactName} ·{' '}
-                            {fmtDateTime(m.createdAt)}
+                          {!!message.text && (
+                            <Text style={{ fontSize: 12.5, color: t.title }}>
+                              {message.text}
+                            </Text>
+                          )}
+                          {renderMessageAttachments(message.attachments)}
+                          <Text style={[st.bubbleMeta, { color: t.subtitle }]}>
+                            {isAdmin ? 'You' : ticket.contactName || 'User'} ·{' '}
+                            {fmtDateTime(message.createdAt)}
                           </Text>
                         </View>
                       </View>
@@ -382,37 +681,65 @@ const SupportRequestsTab = ({ t }) => {
               </View>
             )}
 
-            {/* Reply */}
             <View style={[st.replyRow, { marginTop: 10 }]}>
+              <TouchableOpacity
+                style={[
+                  st.replyMediaBtn,
+                  { borderColor: t.border, backgroundColor: t.bg },
+                ]}
+                onPress={() => handleReplyCamera(ticket._id)}
+                disabled={sendingId === ticket._id}
+              >
+                <Icon name="camera-outline" size={18} color="#5a7bf5" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  st.replyMediaBtn,
+                  { borderColor: t.border, backgroundColor: t.bg },
+                ]}
+                onPress={() => handleReplyPicker(ticket._id)}
+                disabled={sendingId === ticket._id}
+              >
+                <Icon name="image-multiple-outline" size={18} color="#5a7bf5" />
+              </TouchableOpacity>
               <TextInput
                 value={replyText[ticket._id] || ''}
-                onChangeText={v =>
-                  setReplyText(prev => ({ ...prev, [ticket._id]: v }))
+                onChangeText={value =>
+                  setReplyText(previous => ({
+                    ...previous,
+                    [ticket._id]: value,
+                  }))
                 }
                 placeholder="Type a reply…"
                 placeholderTextColor={t.placeholder}
-                style={[makeInput(t), { flex: 1 }]}
-                onSubmitEditing={() => handleSendReply(ticket._id)}
-                returnKeyType="send"
+                style={[
+                  makeInput(t),
+                  {
+                    flex: 1,
+                    minHeight: 40,
+                    maxHeight: 100,
+                    paddingVertical: 8,
+                  },
+                ]}
+                multiline
               />
               <TouchableOpacity
                 style={[
                   st.sendBtn,
-                  (sendingId === ticket._id ||
-                    !replyText[ticket._id]?.trim()) && { opacity: 0.4 },
+                  (sendingId === ticket._id || !canSend) && { opacity: 0.4 },
                 ]}
                 onPress={() => handleSendReply(ticket._id)}
-                disabled={
-                  sendingId === ticket._id || !replyText[ticket._id]?.trim()
-                }
+                disabled={sendingId === ticket._id || !canSend}
               >
                 {sendingId === ticket._id ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={{ color: '#fff', fontSize: 15 }}>➤</Text>
+                  <Icon name="send" size={15} color="#fff" />
                 )}
               </TouchableOpacity>
             </View>
+
+            {renderSelectedFiles(ticket._id, selectedFiles)}
 
             <ImprovedButton
               title="Change Status"
@@ -435,27 +762,25 @@ const SupportRequestsTab = ({ t }) => {
         </Text>
       </View>
 
-      {/* Counts */}
       <View style={st.countRow}>
-        {['open', 'in_progress', 'resolved'].map(k => (
+        {['open', 'in_progress', 'resolved'].map(key => (
           <View
-            key={k}
+            key={key}
             style={[
               st.countBox,
               { backgroundColor: t.card, borderColor: t.border },
             ]}
           >
-            <Text style={[st.countValue, { color: STATUS_COLORS[k] }]}>
-              {counts[k] || 0}
+            <Text style={[st.countValue, { color: STATUS_COLORS[key] }]}>
+              {counts[key] || 0}
             </Text>
             <Text style={[makeMeta(t), { fontSize: 10 }]}>
-              {STATUS_LABELS[k]}
+              {STATUS_LABELS[key]}
             </Text>
           </View>
         ))}
       </View>
 
-      {/* Filter + refresh */}
       <View style={{ marginBottom: 10 }}>
         <ImprovedDropdown
           placeholder="Filter by status"
@@ -464,7 +789,6 @@ const SupportRequestsTab = ({ t }) => {
           onValueChange={setFilter}
         />
       </View>
-
       <ImprovedButton
         title="↻ Refresh"
         size="small"
@@ -473,12 +797,11 @@ const SupportRequestsTab = ({ t }) => {
       />
 
       {!!error && (
-        <View style={[st.errorBox]}>
+        <View style={st.errorBox}>
           <Text style={{ color: '#dc2626', fontSize: 12 }}>{error}</Text>
         </View>
       )}
 
-      {/* List */}
       {loading ? (
         <ActivityIndicator color="#5a7bf5" style={{ marginVertical: 24 }} />
       ) : tickets.length === 0 ? (
@@ -496,7 +819,6 @@ const SupportRequestsTab = ({ t }) => {
         tickets.map(renderTicket)
       )}
 
-      {/* Image preview */}
       <Modal
         visible={!!preview}
         transparent
@@ -508,10 +830,7 @@ const SupportRequestsTab = ({ t }) => {
             <Text style={st.previewName} numberOfLines={1}>
               {preview?.name}
             </Text>
-            <TouchableOpacity
-              onPress={() => setPreview(null)}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
+            <TouchableOpacity onPress={() => setPreview(null)}>
               <Text style={{ color: '#fff', fontSize: 20 }}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -525,7 +844,6 @@ const SupportRequestsTab = ({ t }) => {
         </Pressable>
       </Modal>
 
-      {/* Status modal */}
       <Modal
         transparent
         visible={!!statusModal}
@@ -539,7 +857,7 @@ const SupportRequestsTab = ({ t }) => {
           <Pressable style={st.backdrop} onPress={() => setStatusModal(null)}>
             <Pressable
               style={[st.modalCard, { backgroundColor: t.card }]}
-              onPress={e => e.stopPropagation()}
+              onPress={event => event.stopPropagation()}
             >
               <Text style={[makeTitle(t), { marginBottom: 4 }]}>
                 Change Status
@@ -547,14 +865,12 @@ const SupportRequestsTab = ({ t }) => {
               <Text style={[makeSubtitle(t), { marginBottom: 14 }]}>
                 {statusModal?.subject}
               </Text>
-
               <ImprovedDropdown
                 placeholder="Select status"
                 items={STATUS_CHANGE_OPTIONS}
                 selectedValue={newStatus}
                 onValueChange={setNewStatus}
               />
-
               <View style={st.modalActions}>
                 <TouchableOpacity
                   style={[st.cancelBtn, { borderColor: t.border }]}
@@ -578,11 +894,8 @@ const SupportRequestsTab = ({ t }) => {
   );
 };
 
-/* ─── Static styles ───────────────────────────────────────────────────── */
-
 const st = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -593,7 +906,12 @@ const st = StyleSheet.create({
   },
   chipDot: { width: 6, height: 6, borderRadius: 3 },
   chipText: { fontSize: 10, fontWeight: '700' },
-
+  unreadDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#dc2626',
+  },
   countRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   countBox: {
     flex: 1,
@@ -603,7 +921,6 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   countValue: { fontSize: 20, fontWeight: '800' },
-
   body: { borderTopWidth: 1, marginTop: 10, paddingTop: 10 },
   linkRow: {
     alignSelf: 'flex-start',
@@ -612,7 +929,6 @@ const st = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-
   attachWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
   attThumb: {
     width: 74,
@@ -629,7 +945,14 @@ const st = StyleSheet.create({
     gap: 2,
   },
   attThumbName: { fontSize: 8, textAlign: 'center' },
-
+  removeThumb: {
+    position: 'absolute',
+    top: 3,
+    right: 3,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderRadius: 9,
+    padding: 3,
+  },
   previewBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.94)',
@@ -650,7 +973,6 @@ const st = StyleSheet.create({
   },
   previewName: { flex: 1, color: '#fff', fontSize: 13, fontWeight: '600' },
   previewImg: { width: '100%', height: '78%' },
-
   thread: { borderRadius: 10, padding: 8, gap: 7 },
   bubbleRow: { flexDirection: 'row' },
   bubble: {
@@ -660,9 +982,30 @@ const st = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 7,
   },
-  bubbleMeta: { fontSize: 9.5, color: '#94a3b8', marginTop: 3 },
-
-  replyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bubbleMeta: { fontSize: 9.5, marginTop: 3 },
+  messageAttachmentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 7,
+  },
+  messageAttachment: {
+    width: 100,
+    height: 100,
+    borderWidth: 1,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  messageAttachmentImg: { width: '100%', height: '100%' },
+  replyRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  replyMediaBtn: {
+    width: 40,
+    height: 40,
+    borderWidth: 1,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   sendBtn: {
     width: 40,
     height: 40,
@@ -671,7 +1014,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
+  replyAttachmentHint: { fontSize: 10.5, marginTop: 8 },
   errorBox: {
     borderWidth: 1,
     borderColor: '#fca5a5',
@@ -680,7 +1023,6 @@ const st = StyleSheet.create({
     padding: 10,
     marginBottom: 10,
   },
-
   emptyBox: {
     borderWidth: 1,
     borderStyle: 'dashed',
@@ -688,7 +1030,6 @@ const st = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
   },
-
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
