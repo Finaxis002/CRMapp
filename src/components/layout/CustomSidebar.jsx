@@ -9,6 +9,7 @@ import {
   Pressable,
   Dimensions,
   BackHandler,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -40,7 +41,6 @@ const menuItems = [
     name: 'Payments',
     permission: 'record_payments',
   },
-  // { label: 'Attendance', icon: 'clipboard-check-outline', name: 'Attendance' },
   {
     label: 'Import',
     icon: 'upload',
@@ -89,7 +89,6 @@ const CustomSidebar = ({ currentRoute }) => {
   const [otpModalOpen, setOtpModalOpen] = useState(false);
   const [supportUnread, setSupportUnread] = useState(0);
 
-  // Slide-in animation
   const slideAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -125,7 +124,6 @@ const CustomSidebar = ({ currentRoute }) => {
     ]).start();
   }, [isOpen, slideAnim, fadeAnim]);
 
-  // Edge swipe gesture: only on left edge, only when closed, only horizontal
   const edgeSwipe = Gesture.Pan()
     .activeOffsetX([-10, 10])
     .failOffsetY([-15, 15])
@@ -152,15 +150,32 @@ const CustomSidebar = ({ currentRoute }) => {
   }, [user, settings]);
 
   const handleSendOtp = async () => {
-    await api.post('/auth/send-logout-otp', { userId: user._id });
+    try {
+      const response = await api.post('/auth/send-logout-otp', {});
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Failed to send OTP');
+      }
+    } catch (error) {
+      const errorMessage =
+        error.response?.data?.message || error.message || 'Failed to send OTP';
+      Alert.alert('Error', errorMessage);
+      throw error;
+    }
   };
 
   const handleVerifyOtp = async otp => {
-    const response = await api.post('/auth/verify-logout-otp', {
-      userId: user._id,
-      otp,
-    });
-    return response.data.success === true;
+    try {
+      const response = await api.post('/auth/verify-logout-otp', { otp });
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'OTP verification failed');
+      }
+      return response.data.success === true;
+    } catch (error) {
+      const errorMessage =
+        error.response?.data?.message || error.message || 'Verification failed';
+      Alert.alert('Verification Error', errorMessage);
+      throw error;
+    }
   };
 
   const handleLogoutClick = () => {
@@ -243,19 +258,17 @@ const CustomSidebar = ({ currentRoute }) => {
         visible={otpModalOpen}
         onClose={() => setOtpModalOpen(false)}
         onConfirmed={handleConfirmedLogout}
-        adminEmail={user?.email ?? ''}
+        adminEmail="bdefinaxis@gmail.com"
         onSendOtp={handleSendOtp}
         onVerifyOtp={handleVerifyOtp}
       />
 
-      {/* Edge swipe handler - left 30px, only when closed */}
       {!isOpen && (
         <GestureDetector gesture={edgeSwipe}>
           <View pointerEvents="box-none" style={styles.edgeHandler} />
         </GestureDetector>
       )}
 
-      {/* Dim overlay (backdrop) */}
       <Animated.View
         pointerEvents={isOpen ? 'auto' : 'none'}
         style={[styles.backdrop, { opacity: fadeAnim }]}
@@ -263,7 +276,6 @@ const CustomSidebar = ({ currentRoute }) => {
         <Pressable style={StyleSheet.absoluteFill} onPress={closeSidebar} />
       </Animated.View>
 
-      {/* Sliding sidebar panel */}
       <Animated.View
         pointerEvents={isOpen ? 'auto' : 'none'}
         style={[
@@ -277,7 +289,6 @@ const CustomSidebar = ({ currentRoute }) => {
           },
         ]}
       >
-        {/* Logo Header */}
         <View
           style={[
             styles.header,
@@ -300,7 +311,6 @@ const CustomSidebar = ({ currentRoute }) => {
           </View>
         </View>
 
-        {/* User Info */}
         <View
           style={[
             styles.userInfo,
@@ -324,7 +334,6 @@ const CustomSidebar = ({ currentRoute }) => {
           </View>
         </View>
 
-        {/* Nav Items */}
         <ScrollView
           style={styles.navScroll}
           showsVerticalScrollIndicator={false}
@@ -343,7 +352,6 @@ const CustomSidebar = ({ currentRoute }) => {
           <View style={{ height: 20 }} />
         </ScrollView>
 
-        {/* Help & Support */}
         <View
           style={[
             styles.supportSection,
@@ -375,7 +383,6 @@ const CustomSidebar = ({ currentRoute }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Logout */}
         <View
           style={[
             styles.logoutSection,
@@ -420,12 +427,10 @@ const styles = StyleSheet.create({
     left: 0,
     backgroundColor: '#ffffff',
     zIndex: 1000,
-    // iOS shadow
     shadowColor: '#000',
     shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-    // Android elevation
     elevation: 16,
   },
   header: {
