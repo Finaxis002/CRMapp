@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal,
   View,
@@ -7,9 +7,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
-import { IconSearch } from '@tabler/icons-react-native';
+import { IconSearch, IconX, IconCheck } from '@tabler/icons-react-native';
 import { leadsService } from '../../services/leadsService';
+
+const SEARCH_DEBOUNCE_MS = 350;
 
 export default function OverlayCloseAlternatePhoneModal({
   visible,
@@ -21,6 +26,10 @@ export default function OverlayCloseAlternatePhoneModal({
   const [selectedLead, setSelectedLead] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const debounceRef = useRef(null);
 
   const normalizePhoneValue = value => {
     const digits = String(value || '')
@@ -29,6 +38,9 @@ export default function OverlayCloseAlternatePhoneModal({
     if (!digits) return '';
     return digits.length > 10 ? digits.slice(-10) : digits;
   };
+
+  const getLeadKey = lead =>
+    lead?._id || lead?.id || `${lead?.name || ''}-${lead?.phone || ''}` || null;
 
   const collectSearchCandidates = term => {
     const rawValue = String(term || '').trim();
@@ -43,12 +55,26 @@ export default function OverlayCloseAlternatePhoneModal({
     setQuery('');
     setResults([]);
     setSelectedLead(null);
+    setSaveError('');
+    setHasSearched(false);
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
   }, [visible, phoneNumber]);
+
+  // Clear any pending debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const performSearch = async term => {
     const searchTerms = collectSearchCandidates(term);
     if (!searchTerms.length) {
       setResults([]);
+      setLoading(false);
       return;
     }
 
@@ -68,8 +94,7 @@ export default function OverlayCloseAlternatePhoneModal({
           : [];
 
         for (const lead of items) {
-          const key =
-            lead?._id || lead?.id || `${lead?.name || ''}-${lead?.phone || ''}`;
+          const key = getLeadKey(lead);
           if (!key || seenKeys.has(key)) continue;
           seenKeys.add(key);
           mergedResults.push(lead);
@@ -86,14 +111,48 @@ export default function OverlayCloseAlternatePhoneModal({
     }
   };
 
+  const handleQueryChange = text => {
+    setQuery(text);
+    setSelectedLead(null);
+    setSaveError('');
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    const trimmed = text.trim();
+    if (!trimmed) {
+      setHasSearched(false);
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+
+    setHasSearched(true);
+    debounceRef.current = setTimeout(() => {
+      performSearch(text);
+    }, SEARCH_DEBOUNCE_MS);
+  };
+
+  const handleSelectLead = lead => {
+    const leadKey = getLeadKey(lead);
+    const alreadySelected = !!leadKey && getLeadKey(selectedLead) === leadKey;
+
+    setSelectedLead(alreadySelected ? null : lead);
+    setSaveError('');
+    Keyboard.dismiss();
+  };
+
   const handleSave = async () => {
     const leadId = selectedLead?._id || selectedLead?.id;
     if (!leadId) return;
 
-    const normalized = normalizePhoneValue(phoneNumber || query || '');
-    if (!normalized) return;
+    const normalized = normalizePhoneValue(phoneNumber || '');
+    if (!normalized) {
+      setSaveError('No valid phone number to save.');
+      return;
+    }
 
     setSaving(true);
+    setSaveError('');
     try {
       await leadsService.updateLead(leadId, {
         alternatePhone: normalized,
@@ -101,9 +160,81 @@ export default function OverlayCloseAlternatePhoneModal({
       onClose();
     } catch (error) {
       console.warn('Unable to save alternatePhone', error);
+      setSaveError('Could not save. Please try again.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const renderResultsBody = () => {
+    if (loading) {
+      return (
+        <View style={styles.statusBox}>
+          <Text style={styles.statusText}>Searching...</Text>
+        </View>
+      );
+    }
+
+    if (!hasSearched) {
+      return (
+        <View style={styles.statusBox}>
+          <Text style={styles.statusText}>Type a name or number to search</Text>
+        </View>
+      );
+    }
+
+    if (results.length === 0) {
+      return (
+        <View style={styles.statusBox}>
+          <Text style={styles.statusText}>No leads found</Text>
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView
+        style={styles.resultList}
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
+      >
+        {results.map(lead => {
+          const leadKey = getLeadKey(lead);
+          const isSelected = !!leadKey && getLeadKey(selectedLead) === leadKey;
+          return (
+            <TouchableOpacity
+              key={leadKey}
+              style={[
+                styles.resultItem,
+                isSelected && styles.selectedResultItem,
+              ]}
+              onPress={() => handleSelectLead(lead)}
+            >
+              <View style={styles.resultTopRow}>
+                <Text
+                  style={[
+                    styles.resultTitle,
+                    isSelected && styles.resultTitleSelected,
+                  ]}
+                >
+                  {lead.name || 'Unnamed lead'}
+                </Text>
+                {isSelected ? (
+                  <View style={styles.selectedBadge}>
+                    <IconCheck size={13} color="#FFFFFF" strokeWidth={3} />
+                    <Text style={styles.selectedLabel}>Selected</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.selectLabel}>Select</Text>
+                )}
+              </View>
+              <Text style={styles.resultSubtitle}>
+                {lead.phone || lead.alternatePhone || 'No phone found'}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    );
   };
 
   return (
@@ -113,20 +244,36 @@ export default function OverlayCloseAlternatePhoneModal({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.backdrop}
+      >
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={onClose}
+        />
         <View style={styles.card}>
-          <Text style={styles.title}>Add Alternate Phone ({phoneNumber})</Text>
-          <Text style={styles.subtitle}>Search lead name or number</Text>
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={styles.title}>Add Alternate Phone</Text>
+              <Text style={styles.subtitle}>{phoneNumber}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={onClose}
+              accessibilityLabel="Close modal"
+            >
+              <IconX size={20} color="#475569" />
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.searchContainer}>
             <IconSearch size={20} color="#94A3B8" style={styles.searchIcon} />
             <TextInput
               style={styles.input}
               value={query}
-              onChangeText={text => {
-                setQuery(text);
-                performSearch(text);
-              }}
+              onChangeText={handleQueryChange}
               placeholder="Enter lead name or phone"
               keyboardType="default"
               returnKeyType="search"
@@ -134,54 +281,10 @@ export default function OverlayCloseAlternatePhoneModal({
             />
           </View>
 
-          <View style={styles.resultListContainer}>
-            {loading ? (
-              <View style={styles.statusBox}>
-                <Text style={styles.statusText}>Searching...</Text>
-              </View>
-            ) : results.length === 0 ? (
-              <View style={styles.statusBox}>
-                <Text style={styles.statusText}>No leads found</Text>
-              </View>
-            ) : (
-              <ScrollView style={styles.resultList} nestedScrollEnabled>
-                {results.map(lead => (
-                  <TouchableOpacity
-                    key={lead._id || lead.id}
-                    style={[
-                      styles.resultItem,
-                      (selectedLead?._id === lead._id ||
-                        selectedLead?.id === lead.id) &&
-                        styles.selectedResultItem,
-                    ]}
-                    onPress={() => setSelectedLead(lead)}
-                  >
-                    <View style={styles.resultTopRow}>
-                      <Text style={styles.resultTitle}>
-                        {lead.name || 'Unnamed lead'}
-                      </Text>
-                      <Text
-                        style={
-                          selectedLead?._id === lead._id ||
-                          selectedLead?.id === lead.id
-                            ? styles.selectedLabel
-                            : styles.selectLabel
-                        }
-                      >
-                        {selectedLead?._id === lead._id ||
-                        selectedLead?.id === lead.id
-                          ? 'Selected'
-                          : 'Select'}
-                      </Text>
-                    </View>
-                    <Text style={styles.resultSubtitle}>
-                      {lead.phone || lead.alternatePhone || 'No phone found'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-          </View>
+          <View style={styles.resultListContainer}>{renderResultsBody()}</View>
+
+          {saveError ? <Text style={styles.errorText}>{saveError}</Text> : null}
+
           <View style={styles.actionsRow}>
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
               <Text style={styles.cancelText}>Cancel</Text>
@@ -200,7 +303,7 @@ export default function OverlayCloseAlternatePhoneModal({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -218,14 +321,24 @@ const styles = StyleSheet.create({
     padding: 20,
     maxHeight: '80%',
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  closeButton: {
+    padding: 6,
+    borderRadius: 12,
+  },
   title: {
     fontSize: 18,
     fontWeight: '700',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   subtitle: {
     color: '#64748B',
-    marginBottom: 12,
+    marginBottom: 0,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -248,7 +361,7 @@ const styles = StyleSheet.create({
   },
   resultListContainer: {
     maxHeight: 260,
-    marginBottom: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 14,
@@ -265,9 +378,21 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
   },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 13,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
   selectedResultItem: {
+    borderWidth: 2,
     borderColor: '#5A7BF6',
     backgroundColor: '#EFF6FF',
+    shadowColor: '#5A7BF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   resultTopRow: {
     flexDirection: 'row',
@@ -275,14 +400,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
+  selectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#5A7BF6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
   selectedLabel: {
-    color: '#2563EB',
+    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
-    backgroundColor: '#DBEAFE',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
+    marginLeft: 4,
   },
   selectLabel: {
     color: '#475569',
@@ -296,6 +426,10 @@ const styles = StyleSheet.create({
   resultTitle: {
     fontSize: 15,
     fontWeight: '600',
+    color: '#0F172A',
+  },
+  resultTitleSelected: {
+    color: '#1D4ED8',
   },
   resultSubtitle: {
     color: '#475569',
