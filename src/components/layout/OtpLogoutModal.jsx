@@ -7,11 +7,13 @@ import {
   Modal,
   StyleSheet,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const BRAND = '#5a7bf6';
-const BRAND_DARK = '#4a68e0';
 const OTP_LENGTH = 6;
 const RESEND_WAIT = 30;
 
@@ -31,7 +33,7 @@ const OtpLogoutModal = ({
   onVerifyOtp,
 }) => {
   const [otp, setOtp] = useState(Array(OTP_LENGTH).fill(''));
-  const [step, setStep] = useState('sending'); // sending | input | verifying | success
+  const [step, setStep] = useState('sending');
   const [error, setError] = useState('');
   const [timer, setTimer] = useState(RESEND_WAIT);
   const inputRefs = useRef([]);
@@ -138,12 +140,18 @@ const OtpLogoutModal = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.backdrop}
+      >
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={onClose}
+        />
         <View style={styles.card}>
-          {/* Top gradient strip */}
           <View style={styles.gradientStrip} />
 
-          {/* Close button */}
           <TouchableOpacity
             style={styles.closeButton}
             onPress={onClose}
@@ -152,8 +160,12 @@ const OtpLogoutModal = ({
             <Icon name="close" size={20} color="#94a3b8" />
           </TouchableOpacity>
 
-          <View style={styles.content}>
-            {/* Icon */}
+          <ScrollView
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.iconWrap}>
               {step === 'success' ? (
                 <Icon name="check-circle" size={28} color="#22c55e" />
@@ -162,7 +174,6 @@ const OtpLogoutModal = ({
               )}
             </View>
 
-            {/* Title */}
             <Text style={styles.title}>
               {step === 'success'
                 ? 'Verified! Logging out...'
@@ -178,7 +189,6 @@ const OtpLogoutModal = ({
                   )}. Enter it below to confirm logout.`}
             </Text>
 
-            {/* OTP boxes */}
             {(step === 'input' || step === 'verifying') && (
               <>
                 <View style={styles.otpRow}>
@@ -205,10 +215,8 @@ const OtpLogoutModal = ({
                   ))}
                 </View>
 
-                {/* Error */}
                 {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-                {/* Verify button */}
                 <TouchableOpacity
                   style={[
                     styles.verifyButton,
@@ -235,7 +243,6 @@ const OtpLogoutModal = ({
                   )}
                 </TouchableOpacity>
 
-                {/* Resend */}
                 <Text style={styles.resendText}>
                   {timer > 0 ? `Resend OTP in (${timer}s)` : ''}
                 </Text>
@@ -247,18 +254,16 @@ const OtpLogoutModal = ({
               </>
             )}
 
-            {/* Sending spinner */}
             {step === 'sending' && (
               <View style={styles.spinnerWrap}>
                 <ActivityIndicator size="large" color={BRAND} />
               </View>
             )}
 
-            {/* Success bar */}
             {step === 'success' && <View style={styles.successBar} />}
-          </View>
+          </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -277,6 +282,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 20,
     overflow: 'hidden',
+    maxHeight: '85%',
   },
   gradientStrip: {
     height: 4,
