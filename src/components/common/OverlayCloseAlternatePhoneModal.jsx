@@ -63,7 +63,6 @@ export default function OverlayCloseAlternatePhoneModal({
     }
   }, [visible, phoneNumber]);
 
-  // Clear any pending debounce timer on unmount
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -274,7 +273,7 @@ export default function OverlayCloseAlternatePhoneModal({
               style={styles.input}
               value={query}
               onChangeText={handleQueryChange}
-              placeholder="Enter lead name or phone"
+              placeholder="Search existing lead to map"
               keyboardType="default"
               returnKeyType="search"
               placeholderTextColor="#94A3B8"
