@@ -1,128 +1,136 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/overlayRoot"
-    android:layout_width="match_parent"
+    android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="#1A1D23"
-    android:padding="14dp">
+    android:padding="8dp">
 
-    <!-- Row 1: status text + close button -->
+    <!-- Bubble State: Default minimized draggable head -->
     <LinearLayout
-        android:id="@+id/statusRow"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="8dp">
-
+        android:id="@+id/bubbleView"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:background="@android:drawable/btn_default"
+        android:backgroundTint="#5A7BF6"
+        android:gravity="center"
+        android:elevation="8dp"
+        android:orientation="vertical">
         <TextView
-            android:id="@+id/statusText"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Call in progress"
+            android:text="CRM"
             android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            android:maxLines="1"
-            android:ellipsize="end" />
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Action Pill State: Hidden by default -->
+    <LinearLayout
+        android:id="@+id/actionPillView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#1A1D23"
+        android:elevation="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="6dp"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/btnCollapseToBubble"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_revert"
+            android:tint="#9CA3AF"
+            android:contentDescription="Collapse" />
+
+        <Button
+            android:id="@+id/btnNote"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:backgroundTint="#5A7BF6"
+            android:text="Note"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btnTask"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:backgroundTint="#16A34A"
+            android:text="Task"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btnNewLead"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:backgroundTint="#9333EA"
+            android:text="Lead"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" />
 
         <ImageButton
             android:id="@+id/btnClose"
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:background="@android:color/transparent"
-            android:contentDescription="Close overlay"
-            android:padding="4dp"
+            android:layout_marginStart="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
-            android:tint="#9CA3AF" />
+            android:tint="#EF4444"
+            android:contentDescription="Close" />
     </LinearLayout>
 
-    <!-- Row 2: action buttons -->
-    <LinearLayout
-        android:id="@+id/buttonsRow"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-
-        <Button
-            android:id="@+id/btnNote"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:layout_marginEnd="6dp"
-            android:text="+ Note"
-            android:textSize="12sp"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#5A7BF6" />
-
-        <Button
-            android:id="@+id/btnTask"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:layout_marginEnd="6dp"
-            android:text="+ Task"
-            android:textSize="12sp"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#16A34A" />
-
-        <Button
-            android:id="@+id/btnNewLead"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:text="+ Lead"
-            android:textSize="12sp"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#9333EA" />
-    </LinearLayout>
-
-    <!-- Collapsed row: status + Note/Task/New Lead buttons + manual close -->
-    <LinearLayout
-        android:id="@+id/collapsedRow"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:visibility="gone">
-    </LinearLayout>
-
-    <!-- Expanded form: hidden by default -->
+    <!-- Compact Form State: Hidden by default -->
     <LinearLayout
         android:id="@+id/expandedForm"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minWidth="340dp"
+        android:background="#1A1D23"
+        android:elevation="10dp"
         android:orientation="vertical"
-        android:visibility="gone"
-        android:layout_marginTop="10dp">
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/formTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="Add Note"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
 
         <EditText
             android:id="@+id/inputText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:minLines="3"
-            android:maxLines="5"
-            android:gravity="top"
             android:background="#23262E"
+            android:gravity="top"
+            android:hint="Type here..."
+            android:minLines="2"
+            android:maxLines="3"
+            android:padding="8dp"
             android:textColor="#FFFFFF"
             android:textColorHint="#9CA3AF"
-            android:padding="8dp"
-            android:hint="Enter your text..." />
+            android:textSize="13sp" />
 
-        <!-- Task date picker: hidden by default -->
         <Button
             android:id="@+id/btnPickDate"
             android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:text="Select Due Date: Today"
-            android:textSize="12sp"
-            android:backgroundTint="#374151"
-            android:textColor="#FFFFFF"
-            android:gravity="center"
+            android:layout_height="36dp"
             android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp"
+            android:backgroundTint="#374151"
+            android:text="Due: Today"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
             android:visibility="gone" />
 
         <LinearLayout
@@ -134,23 +142,23 @@
             <Button
                 android:id="@+id/btnCancel"
                 android:layout_width="0dp"
-                android:layout_height="38dp"
-                android:layout_weight="1"
+                android:layout_height="36dp"
                 android:layout_marginEnd="6dp"
-                android:text="Cancel"
-                android:textSize="12sp"
+                android:layout_weight="1"
                 android:backgroundTint="#374151"
-                android:textColor="#FFFFFF" />
+                android:text="Cancel"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp" />
 
             <Button
                 android:id="@+id/btnSave"
                 android:layout_width="0dp"
-                android:layout_height="38dp"
+                android:layout_height="36dp"
                 android:layout_weight="1"
-                android:text="Save"
-                android:textSize="12sp"
                 android:backgroundTint="#5A7BF6"
-                android:textColor="#FFFFFF" />
+                android:text="Save"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp" />
         </LinearLayout>
     </LinearLayout>
-</LinearLayout>
+</FrameLayout>

@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StatusBar, Platform } from 'react-native';
+import {
+  View,
+  ActivityIndicator,
+  StatusBar,
+  Platform,
+  AppState,
+} from 'react-native';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -11,6 +17,7 @@ import { navigationRef } from './src/services/navigationService';
 import { setUser, setInitializing, logout } from './src/store/slices/authSlice';
 import { fetchSettings } from './src/store/slices/settingsSlice';
 import { authService } from './src/services/authService';
+import { leadsService } from './src/services/leadsService';
 import {
   initCallTracker,
   requestCallPermissions,
@@ -38,6 +45,16 @@ const AppContent = () => {
   const [overlayCloseModalVisible, setOverlayCloseModalVisible] =
     useState(false);
   const [overlayClosePhone, setOverlayClosePhone] = useState('');
+  const [appState, setAppState] = useState(AppState.currentState);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      setAppState(nextAppState);
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -75,15 +92,39 @@ const AppContent = () => {
   }, [dispatch, isAuthenticated]);
 
   useEffect(() => {
-    const handleOverlayClose = event => {
+    const handleOverlayClose = async event => {
       const phone = String(event?.phoneNumber || '').trim();
-      setOverlayClosePhone(phone);
-      setOverlayCloseModalVisible(true);
+      if (!phone) return;
+
+      try {
+        const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+        const results = await leadsService.getLeads(
+          { search: cleanPhone },
+          1,
+          1,
+        );
+        const items = Array.isArray(results)
+          ? results
+          : Array.isArray(results?.data)
+          ? results.data
+          : Array.isArray(results?.items)
+          ? results.items
+          : [];
+
+        if (items.length > 0) {
+          return;
+        }
+
+        setOverlayClosePhone(phone);
+        setOverlayCloseModalVisible(true);
+      } catch (error) {
+        console.warn('Error checking phone before showing modal', error);
+      }
     };
 
     registerOverlayCloseHandler(handleOverlayClose);
     return () => registerOverlayCloseHandler(null);
-  }, []);
+  }, [appState]);
 
   useLocationTracker(isAuthenticated);
 
